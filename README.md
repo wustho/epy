@@ -1,0 +1,2 @@
+# epy
+CLI EPUB Reader
