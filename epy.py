@@ -40,7 +40,7 @@ Key Binding:
 """
 
 
-__version__ = "2.3.0b"
+__version__ = "2.3.0-epy"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epr"
