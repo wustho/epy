@@ -3,7 +3,13 @@
 Yet Another CLI EPUB Reader.
 
 It's just a fork of my own [epr](https://github.com/wustho/epr) with extra feature,
-**Reading Percentage** (Which personally, I find it very essential when reading) on right top corner.
+**Reading Percentage** (which personally, I find it very essential when reading) on right top corner.
 It costs a little startup time though.
 
 Press `s` to toggle between show/hide reading percentage.
+
+# Installation
+
+```shell
+$ pip3 install git+https://github.com/wustho/epy
+```
