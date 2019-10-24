@@ -1176,9 +1176,12 @@ def main():
             hlp = re.search("(\n|.)*(?=\n\nKey)", hlp).group()
         print(hlp)
         sys.exit()
+        
+    loadstate()
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
-        print(__version__)
+        print(f"* Configuration file loaded:\n  {STATEFILE}\n")
+        print("v" + __version__)
         print(__license__, "License")
         print("Copyright (c) 2019", __author__)
         print(__url__)
@@ -1189,8 +1192,6 @@ def main():
         dump = True
     else:
         dump = False
-
-    loadstate()
 
     if args == []:
         file, todel = False, []
@@ -1238,7 +1239,7 @@ def main():
         if val != 0 and len({"-r"} & set(args)) == 0:
             file = cand
         else:
-            print("\nReading history:")
+            print("Reading history:")
             dig = len(str(len(STATE.keys())+1))
             for n, i in enumerate(STATE.keys()):
                 print(str(n+1).rjust(dig)
