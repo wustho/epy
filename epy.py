@@ -10,7 +10,6 @@ Usages:
 Options:
     -r              print reading history
     -d              dump epub
-    -l              save state locally
     -h, --help      print short, long help
 
 Key Binding:
@@ -77,31 +76,33 @@ WIDTH = ord("=")
 META = ord("m")
 TOC = {9, ord("\t"), ord("t")}
 FOLLOW = {10}
-LOCALSAVING = {ord("`")}
 QUIT = {ord("q"), 3, 27, 304}
 HELP = {ord("?")}
 COLORSWITCH = ord("c")
 
 
-# colorscheme
-# DARK/LIGHT = (fg, bg)
-# -1 is default terminal fg/bg
-DARK = (252, 235)
-LIGHT = (238, 253)
-
-
 # some global envs, better leave these alone
-STATEFILE = ""
+# -1 is default terminal fg/bg colors
+CFG = {
+    "DefaultViewer": "Default",
+    "EnableProgressIndicator": True,
+    "DarkColorFG": 252,
+    "DarkColorBG": 235,
+    "LightColorFG": 238,
+    "LightColorBG": 253
+}
 STATE = {
-    "LastRead": None,
+    "LastRead": "",
     "States": {}
 }
+CFGFILE = ""
+STATEFILE = ""
 COLORSUPPORT = False
 LINEPRSRV = 0  # 2
 SEARCHPATTERN = None
 VWR = None
 PERCENTAGE = []
-SHOWPROGRESS = True
+SHOWPROGRESS = CFG["EnableProgressIndicator"]
 
 
 class Epub:
@@ -320,28 +321,35 @@ class HTMLtoLines(HTMLParser):
 
 
 def loadstate():
-    global STATE, STATEFILE
+    global CFG, STATE, CFGFILE, STATEFILE
+    prefix = ""
     if os.getenv("HOME") is not None:
-        STATEFILE = os.path.join(os.getenv("HOME"), ".epy")
-        if os.path.isdir(os.path.join(os.getenv("HOME"), ".config")):
-            configdir = os.path.join(os.getenv("HOME"), ".config", "epy")
-            os.makedirs(configdir, exist_ok=True)
-            if os.path.isfile(STATEFILE):
-                if os.path.isfile(os.path.join(configdir, "config")):
-                    os.remove(os.path.join(configdir, "config"))
-                shutil.move(STATEFILE, os.path.join(configdir, "config"))
-            STATEFILE = os.path.join(configdir, "config")
+        homedir = os.getenv("HOME")
+        if os.path.isdir(os.path.join(homedir, ".config")):
+            prefix = os.path.join(homedir, ".config", "epy")
+        else:
+            prefix = os.path.join(homedir, ".epy")
     elif os.getenv("USERPROFILE") is not None:
-        STATEFILE = os.path.join(os.getenv("USERPROFILE"), ".epy")
+        prefix = os.path.join(os.getenv("USERPROFILE"), ".epy")
     else:
+        CFGFILE = os.devnull
         STATEFILE = os.devnull
+    os.makedirs(prefix, exist_ok=True)
+    CFGFILE = os.path.join(prefix, "config.json")
+    STATEFILE = os.path.join(prefix, "state.json")
 
-    if os.path.exists(STATEFILE):
-        with open(STATEFILE, "r") as f:
+    try:
+        with open(CFGFILE) as f:
+            CFG = json.load(f)
+        with open(STATEFILE) as f:
             STATE = json.load(f)
+    except FileNotFoundError:
+        pass
 
 
 def savestate(file, index, width, pos, pctg):
+    with open(CFGFILE, "w") as f:
+        json.dump(CFG, f, indent=2)
     STATE["LastRead"] = file
     STATE["States"][file]["index"] = index
     STATE["States"][file]["width"] = width
@@ -607,7 +615,7 @@ def find_media_viewer():
     elif sys.platform == "darwin":
         VWR = "open"
     else:
-        for i in VWR_LIST:
+        for i in [CFG["DefaultViewer"]] + VWR_LIST:
             if shutil.which(i) is not None:
                 VWR = i
                 if VWR == "gio": VWR += " open"
@@ -856,10 +864,12 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
             pad.addstr(n, width//2 - len(i)//2, i, curses.A_REVERSE)
         else:
             pad.addstr(n, 0, i)
-        LOCALPCTG.append(len(re.sub("\s", "", i)))
+        if CFG["EnableProgressIndicator"]:
+            LOCALPCTG.append(len(re.sub("\s", "", i)))
 
-    TOTALPCTG = sum(PERCENTAGE)
-    TOTALLOCALPCTG = sum(PERCENTAGE[:index])
+    if CFG["EnableProgressIndicator"]:
+        TOTALPCTG = sum(PERCENTAGE)
+        TOTALLOCALPCTG = sum(PERCENTAGE[:index])
 
     stdscr.clear()
     stdscr.refresh()
@@ -1034,11 +1044,6 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     imgsrc = dots_path(chpath, impath)
                     k = open_media(pad, ebook, imgsrc)
                     continue
-            elif k in LOCALSAVING:
-                localstatefile = os.path.splitext(ebook.path)[0] + ".json"
-                if not os.path.isfile(localstatefile):
-                    with open(localstatefile, "w+") as lc:
-                        lc.write("")
             elif k == COLORSWITCH and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
                 if countstring == "":
                     count_color = curses.pair_number(stdscr.getbkgd())
@@ -1048,7 +1053,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     count_color = count
                 stdscr.bkgd(curses.color_pair(count_color+1))
                 return 0, width, y, None, ""
-            elif k == ord("s"):
+            elif k == ord("s") and CFG["EnableProgressIndicator"]:
                 SHOWPROGRESS = not SHOWPROGRESS
             elif k == curses.KEY_RESIZE:
                 savestate(ebook.path, index, width, y, y/totlines)
@@ -1066,7 +1071,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     return 0, width, y, None, ""
             countstring = ""
 
-        if SHOWPROGRESS:
+        if CFG["EnableProgressIndicator"]:
             PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
             PROGRESSTR = f"{int(PROGRESS*100)}%"
 
@@ -1086,13 +1091,13 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
 
 
 def preread(stdscr, file):
-    global COLORSUPPORT, PERCENTAGE
+    global COLORSUPPORT, SHOWPROGRESS, PERCENTAGE
 
     curses.use_default_colors()
     try:
         curses.init_pair(1, -1, -1)
-        curses.init_pair(2, DARK[0], DARK[1])
-        curses.init_pair(3, LIGHT[0], LIGHT[1])
+        curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
+        curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
         COLORSUPPORT = True
     except:
         COLORSUPPORT  = False
@@ -1124,18 +1129,20 @@ def preread(stdscr, file):
     epub.initialize()
     find_media_viewer()
 
-    for i in epub.contents:
-        content = epub.file.open(i).read()
-        content = content.decode("utf-8")
-        parser = HTMLtoLines()
-        # try:
-        parser.feed(content)
-        parser.close()
-        # except:
-        #     pass
-        src_lines = parser.get_lines()
-        # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
-        PERCENTAGE.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
+    SHOWPROGRESS = CFG["EnableProgressIndicator"]
+    if SHOWPROGRESS:
+        for i in epub.contents:
+            content = epub.file.open(i).read()
+            content = content.decode("utf-8")
+            parser = HTMLtoLines()
+            # try:
+            parser.feed(content)
+            parser.close()
+            # except:
+            #     pass
+            src_lines = parser.get_lines()
+            # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
+            PERCENTAGE.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
     sec = ""
     while True:
