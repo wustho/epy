@@ -1183,8 +1183,11 @@ def main():
         file = args[0]
 
     else:
-        val = cand = 0
+        file = None
         todel = []
+        xitmsg = 0
+
+        val = 0
         for i in STATE["States"].keys():
             if not os.path.exists(i):
                 todel.append(i)
@@ -1196,7 +1199,9 @@ def main():
                 ])
                 if match_val >= val:
                     val = match_val
-                    cand = i
+                    file = i
+        if val == 0:
+            xitmsg = "\nERROR: No matching file found in history."
 
         for i in todel:
             del STATE["States"][i]
@@ -1205,23 +1210,17 @@ def main():
 
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
-                cand = list(STATE["States"].keys())[int(args[0])-1]
-                val = 1
+                file = list(STATE["States"].keys())[int(args[0])-1]
             except IndexError:
-                val = 0
-        if val != 0 and len({"-r"} & set(args)) == 0:
-            file = cand
-        else:
+                xitmsg = "\nERROR: No matching file found in history."
+
+        if xitmsg != 0 or "-r" in args:
             print("Reading history:")
             dig = len(str(len(STATE["States"].keys())+1))
             for n, i in enumerate(STATE["States"].keys()):
                 print(str(n+1).rjust(dig)
                       + ("* " if STATE["LastRead"] == i else "  ") + i)
-            if len({"-r"} & set(args)) != 0:
-                sys.exit()
-            else:
-                print()
-                sys.exit("ERROR: Found no matching history.")
+            sys.exit(xitmsg)
 
     if dump:
         epub = Epub(file)
