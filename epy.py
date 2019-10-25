@@ -53,10 +53,11 @@ import textwrap
 import json
 import tempfile
 import shutil
+import subprocess
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote
 from html import unescape
-from subprocess import run
+# from subprocess import run
 from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
 
@@ -628,7 +629,13 @@ def open_media(scr, epub, src):
     try:
         with os.fdopen(fd, "wb") as tmp:
             tmp.write(epub.file.read(src))
-        run(VWR + " " + path, shell=True)
+        # run(VWR + " " + path, shell=True)
+        subprocess.call(
+            VWR + " " + path,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
         k = scr.getch()
     finally:
         os.remove(path)
