@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """\
 Usages:
-    epr             read last epub
-    epr EPUBFILE    read EPUBFILE
-    epr STRINGS     read matched STRINGS from history
-    epr NUMBER      read file from history
+    epy             read last epub
+    epy EPUBFILE    read EPUBFILE
+    epy STRINGS     read matched STRINGS from history
+    epy NUMBER      read file from history
                     with associated NUMBER
 
 Options:
@@ -36,7 +36,6 @@ Key Binding:
     Metadata        : m
     Toggle Progress : s
     Switch colorsch : [default=0, dark=1, light=2]c
-    Create local st : `
 """
 
 
@@ -93,7 +92,10 @@ LIGHT = (238, 253)
 
 # some global envs, better leave these alone
 STATEFILE = ""
-STATE = {}
+STATE = {
+    "LastRead": None,
+    "States": {}
+}
 COLORSUPPORT = False
 LINEPRSRV = 0  # 2
 SEARCHPATTERN = None
@@ -320,9 +322,9 @@ class HTMLtoLines(HTMLParser):
 def loadstate():
     global STATE, STATEFILE
     if os.getenv("HOME") is not None:
-        STATEFILE = os.path.join(os.getenv("HOME"), ".epr")
+        STATEFILE = os.path.join(os.getenv("HOME"), ".epy")
         if os.path.isdir(os.path.join(os.getenv("HOME"), ".config")):
-            configdir = os.path.join(os.getenv("HOME"), ".config", "epr")
+            configdir = os.path.join(os.getenv("HOME"), ".config", "epy")
             os.makedirs(configdir, exist_ok=True)
             if os.path.isfile(STATEFILE):
                 if os.path.isfile(os.path.join(configdir, "config")):
@@ -330,7 +332,7 @@ def loadstate():
                 shutil.move(STATEFILE, os.path.join(configdir, "config"))
             STATEFILE = os.path.join(configdir, "config")
     elif os.getenv("USERPROFILE") is not None:
-        STATEFILE = os.path.join(os.getenv("USERPROFILE"), ".epr")
+        STATEFILE = os.path.join(os.getenv("USERPROFILE"), ".epy")
     else:
         STATEFILE = os.devnull
 
@@ -340,24 +342,11 @@ def loadstate():
 
 
 def savestate(file, index, width, pos, pctg):
-    localstatefile = os.path.splitext(file)[0] + ".json"
-    if os.path.isfile(localstatefile):
-        local_state = {
-            "index": str(index),
-            "width": str(width),
-            "pos": str(pos),
-            "pctg": str(pctg)
-        }
-        with open(localstatefile, "w") as f:
-            json.dump(local_state, f, indent=4)
-
-    for i in STATE:
-        STATE[i]["lastread"] = str(0)
-    STATE[file]["lastread"] = str(1)
-    STATE[file]["index"] = str(index)
-    STATE[file]["width"] = str(width)
-    STATE[file]["pos"] = str(pos)
-    STATE[file]["pctg"] = str(pctg)
+    STATE["LastRead"] = file
+    STATE["States"][file]["index"] = index
+    STATE["States"][file]["width"] = width
+    STATE["States"][file]["pos"] = pos
+    STATE["States"][file]["pctg"] = pctg
     with open(STATEFILE, "w") as f:
         json.dump(STATE, f, indent=4)
 
@@ -1117,33 +1106,20 @@ def preread(stdscr, file):
 
     epub = Epub(file)
 
-    if epub.path in STATE:
-        idx = int(STATE[epub.path]["index"])
-        width = int(STATE[epub.path]["width"])
-        y = int(STATE[epub.path]["pos"])
-        pctg = None
+    if epub.path in STATE["States"]:
+        idx = STATE["States"][epub.path]["index"]
+        width = STATE["States"][epub.path]["width"]
+        y = STATE["States"][epub.path]["pos"]
     else:
-        STATE[epub.path] = {}
+        STATE["States"][epub.path] = {}
         idx = 0
         y = 0
         width = 80
-        pctg = None
+    pctg = None
+
     if cols <= width:
         width = cols - 2
-        if "pctg" in STATE[epub.path]:
-            pctg = float(STATE[epub.path]["pctg"])
-    try:
-        with open(os.path.splitext(epub.path)[0]+".json") as f:
-            local_state = json.load(f)
-        idx = int(local_state["index"])
-        width = int(local_state["width"])
-        y = int(local_state["pos"])
-        pctg = None
-        if cols <= width:
-            width = cols - 2
-            pctg = float(local_state["pctg"])
-    except (FileNotFoundError, json.decoder.JSONDecodeError):
-        pass
+        pctg = STATE["States"][epub.path].get("pctg", None)
 
     epub.initialize()
     find_media_viewer()
@@ -1180,7 +1156,7 @@ def main():
             hlp = re.search("(\n|.)*(?=\n\nKey)", hlp).group()
         print(hlp)
         sys.exit()
-        
+
     loadstate()
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
@@ -1198,18 +1174,9 @@ def main():
         dump = False
 
     if args == []:
-        file, todel = False, []
-        for i in STATE:
-            if not os.path.exists(i):
-                todel.append(i)
-            elif STATE[i]["lastread"] == str(1):
-                file = i
-
-        for i in todel:
-            del STATE[i]
-
-        if not file:
-            print(__doc__)
+        file = STATE["LastRead"]
+        if not os.path.isfile(file):
+            # print(__doc__)
             sys.exit("ERROR: Found no last read file.")
 
     elif os.path.isfile(args[0]):
@@ -1218,7 +1185,7 @@ def main():
     else:
         val = cand = 0
         todel = []
-        for i in STATE.keys():
+        for i in STATE["States"].keys():
             if not os.path.exists(i):
                 todel.append(i)
             else:
@@ -1230,13 +1197,15 @@ def main():
                 if match_val >= val:
                     val = match_val
                     cand = i
+
         for i in todel:
-            del STATE[i]
+            del STATE["States"][i]
         with open(STATEFILE, "w") as f:
             json.dump(STATE, f, indent=4)
+
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
-                cand = list(STATE.keys())[int(args[0])-1]
+                cand = list(STATE["States"].keys())[int(args[0])-1]
                 val = 1
             except IndexError:
                 val = 0
@@ -1244,10 +1213,10 @@ def main():
             file = cand
         else:
             print("Reading history:")
-            dig = len(str(len(STATE.keys())+1))
-            for n, i in enumerate(STATE.keys()):
+            dig = len(str(len(STATE["States"].keys())+1))
+            for n, i in enumerate(STATE["States"].keys()):
                 print(str(n+1).rjust(dig)
-                      + ("* " if STATE[i]["lastread"] == "1" else "  ") + i)
+                      + ("* " if STATE["LastRead"] == i else "  ") + i)
             if len({"-r"} & set(args)) != 0:
                 sys.exit()
             else:
