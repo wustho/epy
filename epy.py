@@ -1225,6 +1225,7 @@ def main():
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
                 file = list(STATE["States"].keys())[int(args[0])-1]
+                xitmsg = 0
             except IndexError:
                 xitmsg = "\nERROR: No matching file found in history."
 
