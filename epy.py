@@ -11,34 +11,10 @@ Options:
     -r              print reading history
     -d              dump epub
     -h, --help      print short, long help
-
-Key Binding:
-    Help            : ?
-    Quit            : q
-    Scroll down     : DOWN      j
-    Scroll up       : UP        k
-    Page down       : PGDN      RIGHT   SPC
-    Page up         : PGUP      LEFT
-    Next chapter    : n
-    Prev chapter    : p
-    Beginning of ch : HOME      g
-    End of ch       : END       G
-    Open image      : o
-    Search          : /
-    Next Occurence  : n
-    Prev Occurence  : N
-    Toggle width    : =
-    Set width       : [count]=
-    Shrink          : -
-    Enlarge         : +
-    ToC             : TAB       t
-    Metadata        : m
-    Toggle Progress : s
-    Switch colorsch : [default=0, dark=1, light=2]c
 """
 
 
-__version__ = "2019.10.23"
+__version__ = "2019.10.25"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -62,27 +38,6 @@ from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
 
 
-# key bindings
-SCROLL_DOWN = {curses.KEY_DOWN, ord("j")}
-SCROLL_UP = {curses.KEY_UP, ord("k")}
-PAGE_DOWN = {curses.KEY_NPAGE, ord("l"), ord(" "), curses.KEY_RIGHT}
-PAGE_UP = {curses.KEY_PPAGE, ord("h"), curses.KEY_LEFT}
-CH_NEXT = {ord("n")}
-CH_PREV = {ord("p")}
-CH_HOME = {curses.KEY_HOME, ord("g")}
-CH_END = {curses.KEY_END, ord("G")}
-SHRINK = ord("-")
-WIDEN = ord("+")
-WIDTH = ord("=")
-META = ord("m")
-TOC = {9, ord("\t"), ord("t")}
-FOLLOW = {10}
-QUIT = {ord("q"), 3, 27, 304}
-HELP = {ord("?")}
-COLORSWITCH = ord("c")
-
-
-# some global envs, better leave these alone
 # -1 is default terminal fg/bg colors
 CFG = {
     "DefaultViewer": "Default",
@@ -90,11 +45,55 @@ CFG = {
     "DarkColorFG": 252,
     "DarkColorBG": 235,
     "LightColorFG": 238,
-    "LightColorBG": 253
+    "LightColorBG": 253,
+    "Keys": {
+        "ScrollUp": "k",
+        "ScrollDown": "j",
+        "PageUp": "h",
+        "PageDown": "l",
+        "NextChapter": "n",
+        "PrevChapter": "p",
+        "BeginningOfCh": "g",
+        "EndOfCh": "G",
+        "Shrink": "-",
+        "Enlarge": "+",
+        "SetWidth": "=",
+        "Metadata": "m",
+        "ToC": "t",
+        "Follow": "f",
+        "OpenImage": "o",
+        "RegexSearch": "/",
+        "ShowHideProgress": "s",
+        "Quit": "q",
+        "Help": "?",
+        "SwitchColor": "c"
+    }
 }
 STATE = {
     "LastRead": "",
     "States": {}
+}
+K = {
+    "ScrollUp": {curses.KEY_UP},
+    "ScrollDown": {curses.KEY_DOWN},
+    "PageUp": {curses.KEY_PPAGE, curses.KEY_LEFT},
+    "PageDown": {curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT},
+    "NextChapter": set(),
+    "PrevChapter": set(),
+    "BeginningOfCh": {curses.KEY_HOME},
+    "EndOfCh": {curses.KEY_END},
+    "Shrink": set(),
+    "Enlarge": set(),
+    "SetWidth": set(),
+    "Metadata": set(),
+    "ToC": {9, ord("\t")},
+    "Follow": {10},
+    "OpenImage": set(),
+    "RegexSearch": set(),
+    "ShowHideProgress": set(),
+    "Quit": {3, 27, 304},
+    "Help": set(),
+    "SwitchColor": set()
 }
 CFGFILE = ""
 STATEFILE = ""
@@ -348,6 +347,11 @@ def loadstate():
         pass
 
 
+def parse_keys():
+    for i in K.keys():
+        K[i] = K[i]|{ord(CFG["Keys"][i])}
+
+
 def savestate(file, index, width, pos, pctg):
     with open(CFGFILE, "w") as f:
         json.dump(CFG, f, indent=2)
@@ -420,7 +424,7 @@ def toc(stdscr, src, index, width):
         span.append(len(strs))
 
     countstring = ""
-    while key_toc not in TOC and key_toc not in QUIT:
+    while key_toc not in K["ToC"]|K["Quit"]:
         if countstring == "":
             count = 1
         else:
@@ -428,29 +432,29 @@ def toc(stdscr, src, index, width):
         if key_toc in range(48, 58): # i.e., k is a numeral
             countstring = countstring + chr(key_toc)
         else:
-            if key_toc in SCROLL_UP or key_toc in PAGE_UP:
+            if key_toc in K["ScrollUp"] or key_toc in K["PageUp"]:
                 index -= count
                 if index < 0:
                     index = 0
-            elif key_toc in SCROLL_DOWN or key_toc in PAGE_DOWN:
+            elif key_toc in K["ScrollDown"] or key_toc in K["PageDown"]:
                 index += count
                 if index + 1 >= totlines:
                     index = totlines - 1
-            elif key_toc in FOLLOW:
+            elif key_toc in K["Follow"]:
                 return index
-            # elif key_toc in PAGE_UP:
+            # elif key_toc in K["PageUp"]:
             #     index -= 3
             #     if index < 0:
             #         index = 0
-            # elif key_toc in PAGE_DOWN:
+            # elif key_toc in K["PageDown"]:
             #     index += 3
             #     if index >= totlines:
             #         index = totlines - 1
-            elif key_toc in CH_HOME:
+            elif key_toc in K["BeginningOfCh"]:
                 index = 0
-            elif key_toc in CH_END:
+            elif key_toc in K["EndOfCh"]:
                 index = totlines - 1
-            elif key_toc in {curses.KEY_RESIZE, META}|HELP:
+            elif key_toc in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
                 return key_toc
             countstring = ""
 
@@ -509,20 +513,20 @@ def meta(stdscr, ebook):
 
     padhi = rows - 5 - Y - 4 + 1
 
-    while key_meta != META and key_meta not in QUIT:
-        if key_meta in SCROLL_UP and y > 0:
+    while key_meta not in K["Quit"]|K["Metadata"]:
+        if key_meta in K["ScrollUp"] and y > 0:
             y -= 1
-        elif key_meta in SCROLL_DOWN and y < totlines - hi + 6:
+        elif key_meta in K["ScrollDown"] and y < totlines - hi + 6:
             y += 1
-        elif key_meta in PAGE_UP:
+        elif key_meta in K["PageUp"]:
             y = pgup(y, padhi)
-        elif key_meta in PAGE_DOWN:
+        elif key_meta in K["PageDown"]:
             y = pgdn(y, totlines, padhi)
-        elif key_meta in CH_HOME:
+        elif key_meta in K["BeginningOfCh"]:
             y = 0
-        elif key_meta in CH_END:
+        elif key_meta in K["EndOfCh"]:
             y = pgend(totlines, padhi)
-        elif key_meta in {curses.KEY_RESIZE}|HELP|TOC:
+        elif key_meta in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
             return key_meta
         pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
         key_meta = meta.getch()
@@ -546,16 +550,18 @@ def help(stdscr):
     help.addstr(2, 2, "----")
     key_help = 0
 
-    src = re.search("Key Bind(\n|.)*", __doc__).group()
-    src_lines = src.splitlines()
-    totlines = len(src_lines)
+    # src = re.search("Key Bind(\n|.)*", __doc__).group()
+    src = ["Key Bindings"]
+    for i in CFG["Keys"].keys():
+        src.append("  " + i + ": " + CFG["Keys"][i])
+    totlines = len(src)
 
     pad = curses.newpad(totlines, wi - 2)
     if COLORSUPPORT:
         pad.bkgd(stdscr.getbkgd())
 
     pad.keypad(True)
-    for n, i in enumerate(src_lines):
+    for n, i in enumerate(src):
         pad.addstr(n, 0, i)
     y = 0
     help.refresh()
@@ -563,20 +569,20 @@ def help(stdscr):
 
     padhi = rows - 5 - Y - 4 + 1
 
-    while key_help not in HELP and key_help not in QUIT:
-        if key_help in SCROLL_UP and y > 0:
+    while key_help not in K["Help"]|K["Quit"]:
+        if key_help in K["ScrollUp"] and y > 0:
             y -= 1
-        elif key_help in SCROLL_DOWN and y < totlines - hi + 6:
+        elif key_help in K["ScrollDown"] and y < totlines - hi + 6:
             y += 1
-        elif key_help in PAGE_UP:
+        elif key_help in K["PageUp"]:
             y = pgup(y, padhi)
-        elif key_help in PAGE_DOWN:
+        elif key_help in K["PageDown"]:
             y = pgdn(y, totlines, padhi)
-        elif key_help in CH_HOME:
+        elif key_help in K["BeginningOfCh"]:
             y = 0
-        elif key_help in CH_END:
+        elif key_help in K["EndOfCh"]:
             y = pgend(totlines, padhi)
-        elif key_help in {curses.KEY_RESIZE, META}|TOC:
+        elif key_help in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
             return key_help
         pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
         key_help = help.getch()
@@ -709,7 +715,7 @@ def searching(stdscr, pad, src, width, y, ch, tot):
         else:
             s = 0
             while True:
-                if s in QUIT:
+                if s in K["Quit"]:
                     SEARCHPATTERN = None
                     stdscr.clear()
                     stdscr.refresh()
@@ -749,7 +755,7 @@ def searching(stdscr, pad, src, width, y, ch, tot):
             ch+1, tot
         )
     while True:
-        if s in QUIT:
+        if s in K["Quit"]:
             SEARCHPATTERN = None
             for i in found:
                 pad.chgat(i[0], i[1], i[2], pad.getbkgd())
@@ -898,35 +904,35 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
         if k in range(48, 58): # i.e., k is a numeral
             countstring = countstring + chr(k)
         else:
-            if k in QUIT:
+            if k in K["Quit"]:
                 if k == 27 and countstring != "":
                     countstring = ""
                 else:
                     savestate(ebook.path, index, width, y, y/totlines)
                     sys.exit()
-            elif k in SCROLL_UP:
+            elif k in K["ScrollUp"]:
                 if y >= count:
                     y -= count
                 elif index != 0:
                     return -1, width, -rows, None, ""
-            elif k in PAGE_UP:
+            elif k in K["PageUp"]:
                 if y == 0 and index != 0:
                     return -1, width, -rows, None, ""
                 else:
                     y = pgup(y, rows, LINEPRSRV, count)
-            elif k in SCROLL_DOWN:
+            elif k in K["ScrollDown"]:
                 if y + count <= totlines - rows:
                     y += count
                 elif index != len(contents)-1:
                     return 1, width, 0, None, ""
-            elif k in PAGE_DOWN:
+            elif k in K["PageDown"]:
                 if totlines - y - LINEPRSRV > rows:
                     y += rows - LINEPRSRV
                     # stdscr.clear()
                     # stdscr.refresh()
                 elif index != len(contents)-1:
                     return 1, width, 0, None, ""
-            elif k in CH_NEXT:
+            elif k in K["NextChapter"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                 if ntoc < len(toc_idx) - 1:
                     if index == toc_idx[ntoc+1]:
@@ -936,20 +942,20 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                             pass
                     else:
                         return toc_idx[ntoc+1]-index, width, 0, None, toc_sect[ntoc+1]
-            elif k in CH_PREV:
+            elif k in K["PrevChapter"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                 if ntoc > 0:
                     if index == toc_idx[ntoc-1]:
                         y = toc_secid.get(toc_sect[ntoc-1], 0)
                     else:
                         return toc_idx[ntoc-1]-index, width, 0, None, toc_sect[ntoc-1]
-            elif k in CH_HOME:
+            elif k in K["BeginningOfCh"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                 try:
                     y = toc_secid[toc_sect[ntoc]]
                 except KeyError:
                     y = 0
-            elif k in CH_END:
+            elif k in K["EndOfCh"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                 try:
                     if toc_secid[toc_sect[ntoc+1]] - rows >= 0:
@@ -958,11 +964,11 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                         y = toc_secid[toc_sect[ntoc]]
                 except (KeyError, IndexError):
                     y = pgend(totlines, rows)
-            elif k in TOC:
+            elif k in K["ToC"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                 fllwd = toc(stdscr, toc_name, ntoc, width)
                 if fllwd is not None:
-                    if fllwd in {curses.KEY_RESIZE, META}|HELP:
+                    if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
                         k = fllwd
                         continue
                     if index == toc_idx[fllwd]:
@@ -972,21 +978,21 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                             y = 0
                     else:
                         return toc_idx[fllwd] - index, width, 0, None, toc_sect[fllwd]
-            elif k == META:
+            elif k in K["Metadata"]:
                 k = meta(stdscr, ebook)
-                if k in {curses.KEY_RESIZE}|HELP|TOC:
+                if k in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
                     continue
-            elif k in HELP:
+            elif k in K["Help"]:
                 k = help(stdscr)
-                if k in {curses.KEY_RESIZE, META}|TOC:
+                if k in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
                     continue
-            elif k == WIDEN and (width + count) < cols - 2:
+            elif k in K["Enlarge"] and (width + count) < cols - 2:
                 width += count
                 return 0, width, 0, y/totlines, ""
-            elif k == SHRINK and width >= 22:
+            elif k in K["Shrink"] and width >= 22:
                 width -= count
                 return 0, width, 0, y/totlines, ""
-            elif k == WIDTH:
+            elif k in K["SetWidth"]:
                 if countstring == "":
                     # if called without a count, toggle between 80 cols and full width
                     if width != 80 and cols - 2 >= 80:
@@ -1005,7 +1011,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
             #         return 0, 80, 0, y/totlines, ""
             #     else:
             #         return 0, cols - 2, 0, y/totlines, ""
-            elif k == ord("/"):
+            elif k in K["RegexSearch"]:
                 fs = searching(
                     stdscr, pad,
                     src_lines,
@@ -1019,7 +1025,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     return fs, width, 0, None, ""
                 else:
                     y = fs
-            elif k == ord("o") and VWR is not None:
+            elif k in K["OpenImage"] and VWR is not None:
                 gambar, idx = [], []
                 for n, i in enumerate(src_lines[y:y+rows]):
                     img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
@@ -1032,26 +1038,26 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     impath = imgs[int(gambar[0])]
                 elif len(gambar) > 1:
                     p, i = 0, 0
-                    while p not in QUIT and p not in FOLLOW:
+                    while p not in K["Quit"] and p not in K["Follow"]:
                         stdscr.move(idx[i], x + width//2 + len(gambar[i]) + 1)
                         stdscr.refresh()
                         curses.curs_set(1)
                         p = pad.getch()
-                        if p in SCROLL_DOWN:
+                        if p in K["ScrollDown"]:
                             i += 1
-                        elif p in SCROLL_UP:
+                        elif p in K["ScrollUp"]:
                             i -= 1
                         i = i % len(gambar)
 
                     curses.curs_set(0)
-                    if p in FOLLOW:
+                    if p in K["Follow"]:
                         impath = imgs[int(gambar[i])]
 
                 if impath != "":
                     imgsrc = dots_path(chpath, impath)
                     k = open_media(pad, ebook, imgsrc)
                     continue
-            elif k == COLORSWITCH and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
+            elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
                 if countstring == "":
                     count_color = curses.pair_number(stdscr.getbkgd())
                     if count_color not in {2, 3}: count_color = 1
@@ -1060,7 +1066,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     count_color = count
                 stdscr.bkgd(curses.color_pair(count_color+1))
                 return 0, width, y, None, ""
-            elif k == ord("s") and CFG["EnableProgressIndicator"]:
+            elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
                 SHOWPROGRESS = not SHOWPROGRESS
             elif k == curses.KEY_RESIZE:
                 savestate(ebook.path, index, width, y, y/totlines)
@@ -1135,6 +1141,7 @@ def preread(stdscr, file):
 
     epub.initialize()
     find_media_viewer()
+    parse_keys()
 
     SHOWPROGRESS = CFG["EnableProgressIndicator"]
     if SHOWPROGRESS:
@@ -1174,7 +1181,10 @@ def main():
     loadstate()
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
-        print(f"* Configuration file loaded:\n  {STATEFILE}\n")
+        print(f"Startup file loaded:")
+        print(CFGFILE)
+        print(STATEFILE)
+        print()
         print("v" + __version__)
         print(__license__, "License")
         print("Copyright (c) 2019", __author__)
