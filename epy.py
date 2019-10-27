@@ -608,25 +608,29 @@ def dots_path(curr, tofi):
 
 def find_media_viewer():
     global VWR
-    VWR_LIST = [
-        "feh",
-        "gio",
-        "gnome-open",
-        "gvfs-open",
-        "xdg-open",
-        "kde-open",
-        "firefox"
-    ]
-    if sys.platform == "win32":
+    if shutil.which(CFG["DefaultViewer"]) is not None:
+        VWR = CFG["DefaultViewer"]
+    elif sys.platform == "win32":
         VWR = "start"
     elif sys.platform == "darwin":
         VWR = "open"
     else:
-        for i in [CFG["DefaultViewer"]] + VWR_LIST:
+        VWR_LIST = [
+            "feh",
+            "gio",
+            "gnome-open",
+            "gvfs-open",
+            "xdg-open",
+            "kde-open",
+            "firefox"
+        ]
+        for i in VWR_LIST:
             if shutil.which(i) is not None:
                 VWR = i
-                if VWR == "gio": VWR += " open"
                 break
+
+    if VWR in {"gio"}:
+        VWR += " open"
 
 
 def open_media(scr, epub, src):
@@ -1155,7 +1159,6 @@ def preread(stdscr, file):
             # except:
             #     pass
             src_lines = parser.get_lines()
-            # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
             PERCENTAGE.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
     sec = ""
