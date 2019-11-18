@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2019.10.25"
+__version__ = "2019.11.18"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -206,7 +206,8 @@ class Epub:
 
 class HTMLtoLines(HTMLParser):
     para = {"p", "div"}
-    inde = {"q", "dt", "dd", "blockquote", "pre"}
+    inde = {"q", "dt", "dd", "blockquote"}
+    pref = {"pre"}
     bull = {"li"}
     hide = {"script", "style", "head"}
     # hide = {"script", "style", "head", ", "sub}
@@ -218,10 +219,12 @@ class HTMLtoLines(HTMLParser):
         self.ishead = False
         self.isinde = False
         self.isbull = False
+        self.ispref = False
         self.ishidden = False
         self.idhead = set()
         self.idinde = set()
         self.idbull = set()
+        self.idpref = set()
         self.sects = sects
 
     def handle_starttag(self, tag, attrs):
@@ -229,6 +232,8 @@ class HTMLtoLines(HTMLParser):
             self.ishead = True
         elif tag in self.inde:
             self.isinde = True
+        elif tag in self.pref:
+            self.ispref = True
         elif tag in self.bull:
             self.isbull = True
         elif tag in self.hide:
@@ -271,6 +276,10 @@ class HTMLtoLines(HTMLParser):
             if self.text[-1] != "":
                 self.text.append("")
             self.isinde = False
+        elif tag in self.pref:
+            if self.text[-1] != "":
+                self.text.append("")
+            self.ispref = False
         elif tag in self.bull:
             if self.text[-1] != "":
                 self.text.append("")
@@ -286,7 +295,10 @@ class HTMLtoLines(HTMLParser):
                 tmp = raw.lstrip()
             else:
                 tmp = raw
-            line = unescape(re.sub(r"\s+", " ", tmp))
+            if self.ispref:
+                line = unescape(tmp)
+            else:
+                line = unescape(re.sub(r"\s+", " ", tmp))
             self.text[-1] += line
             if self.ishead:
                 self.idhead.add(len(self.text)-1)
@@ -294,6 +306,8 @@ class HTMLtoLines(HTMLParser):
                 self.idbull.add(len(self.text)-1)
             elif self.isinde:
                 self.idinde.add(len(self.text)-1)
+            elif self.ispref:
+                self.idpref.add(len(self.text)-1)
 
     def get_lines(self, width=0):
         text, sect = [], {}
@@ -315,6 +329,12 @@ class HTMLtoLines(HTMLParser):
                 text += [
                     " - "+j if j == tmp[0] else "   "+j for j in tmp
                 ] + [""]
+            elif n in self.idpref:
+                tmp = i.splitlines()
+                wraptmp = []
+                for line in tmp:
+                    wraptmp += [j for j in textwrap.wrap(line, width - 6)]
+                text += ["   "+j for j in wraptmp] + [""]
             else:
                 text += textwrap.wrap(i, width) + [""]
         return text, self.imgs, sect
