@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2019.11.18"
+__version__ = "2019.12.23"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1110,7 +1110,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
 
         if CFG["EnableProgressIndicator"]:
             PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
-            PROGRESSTR = f"{int(PROGRESS*100)}%"
+            PROGRESSTR = "{}%".format(int(PROGRESS*100))
 
         try:
             stdscr.clear()
@@ -1204,7 +1204,7 @@ def main():
     loadstate()
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
-        print(f"Startup file loaded:")
+        print("Startup file loaded:")
         print(CFGFILE)
         print(STATEFILE)
         print()
