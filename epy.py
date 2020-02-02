@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2019.12.23"
+__version__ = "2020.2.2"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -101,6 +101,7 @@ COLORSUPPORT = False
 LINEPRSRV = 0  # 2
 SEARCHPATTERN = None
 VWR = None
+SCREEN = None
 PERCENTAGE = []
 SHOWPROGRESS = CFG["EnableProgressIndicator"]
 
@@ -408,13 +409,13 @@ def pgend(tot, winhi):
         return 0
 
 
-def toc(stdscr, src, index, width):
-    rows, cols = stdscr.getmaxyx()
+def toc(src, index, width):
+    rows, cols = SCREEN.getmaxyx()
     hi, wi = rows - 4, cols - 4
     Y, X = 2, 2
     toc = curses.newwin(hi, wi, Y, X)
     if COLORSUPPORT:
-        toc.bkgd(stdscr.getbkgd())
+        toc.bkgd(SCREEN.getbkgd())
 
     toc.box()
     toc.keypad(True)
@@ -426,7 +427,7 @@ def toc(stdscr, src, index, width):
     toc.refresh()
     pad = curses.newpad(totlines, wi - 2)
     if COLORSUPPORT:
-        pad.bkgd(stdscr.getbkgd())
+        pad.bkgd(SCREEN.getbkgd())
 
     pad.keypad(True)
 
@@ -498,13 +499,13 @@ def toc(stdscr, src, index, width):
     return
 
 
-def meta(stdscr, ebook):
-    rows, cols = stdscr.getmaxyx()
+def meta(ebook):
+    rows, cols = SCREEN.getmaxyx()
     hi, wi = rows - 4, cols - 4
     Y, X = 2, 2
     meta = curses.newwin(hi, wi, Y, X)
     if COLORSUPPORT:
-        meta.bkgd(stdscr.getbkgd())
+        meta.bkgd(SCREEN.getbkgd())
 
     meta.box()
     meta.keypad(True)
@@ -522,7 +523,7 @@ def meta(stdscr, ebook):
 
     pad = curses.newpad(totlines, wi - 2)
     if COLORSUPPORT:
-        pad.bkgd(stdscr.getbkgd())
+        pad.bkgd(SCREEN.getbkgd())
 
     pad.keypad(True)
     for n, i in enumerate(src_lines):
@@ -556,13 +557,13 @@ def meta(stdscr, ebook):
     return
 
 
-def help(stdscr):
-    rows, cols = stdscr.getmaxyx()
+def help():
+    rows, cols = SCREEN.getmaxyx()
     hi, wi = rows - 4, cols - 4
     Y, X = 2, 2
     help = curses.newwin(hi, wi, Y, X)
     if COLORSUPPORT:
-        help.bkgd(stdscr.getbkgd())
+        help.bkgd(SCREEN.getbkgd())
 
     help.box()
     help.keypad(True)
@@ -578,7 +579,7 @@ def help(stdscr):
 
     pad = curses.newpad(totlines, wi - 2)
     if COLORSUPPORT:
-        pad.bkgd(stdscr.getbkgd())
+        pad.bkgd(SCREEN.getbkgd())
 
     pad.keypad(True)
     for n, i in enumerate(src):
@@ -672,14 +673,14 @@ def open_media(scr, epub, src):
     return k
 
 
-def searching(stdscr, pad, src, width, y, ch, tot):
+def searching(pad, src, width, y, ch, tot):
     global SEARCHPATTERN
-    rows, cols = stdscr.getmaxyx()
+    rows, cols = SCREEN.getmaxyx()
     x = (cols - width) // 2
     if SEARCHPATTERN is None:
         stat = curses.newwin(1, cols, rows-1, 0)
         if COLORSUPPORT:
-            stat.bkgd(stdscr.getbkgd())
+            stat.bkgd(SCREEN.getbkgd())
         stat.keypad(True)
         curses.echo(1)
         curses.curs_set(1)
@@ -741,8 +742,8 @@ def searching(stdscr, pad, src, width, y, ch, tot):
             while True:
                 if s in K["Quit"]:
                     SEARCHPATTERN = None
-                    stdscr.clear()
-                    stdscr.refresh()
+                    SCREEN.clear()
+                    SCREEN.refresh()
                     return y
                 elif s == ord("n") and ch == 0:
                     SEARCHPATTERN = "/"+SEARCHPATTERN[1:]
@@ -751,13 +752,13 @@ def searching(stdscr, pad, src, width, y, ch, tot):
                     SEARCHPATTERN = "?"+SEARCHPATTERN[1:]
                     return -1
 
-                stdscr.clear()
-                stdscr.addstr(
+                SCREEN.clear()
+                SCREEN.addstr(
                     rows-1, 0,
                     " Finished searching: " + SEARCHPATTERN[1:] + " ",
                     curses.A_REVERSE
                 )
-                stdscr.refresh()
+                SCREEN.refresh()
                 pad.refresh(y, 0, 0, x, rows-2, x+width)
                 s = pad.getch()
 
@@ -783,8 +784,8 @@ def searching(stdscr, pad, src, width, y, ch, tot):
             SEARCHPATTERN = None
             for i in found:
                 pad.chgat(i[0], i[1], i[2], pad.getbkgd())
-            stdscr.clear()
-            stdscr.refresh()
+            SCREEN.clear()
+            SCREEN.refresh()
             return y
         elif s == ord("n"):
             SEARCHPATTERN = "/"+SEARCHPATTERN[1:]
@@ -837,9 +838,9 @@ def searching(stdscr, pad, src, width, y, ch, tot):
             attr = curses.A_REVERSE if n == sidx else curses.A_NORMAL
             pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
 
-        stdscr.clear()
-        stdscr.addstr(rows-1, 0, msg, curses.A_REVERSE)
-        stdscr.refresh()
+        SCREEN.clear()
+        SCREEN.addstr(rows-1, 0, msg, curses.A_REVERSE)
+        SCREEN.refresh()
         pad.refresh(y, 0, 0, x, rows-2, x+width)
         s = pad.getch()
 
@@ -855,11 +856,11 @@ def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
     return ntoc
 
 
-def reader(stdscr, ebook, index, width, y, pctg, sect):
+def reader(ebook, index, width, y, pctg, sect):
     global SHOWPROGRESS
 
     k = 0 if SEARCHPATTERN is None else ord("/")
-    rows, cols = stdscr.getmaxyx()
+    rows, cols = SCREEN.getmaxyx()
     x = (cols - width) // 2
 
     contents = ebook.contents
@@ -891,7 +892,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
 
     pad = curses.newpad(totlines, width + 2)  # + 2 unnecessary
     if COLORSUPPORT:
-        pad.bkgd(stdscr.getbkgd())
+        pad.bkgd(SCREEN.getbkgd())
 
     pad.keypad(True)
 
@@ -908,8 +909,8 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
         TOTALPCTG = sum(PERCENTAGE)
         TOTALLOCALPCTG = sum(PERCENTAGE[:index])
 
-    stdscr.clear()
-    stdscr.refresh()
+    SCREEN.clear()
+    SCREEN.refresh()
     # try except to be more flexible on terminal resize
     try:
         pad.refresh(y, 0, 0, x, rows-1, x+width)
@@ -952,8 +953,8 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
             elif k in K["PageDown"]:
                 if totlines - y - LINEPRSRV > rows:
                     y += rows - LINEPRSRV
-                    # stdscr.clear()
-                    # stdscr.refresh()
+                    # SCREEN.clear()
+                    # SCREEN.refresh()
                 elif index != len(contents)-1:
                     return 1, width, 0, None, ""
             elif k in K["NextChapter"]:
@@ -990,7 +991,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     y = pgend(totlines, rows)
             elif k in K["ToC"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                fllwd = toc(stdscr, toc_name, ntoc, width)
+                fllwd = toc(toc_name, ntoc, width)
                 if fllwd is not None:
                     if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
                         k = fllwd
@@ -1003,11 +1004,11 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     else:
                         return toc_idx[fllwd] - index, width, 0, None, toc_sect[fllwd]
             elif k in K["Metadata"]:
-                k = meta(stdscr, ebook)
+                k = meta(ebook)
                 if k in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
                     continue
             elif k in K["Help"]:
-                k = help(stdscr)
+                k = help()
                 if k in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
                     continue
             elif k in K["Enlarge"] and (width + count) < cols - 2:
@@ -1037,7 +1038,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
             #         return 0, cols - 2, 0, y/totlines, ""
             elif k in K["RegexSearch"]:
                 fs = searching(
-                    stdscr, pad,
+                    pad,
                     src_lines,
                     width, y,
                     index, len(contents)
@@ -1063,8 +1064,8 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                 elif len(gambar) > 1:
                     p, i = 0, 0
                     while p not in K["Quit"] and p not in K["Follow"]:
-                        stdscr.move(idx[i], x + width//2 + len(gambar[i]) + 1)
-                        stdscr.refresh()
+                        SCREEN.move(idx[i], x + width//2 + len(gambar[i]) + 1)
+                        SCREEN.refresh()
                         curses.curs_set(1)
                         p = pad.getch()
                         if p in K["ScrollDown"]:
@@ -1083,12 +1084,12 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                     continue
             elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
                 if countstring == "":
-                    count_color = curses.pair_number(stdscr.getbkgd())
+                    count_color = curses.pair_number(SCREEN.getbkgd())
                     if count_color not in {2, 3}: count_color = 1
                     count_color = count_color % 3
                 else:
                     count_color = count
-                stdscr.bkgd(curses.color_pair(count_color+1))
+                SCREEN.bkgd(curses.color_pair(count_color+1))
                 return 0, width, y, None, ""
             elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
                 SHOWPROGRESS = not SHOWPROGRESS
@@ -1098,9 +1099,9 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
                 # to call resize_term right after KEY_RESIZE
                 if sys.platform == "win32":
                     curses.resize_term(rows, cols)
-                    rows, cols = stdscr.getmaxyx()
+                    rows, cols = SCREEN.getmaxyx()
                 else:
-                    rows, cols = stdscr.getmaxyx()
+                    rows, cols = SCREEN.getmaxyx()
                     curses.resize_term(rows, cols)
                 if cols <= width:
                     return 0, cols - 2, 0, y/totlines, ""
@@ -1113,11 +1114,11 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
             PROGRESSTR = "{}%".format(int(PROGRESS*100))
 
         try:
-            stdscr.clear()
-            stdscr.addstr(0, 0, countstring)
+            SCREEN.clear()
+            SCREEN.addstr(0, 0, countstring)
             if SHOWPROGRESS and (cols-width-2)//2 > 3:
-                stdscr.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
-            stdscr.refresh()
+                SCREEN.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
+            SCREEN.refresh()
             if totlines - y < rows:
                 pad.refresh(y, 0, 0, x, totlines-y, x+width)
             else:
@@ -1128,7 +1129,7 @@ def reader(stdscr, ebook, index, width, y, pctg, sect):
 
 
 def preread(stdscr, file):
-    global COLORSUPPORT, SHOWPROGRESS, PERCENTAGE
+    global COLORSUPPORT, SHOWPROGRESS, PERCENTAGE, SCREEN
 
     curses.use_default_colors()
     try:
@@ -1139,12 +1140,14 @@ def preread(stdscr, file):
     except:
         COLORSUPPORT  = False
 
-    stdscr.keypad(True)
+    SCREEN = stdscr
+
+    SCREEN.keypad(True)
     curses.curs_set(0)
-    stdscr.clear()
-    rows, cols = stdscr.getmaxyx()
-    stdscr.addstr(rows-1, 0, "Loading...")
-    stdscr.refresh()
+    SCREEN.clear()
+    rows, cols = SCREEN.getmaxyx()
+    SCREEN.addstr(rows-1, 0, "Loading...")
+    SCREEN.refresh()
 
     epub = Epub(file)
 
@@ -1184,7 +1187,7 @@ def preread(stdscr, file):
     sec = ""
     while True:
         incr, width, y, pctg, sec = reader(
-            stdscr, epub, idx, width, y, pctg, sec
+            epub, idx, width, y, pctg, sec
         )
         idx += incr
 
