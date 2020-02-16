@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.2.2"
+__version__ = "2020.2.17"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -402,6 +402,101 @@ def text_win(textfunc):
     return wrapper
 
 
+def choice_win(listgen):
+    @wraps(listgen)
+    def wrapper(*args, **kwargs):
+        rows, cols = SCREEN.getmaxyx()
+        hi, wi = rows - 4, cols - 4
+        Y, X = 2, 2
+        chwin = curses.newwin(hi, wi, Y, X)
+        if COLORSUPPORT:
+            chwin.bkgd(SCREEN.getbkgd())
+
+        title, ch_list, index, key = listgen(*args, **kwargs)
+
+        chwin.box()
+        chwin.keypad(True)
+        chwin.addstr(1, 2, title)
+        chwin.addstr(2, 2, "-"*len(title))
+        key_chwin = 0
+
+        totlines = len(ch_list)
+        chwin.refresh()
+        pad = curses.newpad(totlines, wi - 2)
+        if COLORSUPPORT:
+            pad.bkgd(SCREEN.getbkgd())
+
+        pad.keypad(True)
+
+        padhi = rows - 5 - Y - 4 + 1
+        y = 0
+        if index in range(padhi//2, totlines - padhi//2):
+            y = index - padhi//2 + 1
+        span = []
+
+        for n, i in enumerate(ch_list):
+            # strs = "  " + str(n+1).rjust(d) + " " + i[0]
+            strs = "  " + i
+            strs = strs[0:wi-3]
+            pad.addstr(n, 0, strs)
+            span.append(len(strs))
+
+        countstring = ""
+        while key_chwin not in K["Quit"]|key:
+            if countstring == "":
+                count = 1
+            else:
+                count = int(countstring)
+            if key_chwin in range(48, 58): # i.e., k is a numeral
+                countstring = countstring + chr(key_chwin)
+            else:
+                if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
+                    index -= count
+                    if index < 0:
+                        index = 0
+                elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
+                    index += count
+                    if index + 1 >= totlines:
+                        index = totlines - 1
+                elif key_chwin in K["Follow"]:
+                    return index
+                # elif key_chwin in K["PageUp"]:
+                #     index -= 3
+                #     if index < 0:
+                #         index = 0
+                # elif key_chwin in K["PageDown"]:
+                #     index += 3
+                #     if index >= totlines:
+                #         index = totlines - 1
+                elif key_chwin in K["BeginningOfCh"]:
+                    index = 0
+                elif key_chwin in K["EndOfCh"]:
+                    index = totlines - 1
+                elif key_chwin in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
+                    return key_chwin
+                countstring = ""
+
+            while index not in range(y, y+padhi):
+                if index < y:
+                    y -= 1
+                else:
+                    y += 1
+
+            for n in range(totlines):
+                att = curses.A_REVERSE if index == n else curses.A_NORMAL
+                pre = ">>" if index == n else "  "
+                pad.addstr(n, 0, pre)
+                pad.chgat(n, 0, span[n], pad.getbkgd() | att)
+
+            pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
+            key_chwin = chwin.getch()
+
+        chwin.clear()
+        chwin.refresh()
+        return
+    return wrapper
+
+
 def loadstate():
     global CFG, STATE, CFGFILE, STATEFILE
     prefix = ""
@@ -470,94 +565,9 @@ def pgend(tot, winhi):
         return 0
 
 
+@choice_win
 def toc(src, index):
-    rows, cols = SCREEN.getmaxyx()
-    hi, wi = rows - 4, cols - 4
-    Y, X = 2, 2
-    toc = curses.newwin(hi, wi, Y, X)
-    if COLORSUPPORT:
-        toc.bkgd(SCREEN.getbkgd())
-
-    toc.box()
-    toc.keypad(True)
-    toc.addstr(1, 2, "Table of Contents")
-    toc.addstr(2, 2, "-----------------")
-    key_toc = 0
-
-    totlines = len(src)
-    toc.refresh()
-    pad = curses.newpad(totlines, wi - 2)
-    if COLORSUPPORT:
-        pad.bkgd(SCREEN.getbkgd())
-
-    pad.keypad(True)
-
-    padhi = rows - 5 - Y - 4 + 1
-    y = 0
-    if index in range(padhi//2, totlines - padhi//2):
-        y = index - padhi//2 + 1
-    span = []
-
-    for n, i in enumerate(src):
-        # strs = "  " + str(n+1).rjust(d) + " " + i[0]
-        strs = "  " + i
-        strs = strs[0:wi-3]
-        pad.addstr(n, 0, strs)
-        span.append(len(strs))
-
-    countstring = ""
-    while key_toc not in K["ToC"]|K["Quit"]:
-        if countstring == "":
-            count = 1
-        else:
-            count = int(countstring)
-        if key_toc in range(48, 58): # i.e., k is a numeral
-            countstring = countstring + chr(key_toc)
-        else:
-            if key_toc in K["ScrollUp"] or key_toc in K["PageUp"]:
-                index -= count
-                if index < 0:
-                    index = 0
-            elif key_toc in K["ScrollDown"] or key_toc in K["PageDown"]:
-                index += count
-                if index + 1 >= totlines:
-                    index = totlines - 1
-            elif key_toc in K["Follow"]:
-                return index
-            # elif key_toc in K["PageUp"]:
-            #     index -= 3
-            #     if index < 0:
-            #         index = 0
-            # elif key_toc in K["PageDown"]:
-            #     index += 3
-            #     if index >= totlines:
-            #         index = totlines - 1
-            elif key_toc in K["BeginningOfCh"]:
-                index = 0
-            elif key_toc in K["EndOfCh"]:
-                index = totlines - 1
-            elif key_toc in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
-                return key_toc
-            countstring = ""
-
-        while index not in range(y, y+padhi):
-            if index < y:
-                y -= 1
-            else:
-                y += 1
-
-        for n in range(totlines):
-            att = curses.A_REVERSE if index == n else curses.A_NORMAL
-            pre = ">>" if index == n else "  "
-            pad.addstr(n, 0, pre)
-            pad.chgat(n, 0, span[n], pad.getbkgd() | att)
-
-        pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
-        key_toc = toc.getch()
-
-    toc.clear()
-    toc.refresh()
-    return
+    return "Table of Contents", src, index, K["ToC"]
 
 
 @text_win
