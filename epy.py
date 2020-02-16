@@ -470,7 +470,7 @@ def pgend(tot, winhi):
         return 0
 
 
-def toc(src, index, width):
+def toc(src, index):
     rows, cols = SCREEN.getmaxyx()
     hi, wi = rows - 4, cols - 4
     Y, X = 2, 2
@@ -958,7 +958,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     y = pgend(totlines, rows)
             elif k in K["ToC"]:
                 ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                fllwd = toc(toc_name, ntoc, width)
+                fllwd = toc(toc_name, ntoc)
                 if fllwd is not None:
                     if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
                         k = fllwd
