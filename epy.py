@@ -96,6 +96,7 @@ K = {
     "Help": set(),
     "SwitchColor": set()
 }
+WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
 COLORSUPPORT = False
@@ -391,7 +392,7 @@ def text_win(textfunc):
                 y = 0
             elif key_textw in K["EndOfCh"]:
                 y = pgend(totlines, padhi)
-            elif key_textw in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]|K["Metadata"] - key:
+            elif key_textw in {curses.KEY_RESIZE}|WINKEYS - key:
                 return key_textw
             pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
             key_textw = textw.getch()
@@ -472,7 +473,7 @@ def choice_win(listgen):
                     index = 0
                 elif key_chwin in K["EndOfCh"]:
                     index = totlines - 1
-                elif key_chwin in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
+                elif key_chwin in {curses.KEY_RESIZE}|WINKEYS - key:
                     return key_chwin
                 countstring = ""
 
@@ -525,8 +526,10 @@ def loadstate():
 
 
 def parse_keys():
+    global WINKEYS
     for i in K.keys():
         K[i] = K[i]|{ord(CFG["Keys"][i])}
+    WINKEYS = K["Metadata"]|K["Help"]|K["ToC"]
 
 
 def savestate(file, index, width, pos, pctg):
