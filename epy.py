@@ -36,6 +36,7 @@ from html import unescape
 # from subprocess import run
 from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
+from functools import wraps
 
 
 # -1 is default terminal fg/bg colors
@@ -341,6 +342,66 @@ class HTMLtoLines(HTMLParser):
         return text, self.imgs, sect
 
 
+def text_win(textfunc):
+    @wraps(textfunc)
+    def wrapper(*args, **kwargs):
+        rows, cols = SCREEN.getmaxyx()
+        hi, wi = rows - 4, cols - 4
+        Y, X = 2, 2
+        textw = curses.newwin(hi, wi, Y, X)
+        if COLORSUPPORT:
+            textw.bkgd(SCREEN.getbkgd())
+
+        title, raw_texts, key = textfunc(*args, **kwargs)
+
+        texts = []
+        for i in raw_texts.splitlines():
+            texts += textwrap.wrap(i, wi - 6)
+
+        textw.box()
+        textw.keypad(True)
+        textw.addstr(1, 2, title)
+        textw.addstr(2, 2, "-"*len(title))
+        key_textw = 0
+
+        totlines = len(texts)
+
+        pad = curses.newpad(totlines, wi - 2)
+        if COLORSUPPORT:
+            pad.bkgd(SCREEN.getbkgd())
+
+        pad.keypad(True)
+        for n, i in enumerate(texts):
+            pad.addstr(n, 0, i)
+        y = 0
+        textw.refresh()
+        pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
+        padhi = rows - 8 - Y
+
+        while key_textw not in K["Quit"]|key:
+            if key_textw in K["ScrollUp"] and y > 0:
+                y -= 1
+            elif key_textw in K["ScrollDown"] and y < totlines - hi + 6:
+                y += 1
+            elif key_textw in K["PageUp"]:
+                y = pgup(y, padhi)
+            elif key_textw in K["PageDown"]:
+                y = pgdn(y, totlines, padhi)
+            elif key_textw in K["BeginningOfCh"]:
+                y = 0
+            elif key_textw in K["EndOfCh"]:
+                y = pgend(totlines, padhi)
+            elif key_textw in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]|K["Metadata"] - key:
+                return key_textw
+            pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
+            key_textw = textw.getch()
+
+        textw.clear()
+        textw.refresh()
+        return
+    return wrapper
+
+
 def loadstate():
     global CFG, STATE, CFGFILE, STATEFILE
     prefix = ""
@@ -499,118 +560,24 @@ def toc(src, index, width):
     return
 
 
+@text_win
 def meta(ebook):
-    rows, cols = SCREEN.getmaxyx()
-    hi, wi = rows - 4, cols - 4
-    Y, X = 2, 2
-    meta = curses.newwin(hi, wi, Y, X)
-    if COLORSUPPORT:
-        meta.bkgd(SCREEN.getbkgd())
-
-    meta.box()
-    meta.keypad(True)
-    meta.addstr(1, 2, "Metadata")
-    meta.addstr(2, 2, "--------")
-    key_meta = 0
-
-    mdata = []
+    mdata = ""
     for i in ebook.get_meta():
         data = re.sub("<[^>]*>", "", i[1])
+        mdata += i[0].upper() + ": " + data + "\n"
         data = re.sub("\t", "", data)
-        mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
-    src_lines = mdata
-    totlines = len(src_lines)
-
-    pad = curses.newpad(totlines, wi - 2)
-    if COLORSUPPORT:
-        pad.bkgd(SCREEN.getbkgd())
-
-    pad.keypad(True)
-    for n, i in enumerate(src_lines):
-        pad.addstr(n, 0, i)
-    y = 0
-    meta.refresh()
-    pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
-
-    padhi = rows - 5 - Y - 4 + 1
-
-    while key_meta not in K["Quit"]|K["Metadata"]:
-        if key_meta in K["ScrollUp"] and y > 0:
-            y -= 1
-        elif key_meta in K["ScrollDown"] and y < totlines - hi + 6:
-            y += 1
-        elif key_meta in K["PageUp"]:
-            y = pgup(y, padhi)
-        elif key_meta in K["PageDown"]:
-            y = pgdn(y, totlines, padhi)
-        elif key_meta in K["BeginningOfCh"]:
-            y = 0
-        elif key_meta in K["EndOfCh"]:
-            y = pgend(totlines, padhi)
-        elif key_meta in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
-            return key_meta
-        pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
-        key_meta = meta.getch()
-
-    meta.clear()
-    meta.refresh()
-    return
+        # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
+    return "Metadata", mdata, K["Metadata"]
 
 
+@text_win
 def help():
-    rows, cols = SCREEN.getmaxyx()
-    hi, wi = rows - 4, cols - 4
-    Y, X = 2, 2
-    help = curses.newwin(hi, wi, Y, X)
-    if COLORSUPPORT:
-        help.bkgd(SCREEN.getbkgd())
-
-    help.box()
-    help.keypad(True)
-    help.addstr(1, 2, "Help")
-    help.addstr(2, 2, "----")
-    key_help = 0
-
     # src = re.search("Key Bind(\n|.)*", __doc__).group()
-    src = ["Key Bindings"]
+    src = "Key Bindings\n"
     for i in CFG["Keys"].keys():
-        src.append("  " + i + ": " + CFG["Keys"][i])
-    totlines = len(src)
-
-    pad = curses.newpad(totlines, wi - 2)
-    if COLORSUPPORT:
-        pad.bkgd(SCREEN.getbkgd())
-
-    pad.keypad(True)
-    for n, i in enumerate(src):
-        pad.addstr(n, 0, i)
-    y = 0
-    help.refresh()
-    pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
-
-    padhi = rows - 5 - Y - 4 + 1
-
-    while key_help not in K["Help"]|K["Quit"]:
-        if key_help in K["ScrollUp"] and y > 0:
-            y -= 1
-        elif key_help in K["ScrollDown"] and y < totlines - hi + 6:
-            y += 1
-        elif key_help in K["PageUp"]:
-            y = pgup(y, padhi)
-        elif key_help in K["PageDown"]:
-            y = pgdn(y, totlines, padhi)
-        elif key_help in K["BeginningOfCh"]:
-            y = 0
-        elif key_help in K["EndOfCh"]:
-            y = pgend(totlines, padhi)
-        elif key_help in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
-            return key_help
-        pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
-        key_help = help.getch()
-
-    help.clear()
-    help.refresh()
-    return
+        src += "  " + i + ": " + CFG["Keys"][i] + "\n"
+    return "Help", src, K["Help"]
 
 
 def dots_path(curr, tofi):
