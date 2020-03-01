@@ -605,7 +605,7 @@ def input_prompt(prompt):
     init_text = ""
 
     stat.addstr(0, 0, " " + prompt + ":", curses.A_REVERSE)
-    stat.addstr(0, 7, init_text)
+    stat.addstr(0, len(prompt)+2, init_text)
     stat.refresh()
 
     try:
@@ -636,7 +636,7 @@ def input_prompt(prompt):
 
             stat.clear()
             stat.addstr(0, 0, " " + prompt + ":", curses.A_REVERSE)
-            stat.addstr(0, 7, init_text)
+            stat.addstr(0, len(prompt)+2, init_text)
             stat.refresh()
     except KeyboardInterrupt:
         stat.clear()
