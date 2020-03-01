@@ -1195,10 +1195,7 @@ def main():
         args += sys.argv[1:]
 
     if len({"-h", "--help"} & set(args)) != 0:
-        hlp = __doc__.rstrip()
-        if "-h" in args:
-            hlp = re.search("(\n|.)*(?=\n\nKey)", hlp).group()
-        print(hlp)
+        print(__doc__.rstrip())
         sys.exit()
 
     loadstate()
