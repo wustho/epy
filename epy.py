@@ -918,211 +918,215 @@ def reader(ebook, index, width, y, pctg, sect):
         y = toc_secid.get(sect, 0)
 
     countstring = ""
-    while True:
-        if countstring == "":
-            count = 1
-        else:
-            count = int(countstring)
-        if k in range(48, 58): # i.e., k is a numeral
-            countstring = countstring + chr(k)
-        else:
-            if k in K["Quit"]:
-                if k == 27 and countstring != "":
-                    countstring = ""
-                else:
-                    savestate(ebook.path, index, width, y, y/totlines)
-                    sys.exit()
-            elif k in K["ScrollUp"]:
-                if y >= count:
-                    y -= count
-                elif index != 0:
-                    return -1, width, -rows, None, ""
-            elif k in K["PageUp"]:
-                if y == 0 and index != 0:
-                    return -1, width, -rows, None, ""
-                else:
-                    y = pgup(y, rows, LINEPRSRV, count)
-            elif k in K["ScrollDown"]:
-                if y + count <= totlines - rows:
-                    y += count
-                elif index != len(contents)-1:
-                    return 1, width, 0, None, ""
-            elif k in K["PageDown"]:
-                if totlines - y - LINEPRSRV > rows:
-                    y += rows - LINEPRSRV
-                    # SCREEN.clear()
-                    # SCREEN.refresh()
-                elif index != len(contents)-1:
-                    return 1, width, 0, None, ""
-            elif k in K["NextChapter"]:
-                ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                if ntoc < len(toc_idx) - 1:
-                    if index == toc_idx[ntoc+1]:
-                        try:
-                            y = toc_secid[toc_sect[ntoc+1]]
-                        except KeyError:
-                            pass
-                    else:
-                        return toc_idx[ntoc+1]-index, width, 0, None, toc_sect[ntoc+1]
-            elif k in K["PrevChapter"]:
-                ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                if ntoc > 0:
-                    if index == toc_idx[ntoc-1]:
-                        y = toc_secid.get(toc_sect[ntoc-1], 0)
-                    else:
-                        return toc_idx[ntoc-1]-index, width, 0, None, toc_sect[ntoc-1]
-            elif k in K["BeginningOfCh"]:
-                ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                try:
-                    y = toc_secid[toc_sect[ntoc]]
-                except KeyError:
-                    y = 0
-            elif k in K["EndOfCh"]:
-                ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                try:
-                    if toc_secid[toc_sect[ntoc+1]] - rows >= 0:
-                        y = toc_secid[toc_sect[ntoc+1]] - rows
-                    else:
-                        y = toc_secid[toc_sect[ntoc]]
-                except (KeyError, IndexError):
-                    y = pgend(totlines, rows)
-            elif k in K["ToC"]:
-                ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                fllwd = toc(toc_name, ntoc)
-                if fllwd is not None:
-                    if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
-                        k = fllwd
-                        continue
-                    if index == toc_idx[fllwd]:
-                        try:
-                            y = toc_secid[toc_sect[fllwd]]
-                        except KeyError:
-                            y = 0
-                    else:
-                        return toc_idx[fllwd] - index, width, 0, None, toc_sect[fllwd]
-            elif k in K["Metadata"]:
-                k = meta(ebook)
-                if k in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
-                    continue
-            elif k in K["Help"]:
-                k = help()
-                if k in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
-                    continue
-            elif k in K["Enlarge"] and (width + count) < cols - 2:
-                width += count
-                return 0, width, 0, y/totlines, ""
-            elif k in K["Shrink"] and width >= 22:
-                width -= count
-                return 0, width, 0, y/totlines, ""
-            elif k in K["SetWidth"]:
-                if countstring == "":
-                    # if called without a count, toggle between 80 cols and full width
-                    if width != 80 and cols - 2 >= 80:
-                        return 0, 80, 0, y/totlines, ""
-                    else:
-                        return 0, cols - 2, 0, y/totlines, ""
-                else:
-                    width = count
-                if width < 20:
-                    width = 20
-                elif width >= cols -2:
-                    width = cols - 2
-                return 0, width, 0, y/totlines, ""
-            # elif k == ord("0"):
-            #     if width != 80 and cols - 2 >= 80:
-            #         return 0, 80, 0, y/totlines, ""
-            #     else:
-            #         return 0, cols - 2, 0, y/totlines, ""
-            elif k in K["RegexSearch"]:
-                fs = searching(
-                    pad,
-                    src_lines,
-                    width, y,
-                    index, len(contents)
-                )
-                if fs == curses.KEY_RESIZE:
-                    k = fs
-                    continue
-                elif SEARCHPATTERN is not None:
-                    return fs, width, 0, None, ""
-                else:
-                    y = fs
-            elif k in K["OpenImage"] and VWR is not None:
-                gambar, idx = [], []
-                for n, i in enumerate(src_lines[y:y+rows]):
-                    img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
-                    if img is not None:
-                        gambar.append(img.group())
-                        idx.append(n)
-
-                impath = ""
-                if len(gambar) == 1:
-                    impath = imgs[int(gambar[0])]
-                elif len(gambar) > 1:
-                    p, i = 0, 0
-                    while p not in K["Quit"] and p not in K["Follow"]:
-                        SCREEN.move(idx[i], x + width//2 + len(gambar[i]) + 1)
-                        SCREEN.refresh()
-                        curses.curs_set(1)
-                        p = pad.getch()
-                        if p in K["ScrollDown"]:
-                            i += 1
-                        elif p in K["ScrollUp"]:
-                            i -= 1
-                        i = i % len(gambar)
-
-                    curses.curs_set(0)
-                    if p in K["Follow"]:
-                        impath = imgs[int(gambar[i])]
-
-                if impath != "":
-                    imgsrc = dots_path(chpath, impath)
-                    k = open_media(pad, ebook, imgsrc)
-                    continue
-            elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
-                if countstring == "":
-                    count_color = curses.pair_number(SCREEN.getbkgd())
-                    if count_color not in {2, 3}: count_color = 1
-                    count_color = count_color % 3
-                else:
-                    count_color = count
-                SCREEN.bkgd(curses.color_pair(count_color+1))
-                return 0, width, y, None, ""
-            elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
-                SHOWPROGRESS = not SHOWPROGRESS
-            elif k == curses.KEY_RESIZE:
-                savestate(ebook.path, index, width, y, y/totlines)
-                # stated in pypi windows-curses page:
-                # to call resize_term right after KEY_RESIZE
-                if sys.platform == "win32":
-                    curses.resize_term(rows, cols)
-                    rows, cols = SCREEN.getmaxyx()
-                else:
-                    rows, cols = SCREEN.getmaxyx()
-                    curses.resize_term(rows, cols)
-                if cols <= width:
-                    return 0, cols - 2, 0, y/totlines, ""
-                else:
-                    return 0, width, y, None, ""
-            countstring = ""
-
-        if CFG["EnableProgressIndicator"]:
-            PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
-            PROGRESSTR = "{}%".format(int(PROGRESS*100))
-
-        try:
-            SCREEN.clear()
-            SCREEN.addstr(0, 0, countstring)
-            if SHOWPROGRESS and (cols-width-2)//2 > 3:
-                SCREEN.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
-            SCREEN.refresh()
-            if totlines - y < rows:
-                pad.refresh(y, 0, 0, x, totlines-y, x+width)
+    try:
+        while True:
+            if countstring == "":
+                count = 1
             else:
-                pad.refresh(y, 0, 0, x, rows-1, x+width)
-        except curses.error:
-            pass
-        k = pad.getch()
+                count = int(countstring)
+            if k in range(48, 58): # i.e., k is a numeral
+                countstring = countstring + chr(k)
+            else:
+                if k in K["Quit"]:
+                    if k == 27 and countstring != "":
+                        countstring = ""
+                    else:
+                        savestate(ebook.path, index, width, y, y/totlines)
+                        sys.exit()
+                elif k in K["ScrollUp"]:
+                    if y >= count:
+                        y -= count
+                    elif index != 0:
+                        return -1, width, -rows, None, ""
+                elif k in K["PageUp"]:
+                    if y == 0 and index != 0:
+                        return -1, width, -rows, None, ""
+                    else:
+                        y = pgup(y, rows, LINEPRSRV, count)
+                elif k in K["ScrollDown"]:
+                    if y + count <= totlines - rows:
+                        y += count
+                    elif index != len(contents)-1:
+                        return 1, width, 0, None, ""
+                elif k in K["PageDown"]:
+                    if totlines - y - LINEPRSRV > rows:
+                        y += rows - LINEPRSRV
+                        # SCREEN.clear()
+                        # SCREEN.refresh()
+                    elif index != len(contents)-1:
+                        return 1, width, 0, None, ""
+                elif k in K["NextChapter"]:
+                    ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
+                    if ntoc < len(toc_idx) - 1:
+                        if index == toc_idx[ntoc+1]:
+                            try:
+                                y = toc_secid[toc_sect[ntoc+1]]
+                            except KeyError:
+                                pass
+                        else:
+                            return toc_idx[ntoc+1]-index, width, 0, None, toc_sect[ntoc+1]
+                elif k in K["PrevChapter"]:
+                    ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
+                    if ntoc > 0:
+                        if index == toc_idx[ntoc-1]:
+                            y = toc_secid.get(toc_sect[ntoc-1], 0)
+                        else:
+                            return toc_idx[ntoc-1]-index, width, 0, None, toc_sect[ntoc-1]
+                elif k in K["BeginningOfCh"]:
+                    ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
+                    try:
+                        y = toc_secid[toc_sect[ntoc]]
+                    except KeyError:
+                        y = 0
+                elif k in K["EndOfCh"]:
+                    ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
+                    try:
+                        if toc_secid[toc_sect[ntoc+1]] - rows >= 0:
+                            y = toc_secid[toc_sect[ntoc+1]] - rows
+                        else:
+                            y = toc_secid[toc_sect[ntoc]]
+                    except (KeyError, IndexError):
+                        y = pgend(totlines, rows)
+                elif k in K["ToC"]:
+                    ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
+                    fllwd = toc(toc_name, ntoc)
+                    if fllwd is not None:
+                        if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
+                            k = fllwd
+                            continue
+                        if index == toc_idx[fllwd]:
+                            try:
+                                y = toc_secid[toc_sect[fllwd]]
+                            except KeyError:
+                                y = 0
+                        else:
+                            return toc_idx[fllwd] - index, width, 0, None, toc_sect[fllwd]
+                elif k in K["Metadata"]:
+                    k = meta(ebook)
+                    if k in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
+                        continue
+                elif k in K["Help"]:
+                    k = help()
+                    if k in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
+                        continue
+                elif k in K["Enlarge"] and (width + count) < cols - 2:
+                    width += count
+                    return 0, width, 0, y/totlines, ""
+                elif k in K["Shrink"] and width >= 22:
+                    width -= count
+                    return 0, width, 0, y/totlines, ""
+                elif k in K["SetWidth"]:
+                    if countstring == "":
+                        # if called without a count, toggle between 80 cols and full width
+                        if width != 80 and cols - 2 >= 80:
+                            return 0, 80, 0, y/totlines, ""
+                        else:
+                            return 0, cols - 2, 0, y/totlines, ""
+                    else:
+                        width = count
+                    if width < 20:
+                        width = 20
+                    elif width >= cols -2:
+                        width = cols - 2
+                    return 0, width, 0, y/totlines, ""
+                # elif k == ord("0"):
+                #     if width != 80 and cols - 2 >= 80:
+                #         return 0, 80, 0, y/totlines, ""
+                #     else:
+                #         return 0, cols - 2, 0, y/totlines, ""
+                elif k in K["RegexSearch"]:
+                    fs = searching(
+                        pad,
+                        src_lines,
+                        width, y,
+                        index, len(contents)
+                    )
+                    if fs == curses.KEY_RESIZE:
+                        k = fs
+                        continue
+                    elif SEARCHPATTERN is not None:
+                        return fs, width, 0, None, ""
+                    else:
+                        y = fs
+                elif k in K["OpenImage"] and VWR is not None:
+                    gambar, idx = [], []
+                    for n, i in enumerate(src_lines[y:y+rows]):
+                        img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
+                        if img is not None:
+                            gambar.append(img.group())
+                            idx.append(n)
+
+                    impath = ""
+                    if len(gambar) == 1:
+                        impath = imgs[int(gambar[0])]
+                    elif len(gambar) > 1:
+                        p, i = 0, 0
+                        while p not in K["Quit"] and p not in K["Follow"]:
+                            SCREEN.move(idx[i], x + width//2 + len(gambar[i]) + 1)
+                            SCREEN.refresh()
+                            curses.curs_set(1)
+                            p = pad.getch()
+                            if p in K["ScrollDown"]:
+                                i += 1
+                            elif p in K["ScrollUp"]:
+                                i -= 1
+                            i = i % len(gambar)
+
+                        curses.curs_set(0)
+                        if p in K["Follow"]:
+                            impath = imgs[int(gambar[i])]
+
+                    if impath != "":
+                        imgsrc = dots_path(chpath, impath)
+                        k = open_media(pad, ebook, imgsrc)
+                        continue
+                elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
+                    if countstring == "":
+                        count_color = curses.pair_number(SCREEN.getbkgd())
+                        if count_color not in {2, 3}: count_color = 1
+                        count_color = count_color % 3
+                    else:
+                        count_color = count
+                    SCREEN.bkgd(curses.color_pair(count_color+1))
+                    return 0, width, y, None, ""
+                elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
+                    SHOWPROGRESS = not SHOWPROGRESS
+                elif k == curses.KEY_RESIZE:
+                    savestate(ebook.path, index, width, y, y/totlines)
+                    # stated in pypi windows-curses page:
+                    # to call resize_term right after KEY_RESIZE
+                    if sys.platform == "win32":
+                        curses.resize_term(rows, cols)
+                        rows, cols = SCREEN.getmaxyx()
+                    else:
+                        rows, cols = SCREEN.getmaxyx()
+                        curses.resize_term(rows, cols)
+                    if cols <= width:
+                        return 0, cols - 2, 0, y/totlines, ""
+                    else:
+                        return 0, width, y, None, ""
+                countstring = ""
+
+            if CFG["EnableProgressIndicator"]:
+                PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
+                PROGRESSTR = "{}%".format(int(PROGRESS*100))
+
+            try:
+                SCREEN.clear()
+                SCREEN.addstr(0, 0, countstring)
+                if SHOWPROGRESS and (cols-width-2)//2 > 3:
+                    SCREEN.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
+                SCREEN.refresh()
+                if totlines - y < rows:
+                    pad.refresh(y, 0, 0, x, totlines-y, x+width)
+                else:
+                    pad.refresh(y, 0, 0, x, rows-1, x+width)
+            except curses.error:
+                pass
+            k = pad.getch()
+    except KeyboardInterrupt:
+        savestate(ebook.path, index, width, y, y/totlines)
+        sys.exit()
 
 
 def preread(stdscr, file):
