@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.3.1"
+__version__ = "2020.3.2"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -604,8 +604,8 @@ def input_prompt(prompt):
 
     init_text = ""
 
-    stat.addstr(0, 0, " " + prompt + ":", curses.A_REVERSE)
-    stat.addstr(0, len(prompt)+2, init_text)
+    stat.addstr(0, 0, prompt, curses.A_REVERSE)
+    stat.addstr(0, len(prompt), init_text)
     stat.refresh()
 
     try:
@@ -635,8 +635,8 @@ def input_prompt(prompt):
                 init_text += chr(ipt)
 
             stat.clear()
-            stat.addstr(0, 0, " " + prompt + ":", curses.A_REVERSE)
-            stat.addstr(0, len(prompt)+2, init_text)
+            stat.addstr(0, 0, prompt, curses.A_REVERSE)
+            stat.addstr(0, len(prompt), init_text)
             stat.refresh()
     except KeyboardInterrupt:
         stat.clear()
@@ -711,7 +711,7 @@ def searching(pad, src, width, y, ch, tot):
     rows, cols = SCREEN.getmaxyx()
     x = (cols - width) // 2
     if SEARCHPATTERN is None:
-        candtext = input_prompt("Regex")
+        candtext = input_prompt(" Regex:")
         if candtext is None:
             return y
         elif isinstance(candtext, str):
