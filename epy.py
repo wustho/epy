@@ -903,7 +903,7 @@ def reader(ebook, index, width, y, pctg, sect):
             LOCALPCTG.append(len(re.sub("\s", "", i)))
     # chapter suffix
     try:
-        pad.addstr(n+1, width//2 - 3, "\u3064\u3065\u304f")  # つづく
+        pad.addstr(n+1, width//2 - 3, "***")  # "\u3064\u3065\u304f" つづく
     except curses.error:
         pass
 
