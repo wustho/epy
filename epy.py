@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.3.2"
+__version__ = "2020.3.7"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -878,7 +878,7 @@ def reader(ebook, index, width, y, pctg, sect):
     #     pass
 
     src_lines, imgs, toc_secid = parser.get_lines(width)
-    totlines = len(src_lines)
+    totlines = len(src_lines) + 1  # 1 extra line for suffix
 
     if y < 0 and totlines <= rows:
         y = 0
@@ -901,6 +901,11 @@ def reader(ebook, index, width, y, pctg, sect):
             pad.addstr(n, 0, i)
         if CFG["EnableProgressIndicator"]:
             LOCALPCTG.append(len(re.sub("\s", "", i)))
+    # chapter suffix
+    try:
+        pad.addstr(n+1, width//2 - 3, "\u3064\u3065\u304f")  # つづく
+    except curses.error:
+        pass
 
     if CFG["EnableProgressIndicator"]:
         TOTALPCTG = sum(PERCENTAGE)
