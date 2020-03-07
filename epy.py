@@ -896,14 +896,15 @@ def reader(ebook, index, width, y, pctg, sect):
     LOCALPCTG = []
     for n, i in enumerate(src_lines):
         if re.search("\\[IMG:[0-9]+\\]", i):
-            pad.addstr(n, width//2 - len(i)//2, i, curses.A_REVERSE)
+            pad.addstr(n, width//2 - len(i)//2 + 1, i, curses.A_REVERSE)
         else:
             pad.addstr(n, 0, i)
         if CFG["EnableProgressIndicator"]:
             LOCALPCTG.append(len(re.sub("\s", "", i)))
     # chapter suffix
+    ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
     try:
-        pad.addstr(n+1, width//2 - 3, "***")  # "\u3064\u3065\u304f" つづく
+        pad.addstr(n+1, (width - len(ch_suffix))//2 + 1, ch_suffix)
     except curses.error:
         pass
 
