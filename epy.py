@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.3.7"
+__version__ = "2020.3.8"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1107,6 +1107,8 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         rows, cols = SCREEN.getmaxyx()
                         curses.resize_term(rows, cols)
+                    if cols < 22 or rows < 12:
+                        sys.exit("ERR: Screen was too small.")
                     if cols <= width:
                         return 0, cols - 2, 0, y/totlines, ""
                     else:
