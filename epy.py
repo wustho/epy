@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.3.8"
+__version__ = "2020.4.15"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -59,12 +59,14 @@ CFG = {
         "Shrink": "-",
         "Enlarge": "+",
         "SetWidth": "=",
-        "Metadata": "m",
+        "Metadata": "M",
         "ToC": "t",
         "Follow": "f",
         "OpenImage": "o",
         "RegexSearch": "/",
         "ShowHideProgress": "s",
+        "MarkPosition": "m",
+        "JumpToPosition": "`",
         "Quit": "q",
         "Help": "?",
         "SwitchColor": "c"
@@ -87,6 +89,8 @@ K = {
     "Enlarge": set(),
     "SetWidth": set(),
     "Metadata": set(),
+    "MarkPosition": set(),
+    "JumpToPosition": set(),
     "ToC": {9, ord("\t")},
     "Follow": {10},
     "OpenImage": set(),
@@ -105,6 +109,7 @@ SEARCHPATTERN = None
 VWR = None
 SCREEN = None
 PERCENTAGE = []
+JUMPLIST = {}
 SHOWPROGRESS = CFG["EnableProgressIndicator"]
 
 
@@ -1095,6 +1100,23 @@ def reader(ebook, index, width, y, pctg, sect):
                         count_color = count
                     SCREEN.bkgd(curses.color_pair(count_color+1))
                     return 0, width, y, None, ""
+                elif k in K["MarkPosition"]:
+                    jumnum = pad.getch()
+                    if jumnum in range(49, 58):
+                        JUMPLIST[chr(jumnum)] = [index, width, y, y/totlines]
+                    else:
+                        k = jumnum
+                        continue
+                elif k in K["JumpToPosition"]:
+                    jumnum = pad.getch()
+                    if jumnum in range(49, 58) and chr(jumnum) in JUMPLIST.keys():
+                        tojumpidxdiff = JUMPLIST[chr(jumnum)][0]-index
+                        tojumpy = JUMPLIST[chr(jumnum)][2]
+                        tojumpctg = None if JUMPLIST[chr(jumnum)][1] == width else JUMPLIST[chr(jumnum)][3]
+                        return tojumpidxdiff, width, tojumpy, tojumpctg, ""
+                    else:
+                        k = jumnum
+                        continue
                 elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
                     SHOWPROGRESS = not SHOWPROGRESS
                 elif k == curses.KEY_RESIZE:
