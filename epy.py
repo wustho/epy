@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.15"
+__version__ = "2020.4.16"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -41,7 +41,8 @@ from functools import wraps
 
 # -1 is default terminal fg/bg colors
 CFG = {
-    "DefaultViewer": "Default",
+    "DefaultViewer": "auto",
+    "DictionaryClient": "auto",
     "EnableProgressIndicator": True,
     "DarkColorFG": 252,
     "DarkColorBG": 235,
@@ -60,6 +61,7 @@ CFG = {
         "Enlarge": "+",
         "SetWidth": "=",
         "Metadata": "M",
+        "DefineWord": "d",
         "ToC": "t",
         "Follow": "f",
         "OpenImage": "o",
@@ -89,6 +91,7 @@ K = {
     "Enlarge": set(),
     "SetWidth": set(),
     "Metadata": set(),
+    "DefineWord": set(),
     "MarkPosition": set(),
     "JumpToPosition": set(),
     "ToC": {9, ord("\t")},
@@ -107,6 +110,7 @@ COLORSUPPORT = False
 LINEPRSRV = 0  # 2
 SEARCHPATTERN = None
 VWR = None
+DICT = None
 SCREEN = None
 PERCENTAGE = []
 JUMPLIST = {}
@@ -534,7 +538,7 @@ def parse_keys():
     global WINKEYS
     for i in K.keys():
         K[i] = K[i]|{ord(CFG["Keys"][i])}
-    WINKEYS = K["Metadata"]|K["Help"]|K["ToC"]
+    WINKEYS = K["Metadata"]|K["Help"]|K["ToC"]|K["DefineWord"]
 
 
 def savestate(file, index, width, pos, pctg):
@@ -665,6 +669,23 @@ def dots_path(curr, tofi):
     return "/".join(candir+tofi)
 
 
+def find_dict_client():
+    global DICT
+    if shutil.which(CFG["DictionaryClient"].split()[0]) is not None:
+        DICT = CFG["DictionaryClient"]
+    else:
+        DICT_LIST = [
+            "sdcv",
+            "dict"
+        ]
+        for i in DICT_LIST:
+            if shutil.which(i) is not None:
+                DICT = i
+                break
+        if DICT in {"sdcv"}:
+            DICT += " -n"
+
+
 def find_media_viewer():
     global VWR
     if shutil.which(CFG["DefaultViewer"]) is not None:
@@ -709,6 +730,35 @@ def open_media(scr, epub, src):
     finally:
         os.remove(path)
     return k
+
+
+@text_win
+def define_word(word):
+    rows, cols = SCREEN.getmaxyx()
+    hi, wi = 5, 16
+    Y, X = (rows - hi)//2, (cols - wi)//2
+
+    p = subprocess.Popen(
+        "{} {}".format(DICT, word),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True
+    )
+
+    dictwin = curses.newwin(hi, wi, Y, X)
+    dictwin.box()
+    dictwin.addstr((hi-1)//2, (wi-10)//2, "Loading...")
+    dictwin.refresh()
+
+    out, err = p.communicate()
+
+    dictwin.clear()
+    dictwin.refresh()
+
+    if err == b"":
+        return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
+    else:
+        return "Error: " + DICT, err.decode(), K["DefineWord"]
 
 
 def searching(pad, src, width, y, ch, tot):
@@ -1100,6 +1150,13 @@ def reader(ebook, index, width, y, pctg, sect):
                         count_color = count
                     SCREEN.bkgd(curses.color_pair(count_color+1))
                     return 0, width, y, None, ""
+                elif k in K["DefineWord"] and DICT is not None:
+                    word = input_prompt("define:")
+                    if word is not None:
+                        defin = define_word(word)
+                        if defin in {curses.KEY_RESIZE}|WINKEYS:
+                            k = defin
+                            continue
                 elif k in K["MarkPosition"]:
                     jumnum = pad.getch()
                     if jumnum in range(49, 58):
@@ -1199,6 +1256,7 @@ def preread(stdscr, file):
 
     epub.initialize()
     find_media_viewer()
+    find_dict_client()
     parse_keys()
 
     SHOWPROGRESS = CFG["EnableProgressIndicator"]
