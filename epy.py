@@ -1126,7 +1126,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     k = help()
                     if k in WINKEYS:
                         continue
-                elif k in K["Enlarge"] and (width + count) < cols - 2:
+                elif k in K["Enlarge"] and (width + count) < cols - 4:
                     width += count
                     return 0, width, 0, y/totlines, ""
                 elif k in K["Shrink"] and width >= 22:
@@ -1135,16 +1135,16 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["SetWidth"]:
                     if countstring == "":
                         # if called without a count, toggle between 80 cols and full width
-                        if width != 80 and cols - 2 >= 80:
+                        if width != 80 and cols - 4 >= 80:
                             return 0, 80, 0, y/totlines, ""
                         else:
-                            return 0, cols - 2, 0, y/totlines, ""
+                            return 0, cols - 4, 0, y/totlines, ""
                     else:
                         width = count
                     if width < 20:
                         width = 20
-                    elif width >= cols -2:
-                        width = cols - 2
+                    elif width >= cols - 4:
+                        width = cols - 4
                     return 0, width, 0, y/totlines, ""
                 # elif k == ord("0"):
                 #     if width != 80 and cols - 2 >= 80:
@@ -1247,7 +1247,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     if cols < 22 or rows < 12:
                         sys.exit("ERR: Screen was too small.")
                     if cols <= width:
-                        return 0, cols - 2, 0, y/totlines, ""
+                        return 0, cols - 4, 0, y/totlines, ""
                     else:
                         return 0, width, y, None, ""
                 countstring = ""
@@ -1309,7 +1309,7 @@ def preread(stdscr, file):
     pctg = None
 
     if cols <= width:
-        width = cols - 2
+        width = cols - 4
         pctg = STATE["States"][ebook.path].get("pctg", None)
 
     ebook.initialize()
