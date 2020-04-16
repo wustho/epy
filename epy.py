@@ -688,7 +688,7 @@ def find_dict_client():
 
 def find_media_viewer():
     global VWR
-    if shutil.which(CFG["DefaultViewer"]) is not None:
+    if shutil.which(CFG["DefaultViewer"].split()[0]) is not None:
         VWR = CFG["DefaultViewer"]
     elif sys.platform == "win32":
         VWR = "start"
@@ -1151,7 +1151,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     SCREEN.bkgd(curses.color_pair(count_color+1))
                     return 0, width, y, None, ""
                 elif k in K["DefineWord"] and DICT is not None:
-                    word = input_prompt("define:")
+                    word = input_prompt(" Define:")
                     if word is not None:
                         defin = define_word(word)
                         if defin in WINKEYS:
