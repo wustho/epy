@@ -14,12 +14,13 @@ Options:
 """
 
 
-__version__ = "2020.4.16"
+__version__ = "2020.4.17"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
 
 
+import base64
 import curses
 import zipfile
 import sys
@@ -202,6 +203,53 @@ class Epub:
             elif len(src) == 1:
                 self.toc_entries[2].append("")
 
+    def get_raw_text(self, chpath):
+        content = self.file.open(chpath).read()
+        return content.decode("utf-8")
+
+    def get_img_bytestr(self, impath):
+        return impath, self.file.read(impath)
+
+
+class FictionBook:
+    NS = {
+        "FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"
+    }
+
+    def __init__(self, filefb):
+        self.path = os.path.abspath(filefb)
+        cont = ET.parse(filefb)
+        self.root = cont.getroot()
+
+        self.contents = []
+        self.toc_entries = [[], [], []]
+
+    def get_meta(self):
+        desc = self.root.find("FB2:description", self.NS)
+        alltags = desc.findall("*/*")
+        return [[re.sub("{.*?}", "", i.tag), " ".join(i.itertext())] for i in alltags]
+
+    def initialize(self):
+        self.contents = self.root.findall("FB2:body/*", self.NS)
+        # TODO
+        for n, i in enumerate(self.contents):
+            title = i.find("FB2:title", self.NS)
+            if title is not None:
+                self.toc_entries[0].append("".join(title.itertext()))
+                self.toc_entries[1].append(n)
+                self.toc_entries[2].append("")
+
+    def get_raw_text(self, node):
+        ET.register_namespace("", "http://www.gribuser.ru/xml/fictionbook/2.0")
+        # sys.exit(ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:",""))
+        return ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:","")
+
+    def get_img_bytestr(self, imgid):
+        imgid = imgid.replace("#", "")
+        img = self.root.find("*[@id='{}']".format(imgid))
+        imgtype = img.get("content-type").split("/")[1]
+        return imgid+"."+imgtype, base64.b64decode(img.text)
+
 
 class HTMLtoLines(HTMLParser):
     para = {"p", "div"}
@@ -243,7 +291,8 @@ class HTMLtoLines(HTMLParser):
             self.text[-1] += "_{"
         elif tag == "image":
             for i in attrs:
-                if i[0] == "xlink:href":
+                # if i[0] == "xlink:href":
+                if i[0].endswith("href"):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
         if self.sects != {""}:
@@ -645,6 +694,16 @@ def input_prompt(prompt):
         return
 
 
+def det_ebook_cls(file):
+    filext = os.path.splitext(file)[1]
+    if filext == ".epub":
+        return Epub(file)
+    elif filext == ".fb2":
+        return FictionBook(file)
+    else:
+        sys.exit("ERR: Format not supported. (Supported: epub, fb2)")
+
+
 def dots_path(curr, tofi):
     candir = curr.split("/")
     tofi = tofi.split("/")
@@ -703,12 +762,13 @@ def find_media_viewer():
         VWR += " open"
 
 
-def open_media(scr, epub, src):
-    sfx = os.path.splitext(src)[1]
+def open_media(scr, name, bstr):
+    sfx = os.path.splitext(name)[1]
     fd, path = tempfile.mkstemp(suffix=sfx)
     try:
         with os.fdopen(fd, "wb") as tmp:
-            tmp.write(epub.file.read(src))
+            # tmp.write(epub.file.read(src))
+            tmp.write(bstr)
         # run(VWR + " " + path, shell=True)
         subprocess.call(
             VWR + " " + path,
@@ -911,8 +971,7 @@ def reader(ebook, index, width, y, pctg, sect):
     toc_sect = ebook.toc_entries[2]
     toc_secid = {}
     chpath = contents[index]
-    content = ebook.file.open(chpath).read()
-    content = content.decode("utf-8")
+    content = ebook.get_raw_text(chpath)
 
     parser = HTMLtoLines(set(toc_sect))
     # parser = HTMLtoLines()
@@ -1039,6 +1098,13 @@ def reader(ebook, index, width, y, pctg, sect):
                     except (KeyError, IndexError):
                         y = pgend(totlines, rows)
                 elif k in K["ToC"]:
+                    if ebook.toc_entries == [[], [], []]:
+                        k = text_win(lambda: (
+                            "Table of Contents",
+                            "N/A: ToC is unavailable for this book.",
+                            K["ToC"]
+                            ))()
+                        continue
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                     fllwd = toc(toc_name, ntoc)
                     if fllwd is not None:
@@ -1128,8 +1194,10 @@ def reader(ebook, index, width, y, pctg, sect):
                             impath = imgs[int(gambar[i])]
 
                     if impath != "":
-                        imgsrc = dots_path(chpath, impath)
-                        k = open_media(pad, ebook, imgsrc)
+                        if ebook.__class__.__name__ == "Epub":
+                            impath = dots_path(chpath, impath)
+                        imgnm, imgbstr = ebook.get_img_bytestr(impath)
+                        k = open_media(pad, imgnm, imgbstr)
                         continue
                 elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
                     if countstring == "":
@@ -1227,14 +1295,14 @@ def preread(stdscr, file):
     SCREEN.addstr(rows-1, 0, "Loading...")
     SCREEN.refresh()
 
-    epub = Epub(file)
+    ebook = det_ebook_cls(file)
 
-    if epub.path in STATE["States"]:
-        idx = STATE["States"][epub.path]["index"]
-        width = STATE["States"][epub.path]["width"]
-        y = STATE["States"][epub.path]["pos"]
+    if ebook.path in STATE["States"]:
+        idx = STATE["States"][ebook.path]["index"]
+        width = STATE["States"][ebook.path]["width"]
+        y = STATE["States"][ebook.path]["pos"]
     else:
-        STATE["States"][epub.path] = {}
+        STATE["States"][ebook.path] = {}
         idx = 0
         y = 0
         width = 80
@@ -1242,18 +1310,17 @@ def preread(stdscr, file):
 
     if cols <= width:
         width = cols - 2
-        pctg = STATE["States"][epub.path].get("pctg", None)
+        pctg = STATE["States"][ebook.path].get("pctg", None)
 
-    epub.initialize()
+    ebook.initialize()
     find_media_viewer()
     find_dict_client()
     parse_keys()
 
     SHOWPROGRESS = CFG["EnableProgressIndicator"]
     if SHOWPROGRESS:
-        for i in epub.contents:
-            content = epub.file.open(i).read()
-            content = content.decode("utf-8")
+        for i in ebook.contents:
+            content = ebook.get_raw_text(i)
             parser = HTMLtoLines()
             # try:
             parser.feed(content)
@@ -1266,7 +1333,7 @@ def preread(stdscr, file):
     sec = ""
     while True:
         incr, width, y, pctg, sec = reader(
-            epub, idx, width, y, pctg, sec
+            ebook, idx, width, y, pctg, sec
         )
         idx += incr
 
@@ -1350,11 +1417,10 @@ def main():
             sys.exit(xitmsg)
 
     if dump:
-        epub = Epub(file)
-        epub.initialize()
-        for i in epub.contents:
-            content = epub.file.open(i).read()
-            content = content.decode("utf-8")
+        ebook = det_ebook_cls(file)
+        ebook.initialize()
+        for i in ebook.contents:
+            content = ebook.get_raw_text(i)
             parser = HTMLtoLines()
             # try:
             parser.feed(content)
