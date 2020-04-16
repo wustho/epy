@@ -401,7 +401,7 @@ def text_win(textfunc):
                 y = 0
             elif key_textw in K["EndOfCh"]:
                 y = pgend(totlines, padhi)
-            elif key_textw in {curses.KEY_RESIZE}|WINKEYS - key:
+            elif key_textw in WINKEYS - key:
                 return key_textw
             pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
             key_textw = textw.getch()
@@ -482,7 +482,7 @@ def choice_win(listgen):
                     index = 0
                 elif key_chwin in K["EndOfCh"]:
                     index = totlines - 1
-                elif key_chwin in {curses.KEY_RESIZE}|WINKEYS - key:
+                elif key_chwin in WINKEYS - key:
                     return key_chwin
                 countstring = ""
 
@@ -538,7 +538,7 @@ def parse_keys():
     global WINKEYS
     for i in K.keys():
         K[i] = K[i]|{ord(CFG["Keys"][i])}
-    WINKEYS = K["Metadata"]|K["Help"]|K["ToC"]|K["DefineWord"]
+    WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|K["ToC"]
 
 
 def savestate(file, index, width, pos, pctg):
@@ -1052,7 +1052,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                     fllwd = toc(toc_name, ntoc)
                     if fllwd is not None:
-                        if fllwd in {curses.KEY_RESIZE}|K["Help"]|K["Metadata"]:
+                        if fllwd in WINKEYS:
                             k = fllwd
                             continue
                         if index == toc_idx[fllwd]:
@@ -1064,11 +1064,11 @@ def reader(ebook, index, width, y, pctg, sect):
                             return toc_idx[fllwd] - index, width, 0, None, toc_sect[fllwd]
                 elif k in K["Metadata"]:
                     k = meta(ebook)
-                    if k in {curses.KEY_RESIZE}|K["Help"]|K["ToC"]:
+                    if k in WINKEYS:
                         continue
                 elif k in K["Help"]:
                     k = help()
-                    if k in {curses.KEY_RESIZE}|K["Metadata"]|K["ToC"]:
+                    if k in WINKEYS:
                         continue
                 elif k in K["Enlarge"] and (width + count) < cols - 2:
                     width += count
@@ -1154,7 +1154,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     word = input_prompt("define:")
                     if word is not None:
                         defin = define_word(word)
-                        if defin in {curses.KEY_RESIZE}|WINKEYS:
+                        if defin in WINKEYS:
                             k = defin
                             continue
                 elif k in K["MarkPosition"]:
