@@ -78,30 +78,17 @@ STATE = {
     "LastRead": "",
     "States": {}
 }
+# default keys
 K = {
     "ScrollUp": {curses.KEY_UP},
     "ScrollDown": {curses.KEY_DOWN},
     "PageUp": {curses.KEY_PPAGE, curses.KEY_LEFT},
     "PageDown": {curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT},
-    "NextChapter": set(),
-    "PrevChapter": set(),
     "BeginningOfCh": {curses.KEY_HOME},
     "EndOfCh": {curses.KEY_END},
-    "Shrink": set(),
-    "Enlarge": set(),
-    "SetWidth": set(),
-    "Metadata": set(),
-    "DefineWord": set(),
-    "MarkPosition": set(),
-    "JumpToPosition": set(),
     "ToC": {9, ord("\t")},
     "Follow": {10},
-    "OpenImage": set(),
-    "RegexSearch": set(),
-    "ShowHideProgress": set(),
-    "Quit": {3, 27, 304},
-    "Help": set(),
-    "SwitchColor": set()
+    "Quit": {3, 27, 304}
 }
 WINKEYS = set()
 CFGFILE = ""
@@ -536,8 +523,11 @@ def loadstate():
 
 def parse_keys():
     global WINKEYS
-    for i in K.keys():
-        K[i] = K[i]|{ord(CFG["Keys"][i])}
+    for i in CFG["Keys"].keys():
+        try:
+            K[i].add(ord(CFG["Keys"][i]))
+        except KeyError:
+            K[i] = {ord(CFG["Keys"][i])}
     WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|K["ToC"]
 
 
