@@ -660,8 +660,8 @@ def toc(src, index):
 
 @text_win
 def meta(ebook):
-    mdata = "[File Info]\nPATH: {}\nSIZE: {}\n \n[Book Info]\n".format(
-        ebook.path, os.stat(ebook.path).st_size
+    mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
+        ebook.path, round(os.path.getsize(ebook.path)/1024**2, 2)
     )
     for i in ebook.get_meta():
         data = re.sub("<[^>]*>", "", i[1])
