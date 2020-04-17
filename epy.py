@@ -70,6 +70,8 @@ CFG = {
         "ShowHideProgress": "s",
         "MarkPosition": "m",
         "JumpToPosition": "`",
+        "AddBookmark": "b",
+        "ShowBookmarks": "B",
         "Quit": "q",
         "Help": "?",
         "SwitchColor": "c"
@@ -530,6 +532,7 @@ def choice_win(allowdel=False):
                             )()
                         if resp == 0:
                             return index-1, index
+                            # return (0 if index == 0 else index-1), index
                         chwin.redrawwin()
                         chwin.refresh()
                     elif key_chwin in WINKEYS - key:
@@ -593,7 +596,7 @@ def parse_keys():
             K[i].add(ord(CFG["Keys"][i]))
         except KeyError:
             K[i] = {ord(CFG["Keys"][i])}
-    WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|K["ToC"]
+    WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|K["ToC"]|K["ShowBookmarks"]
 
 
 def savestate(file, index, width, pos, pctg):
@@ -655,6 +658,23 @@ def help():
     for i in CFG["Keys"].keys():
         src += "  " + i + ": " + CFG["Keys"][i] + "\n"
     return "Help", src, K["Help"]
+
+
+def bookmarks(ebookpath):
+    idx = 0
+    while True:
+        bmarkslist = [
+            i[0] for i in STATE["States"][ebookpath]["bmarks"]
+        ]
+        if bmarkslist == []:
+            return list(K["ShowBookmarks"])[0]
+        idx, todel = choice_win(True)(lambda:
+        ("Bookmarks", bmarkslist, idx, {ord("B")})
+        )()
+        if todel is not None:
+            del STATE["States"][ebookpath]["bmarks"][todel]
+        else:
+            return idx
 
 
 def input_prompt(prompt, maxlen=25):
@@ -1224,6 +1244,35 @@ def reader(ebook, index, width, y, pctg, sect):
                         count_color = count
                     SCREEN.bkgd(curses.color_pair(count_color+1))
                     return 0, width, y, None, ""
+                elif k in K["AddBookmark"]:
+                    defbmname_suffix = 1
+                    defbmname = "Bookmark " + str(defbmname_suffix)
+                    occupiedbmnames = [i[0] for i in STATE["States"][ebook.path]["bmarks"]]
+                    while defbmname in occupiedbmnames:
+                        defbmname_suffix += 1
+                        defbmname = "Bookmark " + str(defbmname_suffix)
+                    bmname = input_prompt(" Add bookmark ({}):".format(defbmname))
+                    if bmname is not None:
+                        if bmname.strip() == "":
+                            bmname = defbmname
+                        STATE["States"][ebook.path]["bmarks"].append(
+                            [bmname, index, y, y/totlines]
+                        )
+                elif k in K["ShowBookmarks"]:
+                    if STATE["States"][ebook.path]["bmarks"] == []:
+                        k = text_win(lambda: (
+                            "Bookmarks",
+                            "N/A: Bookmarks are not found in this book.",
+                            {ord("B")}
+                        ))()
+                        continue
+                    else:
+                        idxchoice = bookmarks(ebook.path)
+                        if idxchoice in WINKEYS:
+                            continue
+                        elif idxchoice is not None:
+                            bmtojump = STATE["States"][ebook.path]["bmarks"][idxchoice]
+                            return bmtojump[1]-index, width, bmtojump[2], bmtojump[3], ""
                 elif k in K["DefineWord"] and DICT is not None:
                     word = input_prompt(" Define:")
                     if word is not None:
@@ -1319,6 +1368,7 @@ def preread(stdscr, file):
         y = STATE["States"][ebook.path]["pos"]
     else:
         STATE["States"][ebook.path] = {}
+        STATE["States"][ebook.path]["bmarks"] = []
         idx = 0
         y = 0
         width = 80
