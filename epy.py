@@ -534,12 +534,20 @@ def choice_win(allowdel=False):
                         index = totlines - 1
                     elif key_chwin == ord("d") and allowdel:
                         resp, _ = choice_win()(
-                            lambda: ("Are you sure?", ["Yes", "No"], 0, {ord("n")})
+                            lambda: ("Delete '{}'?".format(
+                                ch_list[index]
+                                ), ["(Y)es", "(N)o"], 0, {ord("n")})
                             )()
                         if resp == 0:
                             return (0 if index == 0 else index-1), index
                         chwin.redrawwin()
                         chwin.refresh()
+                    elif key_chwin in {ord(i) for i in ["Y", "y", "N", "n"]}\
+                        and ch_list == ["(Y)es", "(N)o"]:
+                        if key_chwin in {ord("Y"), ord("y")}:
+                            return 0, None
+                        else:
+                            return 1, None
                     elif key_chwin in WINKEYS - key:
                         return key_chwin, None
                     countstring = ""
