@@ -407,7 +407,7 @@ def text_win(textfunc):
 
         texts = []
         for i in raw_texts.splitlines():
-            texts += textwrap.wrap(i, wi - 6)
+            texts += textwrap.wrap(i, wi - 6, drop_whitespace=False)
 
         textw.box()
         textw.keypad(True)
@@ -660,7 +660,9 @@ def toc(src, index):
 
 @text_win
 def meta(ebook):
-    mdata = ""
+    mdata = "[File Info]\nPATH: {}\nSIZE: {}\n \n[Book Info]\n".format(
+        ebook.path, os.stat(ebook.path).st_size
+    )
     for i in ebook.get_meta():
         data = re.sub("<[^>]*>", "", i[1])
         mdata += i[0].upper() + ": " + data + "\n"
