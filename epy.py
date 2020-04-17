@@ -531,8 +531,7 @@ def choice_win(allowdel=False):
                             lambda: ("Are you sure?", ["Yes", "No"], 0, {ord("n")})
                             )()
                         if resp == 0:
-                            return index-1, index
-                            # return (0 if index == 0 else index-1), index
+                            return (0 if index == 0 else index-1), index
                         chwin.redrawwin()
                         chwin.refresh()
                     elif key_chwin in WINKEYS - key:
