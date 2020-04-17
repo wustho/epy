@@ -1320,7 +1320,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         curses.resize_term(rows, cols)
                     if cols < 22 or rows < 12:
                         sys.exit("ERR: Screen was too small.")
-                    if cols <= width:
+                    if cols <= width + 4:
                         return 0, cols - 4, 0, y/totlines, ""
                     else:
                         return 0, width, y, None, ""
