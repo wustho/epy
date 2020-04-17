@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.17"
+__version__ = "2020.4.18"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -443,6 +443,8 @@ def text_win(textfunc):
             elif key_textw in K["EndOfCh"]:
                 y = pgend(totlines, padhi)
             elif key_textw in WINKEYS - key:
+                textw.clear()
+                textw.refresh()
                 return key_textw
             pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
             key_textw = textw.getch()
@@ -549,6 +551,8 @@ def choice_win(allowdel=False):
                         else:
                             return 1, None
                     elif key_chwin in WINKEYS - key:
+                        chwin.clear()
+                        chwin.refresh()
                         return key_chwin, None
                     countstring = ""
 
