@@ -1,12 +1,13 @@
-# `$ epy` [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# `$ epy`
 
-Yet Another CLI EPUB Reader.
+CLI Ebook Reader.
 
-It's just a fork of my own [epr](https://github.com/wustho/epr) with extra feature,
-**Reading Percentage** (which personally, I find it very essential when reading) on right top corner.
-It costs a little startup time though.
+This is just a fork of my own [epr](https://github.com/wustho/epr) with these extra features:
 
-Press `s` to toggle between show/hide reading percentage.
+- FictionBook (.fb2) support
+- Reading progress percentage
+- Bookmarks
+- External dictionary integration
 
 # Installation
 
