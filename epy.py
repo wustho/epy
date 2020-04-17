@@ -448,99 +448,115 @@ def text_win(textfunc):
     return wrapper
 
 
-def choice_win(listgen):
-    @wraps(listgen)
-    def wrapper(*args, **kwargs):
-        rows, cols = SCREEN.getmaxyx()
-        hi, wi = rows - 4, cols - 4
-        Y, X = 2, 2
-        chwin = curses.newwin(hi, wi, Y, X)
-        if COLORSUPPORT:
-            chwin.bkgd(SCREEN.getbkgd())
+def choice_win(allowdel=False):
+    def inner_f(listgen):
+        @wraps(listgen)
+        def wrapper(*args, **kwargs):
+            rows, cols = SCREEN.getmaxyx()
+            hi, wi = rows - 4, cols - 4
+            Y, X = 2, 2
+            chwin = curses.newwin(hi, wi, Y, X)
+            if COLORSUPPORT:
+                chwin.bkgd(SCREEN.getbkgd())
 
-        title, ch_list, index, key = listgen(*args, **kwargs)
+            title, ch_list, index, key = listgen(*args, **kwargs)
 
-        chwin.box()
-        chwin.keypad(True)
-        chwin.addstr(1, 2, title)
-        chwin.addstr(2, 2, "-"*len(title))
-        key_chwin = 0
+            chwin.box()
+            chwin.keypad(True)
+            chwin.addstr(1, 2, title)
+            chwin.addstr(2, 2, "-"*len(title))
+            if allowdel:
+                chwin.addstr(3, 2, "HINT: Press 'd' to delete.")
+            key_chwin = 0
 
-        totlines = len(ch_list)
-        chwin.refresh()
-        pad = curses.newpad(totlines, wi - 2)
-        if COLORSUPPORT:
-            pad.bkgd(SCREEN.getbkgd())
+            totlines = len(ch_list)
+            chwin.refresh()
+            pad = curses.newpad(totlines, wi - 2)
+            if COLORSUPPORT:
+                pad.bkgd(SCREEN.getbkgd())
 
-        pad.keypad(True)
+            pad.keypad(True)
 
-        padhi = rows - 5 - Y - 4 + 1
-        y = 0
-        if index in range(padhi//2, totlines - padhi//2):
-            y = index - padhi//2 + 1
-        span = []
+            padhi = rows - 5 - Y - 4 + 1 - (1 if allowdel else 0)
+            # padhi = rows - 5 - Y - 4 + 1 - 1
+            y = 0
+            if index in range(padhi//2, totlines - padhi//2):
+                y = index - padhi//2 + 1
+            span = []
 
-        for n, i in enumerate(ch_list):
-            # strs = "  " + str(n+1).rjust(d) + " " + i[0]
-            strs = "  " + i
-            strs = strs[0:wi-3]
-            pad.addstr(n, 0, strs)
-            span.append(len(strs))
+            for n, i in enumerate(ch_list):
+                # strs = "  " + str(n+1).rjust(d) + " " + i[0]
+                strs = "  " + i
+                strs = strs[0:wi-3]
+                pad.addstr(n, 0, strs)
+                span.append(len(strs))
 
-        countstring = ""
-        while key_chwin not in K["Quit"]|key:
-            if countstring == "":
-                count = 1
-            else:
-                count = int(countstring)
-            if key_chwin in range(48, 58): # i.e., k is a numeral
-                countstring = countstring + chr(key_chwin)
-            else:
-                if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
-                    index -= count
-                    if index < 0:
-                        index = 0
-                elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
-                    index += count
-                    if index + 1 >= totlines:
-                        index = totlines - 1
-                elif key_chwin in K["Follow"]:
-                    return index
-                # elif key_chwin in K["PageUp"]:
-                #     index -= 3
-                #     if index < 0:
-                #         index = 0
-                # elif key_chwin in K["PageDown"]:
-                #     index += 3
-                #     if index >= totlines:
-                #         index = totlines - 1
-                elif key_chwin in K["BeginningOfCh"]:
-                    index = 0
-                elif key_chwin in K["EndOfCh"]:
-                    index = totlines - 1
-                elif key_chwin in WINKEYS - key:
-                    return key_chwin
-                countstring = ""
-
-            while index not in range(y, y+padhi):
-                if index < y:
-                    y -= 1
+            countstring = ""
+            while key_chwin not in K["Quit"]|key:
+                if countstring == "":
+                    count = 1
                 else:
-                    y += 1
+                    count = int(countstring)
+                if key_chwin in range(48, 58): # i.e., k is a numeral
+                    countstring = countstring + chr(key_chwin)
+                else:
+                    if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
+                        index -= count
+                        if index < 0:
+                            index = 0
+                    elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
+                        index += count
+                        if index + 1 >= totlines:
+                            index = totlines - 1
+                    elif key_chwin in K["Follow"]:
+                        chwin.clear()
+                        chwin.refresh()
+                        return index, None
+                    # elif key_chwin in K["PageUp"]:
+                    #     index -= 3
+                    #     if index < 0:
+                    #         index = 0
+                    # elif key_chwin in K["PageDown"]:
+                    #     index += 3
+                    #     if index >= totlines:
+                    #         index = totlines - 1
+                    elif key_chwin in K["BeginningOfCh"]:
+                        index = 0
+                    elif key_chwin in K["EndOfCh"]:
+                        index = totlines - 1
+                    elif key_chwin == ord("d") and allowdel:
+                        resp, _ = choice_win()(
+                            lambda: ("Are you sure?", ["Yes", "No"], 0, {ord("n")})
+                            )()
+                        if resp == 0:
+                            return index-1, index
+                        chwin.redrawwin()
+                        chwin.refresh()
+                    elif key_chwin in WINKEYS - key:
+                        return key_chwin, None
+                    countstring = ""
 
-            for n in range(totlines):
-                att = curses.A_REVERSE if index == n else curses.A_NORMAL
-                pre = ">>" if index == n else "  "
-                pad.addstr(n, 0, pre)
-                pad.chgat(n, 0, span[n], pad.getbkgd() | att)
+                while index not in range(y, y+padhi):
+                    if index < y:
+                        y -= 1
+                    else:
+                        y += 1
 
-            pad.refresh(y, 0, Y+4, X+4, rows - 5, cols - 6)
-            key_chwin = chwin.getch()
+                for n in range(totlines):
+                    att = curses.A_REVERSE if index == n else curses.A_NORMAL
+                    pre = ">>" if index == n else "  "
+                    pad.addstr(n, 0, pre)
+                    pad.chgat(n, 0, span[n], pad.getbkgd() | att)
 
-        chwin.clear()
-        chwin.refresh()
-        return
-    return wrapper
+                pad.refresh(y, 0, Y+4+(1 if allowdel else 0), X+4, rows - 5, cols - 6)
+                # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
+                key_chwin = chwin.getch()
+
+            chwin.clear()
+            chwin.refresh()
+            return None, None
+        return wrapper
+    return inner_f
 
 
 def loadstate():
@@ -616,7 +632,7 @@ def pgend(tot, winhi):
         return 0
 
 
-@choice_win
+@choice_win()
 def toc(src, index):
     return "Table of Contents", src, index, K["ToC"]
 
@@ -1106,7 +1122,7 @@ def reader(ebook, index, width, y, pctg, sect):
                             ))()
                         continue
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                    fllwd = toc(toc_name, ntoc)
+                    fllwd, _ = toc(toc_name, ntoc)
                     if fllwd is not None:
                         if fllwd in WINKEYS:
                             k = fllwd
