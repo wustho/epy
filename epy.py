@@ -677,6 +677,11 @@ def help():
     return "Help", src, K["Help"]
 
 
+@text_win
+def errmsg(title, msg, key):
+    return title, msg, key
+
+
 def bookmarks(ebookpath):
     idx = 0
     while True:
@@ -1156,11 +1161,11 @@ def reader(ebook, index, width, y, pctg, sect):
                         y = pgend(totlines, rows)
                 elif k in K["ToC"]:
                     if ebook.toc_entries == [[], [], []]:
-                        k = text_win(lambda: (
+                        k = errmsg(
                             "Table of Contents",
                             "N/A: ToC is unavailable for this book.",
                             K["ToC"]
-                            ))()
+                        )
                         continue
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                     fllwd, _ = toc(toc_name, ntoc)
