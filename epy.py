@@ -613,7 +613,8 @@ def parse_keys():
             K[i].add(ord(CFG["Keys"][i]))
         except KeyError:
             K[i] = {ord(CFG["Keys"][i])}
-    WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|K["ToC"]|K["ShowBookmarks"]
+    WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|\
+        K["ToC"]|K["ShowBookmarks"]
 
 
 def savestate(file, index, width, pos, pctg):
@@ -700,6 +701,9 @@ def bookmarks(ebookpath):
 
 
 def input_prompt(prompt):
+    # prevent pad hole when prompting for input while
+    # other window is active
+    # pad.refresh(y, 0, 0, x, rows-2, x+width)
     rows, cols = SCREEN.getmaxyx()
     stat = curses.newwin(1, cols, rows-1, 0)
     if COLORSUPPORT:
@@ -891,7 +895,13 @@ def searching(pad, src, width, y, ch, tot):
         return y
 
     found = []
-    pattern = re.compile(SEARCHPATTERN[1:], re.IGNORECASE)
+    try:
+        pattern = re.compile(SEARCHPATTERN[1:], re.IGNORECASE)
+    except re.error as reerrmsg:
+        SEARCHPATTERN = None
+        tmpk = errmsg("!Regex Error", str(reerrmsg), set())
+        return tmpk
+
     for n, i in enumerate(src):
         for j in pattern.finditer(i):
             found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
@@ -1220,7 +1230,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         width, y,
                         index, len(contents)
                     )
-                    if fs == curses.KEY_RESIZE:
+                    if fs in WINKEYS or fs is None:
                         k = fs
                         continue
                     elif SEARCHPATTERN is not None:
