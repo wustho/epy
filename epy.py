@@ -657,7 +657,7 @@ def help():
     return "Help", src, K["Help"]
 
 
-def input_prompt(prompt):
+def input_prompt(prompt, maxlen=25):
     rows, cols = SCREEN.getmaxyx()
     stat = curses.newwin(1, cols, rows-1, 0)
     if COLORSUPPORT:
@@ -695,7 +695,7 @@ def input_prompt(prompt):
                 curses.echo(0)
                 curses.curs_set(0)
                 return curses.KEY_RESIZE
-            else:
+            elif len(init_text) <= maxlen:
                 init_text += chr(ipt)
 
             stat.clear()
