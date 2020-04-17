@@ -402,6 +402,9 @@ def text_win(textfunc):
 
         title, raw_texts, key = textfunc(*args, **kwargs)
 
+        if len(title) > cols-8:
+            title = title[:cols-8]
+
         texts = []
         for i in raw_texts.splitlines():
             texts += textwrap.wrap(i, wi - 6)
@@ -462,6 +465,9 @@ def choice_win(allowdel=False):
                 chwin.bkgd(SCREEN.getbkgd())
 
             title, ch_list, index, key = listgen(*args, **kwargs)
+
+            if len(title) > cols-8:
+                title = title[:cols-8]
 
             chwin.box()
             chwin.keypad(True)
@@ -676,7 +682,7 @@ def bookmarks(ebookpath):
             return idx
 
 
-def input_prompt(prompt, maxlen=25):
+def input_prompt(prompt):
     rows, cols = SCREEN.getmaxyx()
     stat = curses.newwin(1, cols, rows-1, 0)
     if COLORSUPPORT:
@@ -714,12 +720,16 @@ def input_prompt(prompt, maxlen=25):
                 curses.echo(0)
                 curses.curs_set(0)
                 return curses.KEY_RESIZE
-            elif len(init_text) <= maxlen:
+            # elif len(init_text) <= maxlen:
+            else:
                 init_text += chr(ipt)
 
             stat.clear()
             stat.addstr(0, 0, prompt, curses.A_REVERSE)
-            stat.addstr(0, len(prompt), init_text)
+            stat.addstr(
+                0, len(prompt),
+                init_text if len(prompt+init_text) < cols else "..."+init_text[len(prompt)-cols+4:]
+                )
             stat.refresh()
     except KeyboardInterrupt:
         stat.clear()
@@ -892,7 +902,7 @@ def searching(pad, src, width, y, ch, tot):
                 SCREEN.clear()
                 SCREEN.addstr(
                     rows-1, 0,
-                    " Finished searching: " + SEARCHPATTERN[1:] + " ",
+                    " Finished searching: " + SEARCHPATTERN[1:cols-22] + " ",
                     curses.A_REVERSE
                 )
                 SCREEN.refresh()
