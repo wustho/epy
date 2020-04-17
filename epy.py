@@ -1131,7 +1131,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                     try:
                         y = toc_secid[toc_sect[ntoc]]
-                    except KeyError:
+                    except (KeyError, IndexError):
                         y = 0
                 elif k in K["EndOfCh"]:
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
