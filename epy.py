@@ -534,6 +534,10 @@ def choice_win(allowdel=False):
                         index = 0
                     elif key_chwin in K["EndOfCh"]:
                         index = totlines - 1
+                    elif key_chwin == ord("D") and allowdel:
+                        return (0 if index == 0 else index-1), index
+                        # chwin.redrawwin()
+                        # chwin.refresh()
                     elif key_chwin == ord("d") and allowdel:
                         resp, _ = choice_win()(
                             lambda: ("Delete '{}'?".format(
