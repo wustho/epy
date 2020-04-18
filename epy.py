@@ -1307,6 +1307,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         idxchoice = bookmarks(ebook.path)
                         if idxchoice in WINKEYS:
+                            k = idxchoice
                             continue
                         elif idxchoice is not None:
                             bmtojump = STATE["States"][ebook.path]["bmarks"][idxchoice]
