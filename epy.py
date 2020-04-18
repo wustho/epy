@@ -521,7 +521,7 @@ def choice_win(allowdel=False):
                     elif key_chwin in K["Follow"]:
                         chwin.clear()
                         chwin.refresh()
-                        return index, None
+                        return None, index, None
                     # elif key_chwin in K["PageUp"]:
                     #     index -= 3
                     #     if index < 0:
@@ -535,29 +535,32 @@ def choice_win(allowdel=False):
                     elif key_chwin in K["EndOfCh"]:
                         index = totlines - 1
                     elif key_chwin == ord("D") and allowdel:
-                        return (0 if index == 0 else index-1), index
+                        return None, (0 if index == 0 else index-1), index
                         # chwin.redrawwin()
                         # chwin.refresh()
                     elif key_chwin == ord("d") and allowdel:
-                        resp, _ = choice_win()(
+                        resk, resp, _ = choice_win()(
                             lambda: ("Delete '{}'?".format(
                                 ch_list[index]
                                 ), ["(Y)es", "(N)o"], 0, {ord("n")})
                             )()
-                        if resp == 0:
-                            return (0 if index == 0 else index-1), index
+                        if resk is not None:
+                            key_chwin = resk
+                            continue
+                        elif resp == 0:
+                            return None, (0 if index == 0 else index-1), index
                         chwin.redrawwin()
                         chwin.refresh()
                     elif key_chwin in {ord(i) for i in ["Y", "y", "N", "n"]}\
                         and ch_list == ["(Y)es", "(N)o"]:
                         if key_chwin in {ord("Y"), ord("y")}:
-                            return 0, None
+                            return None, 0, None
                         else:
-                            return 1, None
+                            return None, 1, None
                     elif key_chwin in WINKEYS - key:
                         chwin.clear()
                         chwin.refresh()
-                        return key_chwin, None
+                        return key_chwin, index, None
                     countstring = ""
 
                 while index not in range(y, y+padhi):
@@ -578,7 +581,7 @@ def choice_win(allowdel=False):
 
             chwin.clear()
             chwin.refresh()
-            return None, None
+            return None, None, None
         return wrapper
     return inner_f
 
@@ -696,14 +699,14 @@ def bookmarks(ebookpath):
             i[0] for i in STATE["States"][ebookpath]["bmarks"]
         ]
         if bmarkslist == []:
-            return list(K["ShowBookmarks"])[0]
-        idx, todel = choice_win(True)(lambda:
+            return list(K["ShowBookmarks"])[0], None
+        retk, idx, todel = choice_win(True)(lambda:
         ("Bookmarks", bmarkslist, idx, {ord("B")})
         )()
         if todel is not None:
             del STATE["States"][ebookpath]["bmarks"][todel]
         else:
-            return idx
+            return retk, idx
 
 
 def input_prompt(prompt):
@@ -1184,11 +1187,11 @@ def reader(ebook, index, width, y, pctg, sect):
                         )
                         continue
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
-                    fllwd, _ = toc(toc_name, ntoc)
-                    if fllwd is not None:
-                        if fllwd in WINKEYS:
-                            k = fllwd
-                            continue
+                    rettock, fllwd, _ = toc(toc_name, ntoc)
+                    if rettock is not None:  # and rettock in WINKEYS:
+                        k = rettock
+                        continue
+                    elif fllwd is not None:
                         if index == toc_idx[fllwd]:
                             try:
                                 y = toc_secid[toc_sect[fllwd]]
@@ -1309,9 +1312,9 @@ def reader(ebook, index, width, y, pctg, sect):
                         ))()
                         continue
                     else:
-                        idxchoice = bookmarks(ebook.path)
-                        if idxchoice in WINKEYS:
-                            k = idxchoice
+                        retk, idxchoice = bookmarks(ebook.path)
+                        if retk is not None:
+                            k = retk
                             continue
                         elif idxchoice is not None:
                             bmtojump = STATE["States"][ebook.path]["bmarks"][idxchoice]
