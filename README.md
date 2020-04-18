@@ -1,5 +1,7 @@
 # `$ epy`
 
+![Screenshot](https://raw.githubusercontent.com/wustho/epy/master/screenshot.png)
+
 CLI Ebook Reader.
 
 This is just a fork of my own [epr](https://github.com/wustho/epr) with these extra features:
