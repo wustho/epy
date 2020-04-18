@@ -1412,7 +1412,7 @@ def preread(stdscr, file):
         width = 80
     pctg = None
 
-    if cols <= width:
+    if cols <= width + 4:
         width = cols - 4
         pctg = STATE["States"][ebook.path].get("pctg", None)
 
