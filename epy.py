@@ -1321,7 +1321,10 @@ def reader(ebook, index, width, y, pctg, sect):
                             return bmtojump[1]-index, width, bmtojump[2], bmtojump[3], ""
                 elif k in K["DefineWord"] and DICT is not None:
                     word = input_prompt(" Define:")
-                    if word is not None:
+                    if word == curses.KEY_RESIZE:
+                        k = word
+                        continue
+                    elif word is not None:
                         defin = define_word(word)
                         if defin in WINKEYS:
                             k = defin
