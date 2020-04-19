@@ -1385,7 +1385,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         rows, cols = SCREEN.getmaxyx()
                         curses.resize_term(rows, cols)
                     if cols < 22 or rows < 12:
-                        sys.exit("ERR: Screen was too small.")
+                        sys.exit("ERR: Screen was too small (min 22cols x 12rows).")
                     if cols <= width + 4:
                         return 0, cols - 4, 0, y/totlines, ""
                     else:
@@ -1487,6 +1487,8 @@ def preread(stdscr, file):
 
 
 def main():
+    termc, termr = shutil.get_terminal_size()
+
     args = []
     if sys.argv[1:] != []:
         args += sys.argv[1:]
@@ -1559,8 +1561,7 @@ def main():
         if xitmsg != 0 or "-r" in args:
             print("Reading history:")
             dig = len(str(len(STATE["States"].keys())+1))
-            tcols, _ = shutil.get_terminal_size()
-            tcols -= dig + 2
+            tcols = termc - dig - 2
             tcolswdots = tcols - 3
             tcolsa = 7  # tcolswdots//2
             tcolsb = tcolswdots - tcolsa
@@ -1593,6 +1594,8 @@ def main():
         sys.exit()
 
     else:
+        if termc < 22 or termr < 12:
+            sys.exit("ERR: Screen was too small (min 22cols x 12rows).")
         curses.wrapper(preread, file)
 
 
