@@ -1548,9 +1548,20 @@ def main():
         if xitmsg != 0 or "-r" in args:
             print("Reading history:")
             dig = len(str(len(STATE["States"].keys())+1))
+            tcols, _ = shutil.get_terminal_size()
+            tcols -= dig + 2
+            tcolswdots = tcols - 3
+            tcolsa = 7  # tcolswdots//2
+            tcolsb = tcolswdots - tcolsa
             for n, i in enumerate(STATE["States"].keys()):
-                print(str(n+1).rjust(dig)
-                      + ("* " if STATE["LastRead"] == i else "  ") + i)
+                # print(str(n+1).rjust(dig)
+                #       + ("* " if STATE["LastRead"] == i else "  ") + i)
+                p = i.replace(os.getenv("HOME"), "~")
+                print("{}{} {}".format(
+                    str(n+1).rjust(dig),
+                    "*" if i == STATE["LastRead"] else " ",
+                    p if len(p) <= tcols else p[:tcolsa] + "..." + p[-tcolsb:]
+                    ))
             sys.exit(xitmsg)
 
     if dump:
