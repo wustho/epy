@@ -1155,6 +1155,10 @@ def reader(ebook, index, width, y, pctg, sect):
                         # SCREEN.refresh()
                     elif index != len(contents)-1:
                         return 1, width, 0, None, ""
+                elif k in {4, 21}:
+                    countstring = str(rows//2)
+                    k = list(K["ScrollUp" if k == 21 else "ScrollDown"])[0]
+                    continue
                 elif k in K["NextChapter"]:
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
                     if ntoc < len(toc_idx) - 1:
