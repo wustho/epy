@@ -65,7 +65,7 @@ CFG = {
         "SetWidth": "=",
         "Metadata": "M",
         "DefineWord": "d",
-        "ToC": "t",
+        "TableOfContents": "t",
         "Follow": "f",
         "OpenImage": "o",
         "RegexSearch": "/",
@@ -91,7 +91,7 @@ K = {
     "PageDown": {curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT},
     "BeginningOfCh": {curses.KEY_HOME},
     "EndOfCh": {curses.KEY_END},
-    "ToC": {9, ord("\t")},
+    "TableOfContents": {9, ord("\t")},
     "Follow": {10},
     "Quit": {3, 27, 304}
 }
@@ -631,7 +631,7 @@ def parse_keys():
         except KeyError:
             K[i] = {parsedk}
     WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|\
-        K["ToC"]|K["ShowBookmarks"]
+        K["TableOfContents"]|K["ShowBookmarks"]
 
 
 def savestate(file, index, width, pos, pctg):
@@ -672,7 +672,7 @@ def pgend(tot, winhi):
 
 @choice_win()
 def toc(src, index):
-    return "Table of Contents", src, index, K["ToC"]
+    return "Table of Contents", src, index, K["TableOfContents"]
 
 
 @text_win
@@ -1204,12 +1204,12 @@ def reader(ebook, index, width, y, pctg, sect):
                             y = toc_secid[toc_sect[ntoc]]
                     except (KeyError, IndexError):
                         y = pgend(totlines, rows)
-                elif k in K["ToC"]:
+                elif k in K["TableOfContents"]:
                     if ebook.toc_entries == [[], [], []]:
                         k = errmsg(
                             "Table of Contents",
-                            "N/A: ToC is unavailable for this book.",
-                            K["ToC"]
+                            "N/A: TableOfContents is unavailable for this book.",
+                            K["TableOfContents"]
                         )
                         continue
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
