@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.18"
+__version__ = "2020.4.19"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1127,8 +1127,10 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["ScrollUp"]:
                     if y >= count:
                         y -= count
-                    elif index != 0:
+                    elif y == 0 and index != 0:
                         return -1, width, -rows, None, ""
+                    else:
+                        y = 0
                 elif k in K["PageUp"]:
                     if y == 0 and index != 0:
                         return -1, width, -rows, None, ""
@@ -1137,8 +1139,10 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["ScrollDown"]:
                     if y + count <= totlines - rows:
                         y += count
-                    elif index != len(contents)-1:
+                    elif y == totlines - rows and index != len(contents)-1:
                         return 1, width, 0, None, ""
+                    else:
+                        y = totlines - rows
                 elif k in K["PageDown"]:
                     if totlines - y - LINEPRSRV > rows:
                         y += rows - LINEPRSRV
