@@ -1109,6 +1109,7 @@ def reader(ebook, index, width, y, pctg, sect):
         y = toc_secid.get(sect, 0)
 
     countstring = ""
+    svline = "dontsave"
     try:
         while True:
             if countstring == "":
@@ -1125,6 +1126,8 @@ def reader(ebook, index, width, y, pctg, sect):
                         savestate(ebook.path, index, width, y, y/totlines)
                         sys.exit()
                 elif k in K["ScrollUp"]:
+                    if count > 1:
+                        svline = y - 1
                     if y >= count:
                         y -= count
                     elif y == 0 and index != 0:
@@ -1137,6 +1140,8 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         y = pgup(y, rows, LINEPRSRV, count)
                 elif k in K["ScrollDown"]:
+                    if count > 1:
+                        svline = y + rows - 1
                     if y + count <= totlines - rows:
                         y += count
                     elif y == totlines - rows and index != len(contents)-1:
@@ -1374,6 +1379,9 @@ def reader(ebook, index, width, y, pctg, sect):
                 PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
                 PROGRESSTR = "{}%".format(int(PROGRESS*100))
 
+            if svline != "dontsave":
+                pad.chgat(svline, 0, width, curses.A_UNDERLINE)
+
             try:
                 SCREEN.clear()
                 SCREEN.addstr(0, 0, countstring)
@@ -1387,6 +1395,10 @@ def reader(ebook, index, width, y, pctg, sect):
             except curses.error:
                 pass
             k = pad.getch()
+
+            if svline != "dontsave":
+                pad.chgat(svline, 0, width, curses.A_NORMAL)
+                svline = "dontsave"
     except KeyboardInterrupt:
         savestate(ebook.path, index, width, y, y/totlines)
         sys.exit()
