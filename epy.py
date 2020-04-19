@@ -54,6 +54,8 @@ CFG = {
         "ScrollDown": "j",
         "PageUp": "h",
         "PageDown": "l",
+        "HalfScreenUp": "^u",
+        "HalfScreenDown": "C-d",
         "NextChapter": "n",
         "PrevChapter": "p",
         "BeginningOfCh": "g",
@@ -616,10 +618,18 @@ def loadstate():
 def parse_keys():
     global WINKEYS
     for i in CFG["Keys"].keys():
+        parsedk = CFG["Keys"][i]
+        if len(parsedk) == 1:
+            parsedk = ord(parsedk)
+        elif parsedk[:-1] in {"^", "C-"}:
+            parsedk = ord(parsedk[-1]) - 96  # Reference: ASCII chars
+        else:
+            sys.exit("ERR: Keybindings {}".format(i))
+
         try:
-            K[i].add(ord(CFG["Keys"][i]))
+            K[i].add(parsedk)
         except KeyError:
-            K[i] = {ord(CFG["Keys"][i])}
+            K[i] = {parsedk}
     WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|\
         K["ToC"]|K["ShowBookmarks"]
 
@@ -681,9 +691,10 @@ def meta(ebook):
 @text_win
 def help():
     src = "Key Bindings:\n"
+    dig = max([len(i) for i in CFG["Keys"].values()]) + 2
     for i in CFG["Keys"].keys():
-        src += "    {}  {}\n".format(
-                CFG["Keys"][i],
+        src += "{}  {}\n".format(
+                CFG["Keys"][i].rjust(dig),
                 " ".join(re.findall("[A-Z][^A-Z]*", i))
                 )
     return "Help", src, K["Help"]
@@ -1157,9 +1168,9 @@ def reader(ebook, index, width, y, pctg, sect):
                         # SCREEN.refresh()
                     elif index != len(contents)-1:
                         return 1, width, 0, None, ""
-                elif k in {4, 21}:
+                elif k in K["HalfScreenUp"]|K["HalfScreenDown"]:
                     countstring = str(rows//2)
-                    k = list(K["ScrollUp" if k == 21 else "ScrollDown"])[0]
+                    k = list(K["ScrollUp" if k in K["HalfScreenUp"] else "ScrollDown"])[0]
                     continue
                 elif k in K["NextChapter"]:
                     ntoc = find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y)
