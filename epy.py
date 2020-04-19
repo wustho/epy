@@ -680,10 +680,12 @@ def meta(ebook):
 
 @text_win
 def help():
-    # src = re.search("Key Bind(\n|.)*", __doc__).group()
-    src = "Key Bindings\n"
+    src = "Key Bindings:\n"
     for i in CFG["Keys"].keys():
-        src += "  " + i + ": " + CFG["Keys"][i] + "\n"
+        src += "    {}  {}\n".format(
+                CFG["Keys"][i],
+                " ".join(re.findall("[A-Z][^A-Z]*", i))
+                )
     return "Help", src, K["Help"]
 
 
