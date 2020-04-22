@@ -6,6 +6,7 @@ CLI Ebook Reader.
 
 This is just a fork of my own [epr](https://github.com/wustho/epr) with these extra features:
 
+- Faster (Noticeable when reading thick ebook >2MB)
 - FictionBook (.fb2) support
 - Reading progress percentage
 - Bookmarks

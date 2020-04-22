@@ -211,7 +211,12 @@ class Epub:
                 self.toc_entries[2].append("")
 
     def get_raw_text(self, chpath):
-        content = self.file.open(chpath).read()
+        while True:
+            try:
+                content = self.file.open(chpath).read()
+                break
+            except:
+                continue
         return content.decode("utf-8")
 
     def get_img_bytestr(self, impath):
