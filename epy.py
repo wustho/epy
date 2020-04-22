@@ -34,17 +34,17 @@ import subprocess
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote
 from html import unescape
-# from subprocess import run
 from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
 from functools import wraps
+from multiprocessing import Process, Array, Value
 
 
 # -1 is default terminal fg/bg colors
 CFG = {
     "DefaultViewer": "auto",
     "DictionaryClient": "auto",
-    "EnableProgressIndicator": True,
+    "ShowProgressIndicator": True,
     "DarkColorFG": 252,
     "DarkColorBG": 235,
     "LightColorFG": 238,
@@ -104,9 +104,12 @@ SEARCHPATTERN = None
 VWR = None
 DICT = None
 SCREEN = None
-PERCENTAGE = []
+PERCHLETTERS = []
+ALLPREVLETTERS = []
+SUMALLLETTERS = Value("i", 0)
+PROC_COUNTLETTERS = None
 JUMPLIST = {}
-SHOWPROGRESS = CFG["EnableProgressIndicator"]
+SHOWPROGRESS = CFG["ShowProgressIndicator"]
 
 
 class Epub:
@@ -645,6 +648,10 @@ def savestate(file, index, width, pos, pctg):
     with open(STATEFILE, "w") as f:
         json.dump(STATE, f, indent=4)
 
+    # PROC_COUNTLETTERS.terminate()
+    PROC_COUNTLETTERS.kill()
+    # PROC_COUNTLETTERS.join()
+
 
 def pgup(pos, winhi, preservedline=0, c=1):
     if pos >= (winhi - preservedline) * c:
@@ -1066,6 +1073,21 @@ def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
     return ntoc
 
 
+def count_pct(ebook, perch, allprev, sumlet):
+    for n, i in enumerate(ebook.contents):
+        content = ebook.get_raw_text(i)
+        parser = HTMLtoLines()
+        # try:
+        parser.feed(content)
+        parser.close()
+        # except:
+        #     pass
+        src_lines = parser.get_lines()
+        perch[n] = sum([len(re.sub("\s", "", j)) for j in src_lines])
+        allprev[n] = sum(perch[:n])
+    sumlet.value = sum(perch[:])
+
+
 def reader(ebook, index, width, y, pctg, sect):
     global SHOWPROGRESS
 
@@ -1111,18 +1133,13 @@ def reader(ebook, index, width, y, pctg, sect):
             pad.addstr(n, width//2 - len(i)//2 + 1, i, curses.A_REVERSE)
         else:
             pad.addstr(n, 0, i)
-        if CFG["EnableProgressIndicator"]:
-            LOCALPCTG.append(len(re.sub("\s", "", i)))
+        LOCALPCTG.append(len(re.sub("\s", "", i)))
     # chapter suffix
     ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
     try:
         pad.addstr(n+1, (width - len(ch_suffix))//2 + 1, ch_suffix)
     except curses.error:
         pass
-
-    if CFG["EnableProgressIndicator"]:
-        TOTALPCTG = sum(PERCENTAGE)
-        TOTALLOCALPCTG = sum(PERCENTAGE[:index])
 
     SCREEN.clear()
     SCREEN.refresh()
@@ -1386,7 +1403,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         k = jumnum
                         continue
-                elif k in K["ShowHideProgress"] and CFG["EnableProgressIndicator"]:
+                elif k in K["ShowHideProgress"]:
                     SHOWPROGRESS = not SHOWPROGRESS
                 elif k == curses.KEY_RESIZE:
                     savestate(ebook.path, index, width, y, y/totlines)
@@ -1406,17 +1423,15 @@ def reader(ebook, index, width, y, pctg, sect):
                         return 0, width, y, None, ""
                 countstring = ""
 
-            if CFG["EnableProgressIndicator"]:
-                PROGRESS = (TOTALLOCALPCTG + sum(LOCALPCTG[:y+rows-1])) / TOTALPCTG
-                PROGRESSTR = "{}%".format(int(PROGRESS*100))
-
             if svline != "dontsave":
                 pad.chgat(svline, 0, width, curses.A_UNDERLINE)
 
             try:
                 SCREEN.clear()
                 SCREEN.addstr(0, 0, countstring)
-                if SHOWPROGRESS and (cols-width-2)//2 > 3:
+                if SHOWPROGRESS and (cols-width-2)//2 > 3 and SUMALLLETTERS.value != 0:
+                    PROGRESS = (ALLPREVLETTERS[index] + sum(LOCALPCTG[:y+rows-1])) / SUMALLLETTERS.value
+                    PROGRESSTR = "{}%".format(int(PROGRESS*100))
                     SCREEN.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
                 SCREEN.refresh()
                 if totlines - y < rows:
@@ -1436,7 +1451,7 @@ def reader(ebook, index, width, y, pctg, sect):
 
 
 def preread(stdscr, file):
-    global COLORSUPPORT, SHOWPROGRESS, PERCENTAGE, SCREEN
+    global COLORSUPPORT, SHOWPROGRESS, PERCHLETTERS, SCREEN, ALLPREVLETTERS, PROC_COUNTLETTERS
 
     curses.use_default_colors()
     try:
@@ -1479,18 +1494,21 @@ def preread(stdscr, file):
     find_dict_client()
     parse_keys()
 
-    SHOWPROGRESS = CFG["EnableProgressIndicator"]
-    if SHOWPROGRESS:
-        for i in ebook.contents:
-            content = ebook.get_raw_text(i)
-            parser = HTMLtoLines()
-            # try:
-            parser.feed(content)
-            parser.close()
-            # except:
-            #     pass
-            src_lines = parser.get_lines()
-            PERCENTAGE.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
+    PERCHLETTERS = Array("i", len(ebook.contents))
+    ALLPREVLETTERS = Array("i", len(ebook.contents))
+    SHOWPROGRESS = CFG["ShowProgressIndicator"]
+    PROC_COUNTLETTERS = Process(
+            target=count_pct, args=(
+                ebook,
+                PERCHLETTERS,
+                ALLPREVLETTERS,
+                SUMALLLETTERS
+                )
+            )
+    # TODO:
+    # forking PROC_COUNTLETTERS will raise
+    # zlib.error: Error -3 while decompressing data: invalid distance too far back
+    PROC_COUNTLETTERS.start()
 
     sec = ""
     while True:
