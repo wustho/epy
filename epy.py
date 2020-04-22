@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.19"
+__version__ = "2020.4.22"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -720,6 +720,20 @@ def bookmarks(ebookpath):
             del STATE["States"][ebookpath]["bmarks"][todel]
         else:
             return retk, idx
+
+
+def truncate(teks, subte, maxlen, startsub=0):
+    if startsub > maxlen:
+        raise ValueError("Var startsub cannot be bigger than maxlen.")
+    elif len(teks) <= maxlen:
+        return teks
+    else:
+        lensu = len(subte)
+        beg = teks[:startsub]
+        mid = subte if lensu <= maxlen - startsub else subte[:maxlen-startsub]
+        print(mid)
+        end = teks[startsub+lensu-maxlen:] if lensu < maxlen - startsub else ""
+        return beg+mid+end
 
 
 def input_prompt(prompt):
