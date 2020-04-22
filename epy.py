@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.22"
+__version__ = "2020.4.23"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -211,6 +211,9 @@ class Epub:
                 self.toc_entries[2].append("")
 
     def get_raw_text(self, chpath):
+        # using try-except block to catch
+        # zlib.error: Error -3 while decompressing data: invalid distance too far back
+        # caused by forking PROC_COUNTLETTERS
         while True:
             try:
                 content = self.file.open(chpath).read()
@@ -1510,7 +1513,6 @@ def preread(stdscr, file):
                 SUMALLLETTERS
                 )
             )
-    # TODO:
     # forking PROC_COUNTLETTERS will raise
     # zlib.error: Error -3 while decompressing data: invalid distance too far back
     PROC_COUNTLETTERS.start()
