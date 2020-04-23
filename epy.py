@@ -746,7 +746,6 @@ def truncate(teks, subte, maxlen, startsub=0):
         lensu = len(subte)
         beg = teks[:startsub]
         mid = subte if lensu <= maxlen - startsub else subte[:maxlen-startsub]
-        print(mid)
         end = teks[startsub+lensu-maxlen:] if lensu < maxlen - startsub else ""
         return beg+mid+end
 
@@ -1595,23 +1594,18 @@ def main():
                 file = list(STATE["States"].keys())[int(args[0])-1]
                 xitmsg = 0
             except IndexError:
-                xitmsg = "\nERROR: No matching file found in history."
+                xitmsg = "ERROR: No matching file found in history."
 
         if xitmsg != 0 or "-r" in args:
             print("Reading history:")
             dig = len(str(len(STATE["States"].keys())+1))
             tcols = termc - dig - 2
-            tcolswdots = tcols - 3
-            tcolsa = 7  # tcolswdots//2
-            tcolsb = tcolswdots - tcolsa
             for n, i in enumerate(STATE["States"].keys()):
-                # print(str(n+1).rjust(dig)
-                #       + ("* " if STATE["LastRead"] == i else "  ") + i)
                 p = i.replace(os.getenv("HOME"), "~")
                 print("{}{} {}".format(
                     str(n+1).rjust(dig),
                     "*" if i == STATE["LastRead"] else " ",
-                    p if len(p) <= tcols else p[:tcolsa] + "..." + p[-tcolsb:]
+                    truncate(p, "...", tcols, 7)
                     ))
             sys.exit(xitmsg)
 
