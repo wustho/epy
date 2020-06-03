@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.4.24"
+__version__ = "2020.6.3"
 __license__ = "MIT"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -658,8 +658,12 @@ def savestate(file, index, width, pos, pctg):
 
     if MULTIPROC:
         # PROC_COUNTLETTERS.terminate()
-        PROC_COUNTLETTERS.kill()
+        # PROC_COUNTLETTERS.kill()
         # PROC_COUNTLETTERS.join()
+        try:
+            PROC_COUNTLETTERS.kill()
+        except AttributeError:
+            PROC_COUNTLETTERS.terminate()
 
 
 def pgup(pos, winhi, preservedline=0, c=1):
