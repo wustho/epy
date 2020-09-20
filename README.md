@@ -8,6 +8,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 
 - Faster (although only noticeable when reading badly-structured thick ebook)
 - FictionBook (.fb2) support
+- Mobi (.mobi) support (but no image is supported in mobi)
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration

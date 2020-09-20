@@ -10,7 +10,7 @@ setup(
     author = __author__,
     license = __license__,
     keywords = ["EPUB", "EPUB3", "CLI", "Terminal", "Reader"],
-    install_requires = ["windows-curses"] if sys.platform == "win32" else [],
+    install_requires = ["mobi"] + (["windows-curses"] if sys.platform == "win32" else []),
     python_requires = "~=3.0",
     py_modules = ["epy"],
     entry_points = { "console_scripts": ["epy = epy:main"] }

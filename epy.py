@@ -14,8 +14,8 @@ Options:
 """
 
 
-__version__ = "2020.6.3"
-__license__ = "MIT"
+__version__ = "2020.9.20"
+__license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
 
@@ -227,23 +227,34 @@ class Epub:
     def get_img_bytestr(self, impath):
         return impath, self.file.read(impath)
 
+    def cleanup(self):
+        return
+
 
 class Mobi(Epub):
     def __init__(self, filemobi):
         self.path = os.path.abspath(filemobi)
-        # self.file = zipfile.ZipFile(fileepub, "r")
         self.file, _ = mobi.extract(filemobi)
-        self.toc = os.path.join(self.file, "mobi7", "toc.ncx")
         self.rootdir = os.path.join(self.file, "mobi7")
+        self.toc = os.path.join(self.rootdir, "toc.ncx")
         self.version = "2.0"
 
         self.contents = []
         self.toc_entries = [[], [], []]
 
+    def get_meta(self):
+        meta = []
+        # why self.file.read(self.rootfile) problematic
+        with open(os.path.join(self.rootdir, "content.opf")) as f:
+            cont = ET.parse(f).getroot()
+        for i in cont.findall("OPF:metadata/*", self.NS):
+            if i.text is not None:
+                meta.append([re.sub("{.*?}", "", i.tag), i.text])
+        return meta
+
     def initialize(self):
-        tmpfile = open(os.path.join(self.file, "mobi7", "content.opf"))
-        cont = ET.parse(tmpfile).getroot()
-        tmpfile.close()
+        with open(os.path.join(self.rootdir, "content.opf")) as f:
+            cont = ET.parse(f).getroot()
         manifest = []
         for i in cont.findall("OPF:manifest/*", self.NS):
             # EPUB3
@@ -267,9 +278,8 @@ class Mobi(Epub):
                     # TODO: test is break necessary
                     break
 
-        tmpfile = open(self.toc)
-        toc = ET.parse(tmpfile).getroot()
-        tmpfile.close()
+        with open(self.toc) as f:
+            toc = ET.parse(f).getroot()
         # EPUB3
         if self.version == "2.0":
             navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
@@ -300,14 +310,17 @@ class Mobi(Epub):
         # caused by forking PROC_COUNTLETTERS
         while True:
             try:
-                tmpfile = open(chpath)
-                content = tmpfile.read()
-                tmpfile.close()
+                with open(chpath) as f:
+                    content = f.read()
                 break
             except:
                 continue
         # return content.decode("utf-8")
         return content
+
+    def cleanup(self):
+        shutil.rmtree(self.file)
+        return
 
 
 class FictionBook:
@@ -348,6 +361,9 @@ class FictionBook:
         img = self.root.find("*[@id='{}']".format(imgid))
         imgtype = img.get("content-type").split("/")[1]
         return imgid+"."+imgtype, base64.b64decode(img.text)
+
+    def cleanup():
+        return
 
 
 class HTMLtoLines(HTMLParser):
@@ -409,6 +425,12 @@ class HTMLtoLines(HTMLParser):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
                     self.text.append("")
+        # sometimes attribute "id" is inside "startendtag"
+        # especially html from mobi module (kindleunpack fork)
+        if self.sects != {""}:
+            for i in attrs:
+                if i[1] in self.sects:
+                    self.text[-1] += " (#" + i[1] + ") "
 
     def handle_endtag(self, tag):
         if re.match("h[1-6]", tag) is not None:
@@ -1308,6 +1330,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         countstring = ""
                     else:
                         savestate(ebook.path, index, width, y, y/totlines)
+                        ebook.cleanup()
                         sys.exit()
                 elif k in K["ScrollUp"]:
                     if count > 1:
@@ -1588,6 +1611,7 @@ def reader(ebook, index, width, y, pctg, sect):
                 svline = "dontsave"
     except KeyboardInterrupt:
         savestate(ebook.path, index, width, y, y/totlines)
+        ebook.cleanup()
         sys.exit()
 
 
