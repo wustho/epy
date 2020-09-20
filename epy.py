@@ -39,6 +39,8 @@ from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
 from functools import wraps
 
+import mobi
+
 
 # -1 is default terminal fg/bg colors
 CFG = {
@@ -224,6 +226,88 @@ class Epub:
 
     def get_img_bytestr(self, impath):
         return impath, self.file.read(impath)
+
+
+class Mobi(Epub):
+    def __init__(self, filemobi):
+        self.path = os.path.abspath(filemobi)
+        # self.file = zipfile.ZipFile(fileepub, "r")
+        self.file, _ = mobi.extract(filemobi)
+        self.toc = os.path.join(self.file, "mobi7", "toc.ncx")
+        self.rootdir = os.path.join(self.file, "mobi7")
+        self.version = "2.0"
+
+        self.contents = []
+        self.toc_entries = [[], [], []]
+
+    def initialize(self):
+        tmpfile = open(os.path.join(self.file, "mobi7", "content.opf"))
+        cont = ET.parse(tmpfile).getroot()
+        tmpfile.close()
+        manifest = []
+        for i in cont.findall("OPF:manifest/*", self.NS):
+            # EPUB3
+            # if i.get("id") != "ncx" and i.get("properties") != "nav":
+            if i.get("media-type") != "application/x-dtbncx+xml"\
+               and i.get("properties") != "nav":
+                manifest.append([
+                    i.get("id"),
+                    i.get("href")
+                ])
+
+        spine, contents = [], []
+        for i in cont.findall("OPF:spine/*", self.NS):
+            spine.append(i.get("idref"))
+        for i in spine:
+            for j in manifest:
+                if i == j[0]:
+                    self.contents.append(os.path.join(self.rootdir, unquote(j[1])))
+                    contents.append(unquote(j[1]))
+                    manifest.remove(j)
+                    # TODO: test is break necessary
+                    break
+
+        tmpfile = open(self.toc)
+        toc = ET.parse(tmpfile).getroot()
+        tmpfile.close()
+        # EPUB3
+        if self.version == "2.0":
+            navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
+        elif self.version == "3.0":
+            navPoints = toc.findall(
+                "XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a",
+                self.NS
+            )
+        for i in navPoints:
+            if self.version == "2.0":
+                src = i.find("DAISY:content", self.NS).get("src")
+                name = i.find("DAISY:navLabel/DAISY:text", self.NS).text
+            elif self.version == "3.0":
+                src = i.get("href")
+                name = "".join(list(i.itertext()))
+            src = src.split("#")
+            idx = contents.index(unquote(src[0]))
+            self.toc_entries[0].append(name)
+            self.toc_entries[1].append(idx)
+            if len(src) == 2:
+                self.toc_entries[2].append(src[1])
+            elif len(src) == 1:
+                self.toc_entries[2].append("")
+
+    def get_raw_text(self, chpath):
+        # using try-except block to catch
+        # zlib.error: Error -3 while decompressing data: invalid distance too far back
+        # caused by forking PROC_COUNTLETTERS
+        while True:
+            try:
+                tmpfile = open(chpath)
+                content = tmpfile.read()
+                tmpfile.close()
+                break
+            except:
+                continue
+        # return content.decode("utf-8")
+        return content
 
 
 class FictionBook:
@@ -821,6 +905,8 @@ def det_ebook_cls(file):
         return Epub(file)
     elif filext == ".fb2":
         return FictionBook(file)
+    elif filext == ".mobi":
+        return Mobi(file)
     else:
         sys.exit("ERR: Format not supported. (Supported: epub, fb2)")
 
