@@ -930,7 +930,7 @@ def det_ebook_cls(file):
     elif filext == ".mobi":
         return Mobi(file)
     else:
-        sys.exit("ERR: Format not supported. (Supported: epub, fb2)")
+        sys.exit("ERR: Format not supported. (Supported: epub, fb2, mobi)")
 
 
 def dots_path(curr, tofi):
