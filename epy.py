@@ -366,7 +366,7 @@ class FictionBook:
         imgtype = img.get("content-type").split("/")[1]
         return imgid+"."+imgtype, base64.b64decode(img.text)
 
-    def cleanup():
+    def cleanup(self):
         return
 
 
