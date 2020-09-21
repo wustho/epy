@@ -1,7 +1,5 @@
 # `$ epy`
 
-![Screenshot](https://raw.githubusercontent.com/wustho/epy/master/screencast.gif)
-
 CLI Ebook Reader.
 
 This is just a fork of my own [epr](https://github.com/wustho/epr) with these extra features:
@@ -18,3 +16,11 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 ```shell
 $ pip3 install git+https://github.com/wustho/epy
 ```
+
+# Screenshots
+
+![Screenshot1](https://drive.google.com/uc?export=download&id=1IRECRge2A2J3Sp52DLDAqaAB8Oi09Pvi)
+
+![Screenshot5](https://drive.google.com/uc?export=download&id=1MiNe8j6UrvJEIk9GzgGFjxTxMhtWhnyH)
+
+![Screenshot5](https://drive.google.com/uc?export=download&id=1bqIOrdWOqBfdJ4nGRj55I337UEmoKuwu)
