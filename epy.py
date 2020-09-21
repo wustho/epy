@@ -327,6 +327,43 @@ class Mobi(Epub):
         return
 
 
+class Azw3(Epub):
+    def __init__(self, fileepub):
+        self.path = os.path.abspath(fileepub)
+        self.tmpdir, self.tmpepub = mobi.extract(fileepub)
+        self.file = zipfile.ZipFile(self.tmpepub, "r")
+        cont = ET.parse(self.file.open("META-INF/container.xml"))
+        self.rootfile = cont.find(
+            "CONT:rootfiles/CONT:rootfile",
+            self.NS
+        ).attrib["full-path"]
+        self.rootdir = os.path.dirname(self.rootfile)\
+            + "/" if os.path.dirname(self.rootfile) != "" else ""
+        cont = ET.parse(self.file.open(self.rootfile))
+        # EPUB3
+        self.version = cont.getroot().get("version")
+        if self.version == "2.0":
+            # "OPF:manifest/*[@id='ncx']"
+            self.toc = self.rootdir\
+                + cont.find(
+                    "OPF:manifest/*[@media-type='application/x-dtbncx+xml']",
+                    self.NS
+                ).get("href")
+        elif self.version == "3.0":
+            self.toc = self.rootdir\
+                + cont.find(
+                    "OPF:manifest/*[@properties='nav']",
+                    self.NS
+                ).get("href")
+
+        self.contents = []
+        self.toc_entries = [[], [], []]
+
+    def cleanup(self):
+        shutil.rmtree(self.tmpdir)
+        return
+
+
 class FictionBook:
     NS = {
         "FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"
@@ -745,7 +782,7 @@ def parse_keys():
         elif parsedk[:-1] in {"^", "C-"}:
             parsedk = ord(parsedk[-1]) - 96  # Reference: ASCII chars
         else:
-            sys.exit("ERR: Keybindings {}".format(i))
+            sys.exit("ERROR: Keybindings {}".format(i))
 
         try:
             K[i].add(parsedk)
@@ -933,12 +970,14 @@ def det_ebook_cls(file):
         return FictionBook(file)
     elif MOBISUPPORT and filext == ".mobi":
         return Mobi(file)
-    elif not MOBISUPPORT and filext == ".mobi":
-        sys.exit("""ERR: Format not supported. (Supported: epub, fb2).
-To get mobi support, install mobi module from pip.
+    elif MOBISUPPORT and filext == ".azw3":
+        return Azw3(file)
+    elif not MOBISUPPORT and filext in {".mobi", ".azw3"}:
+        sys.exit("""ERROR: Format not supported. (Supported: epub, fb2).
+To get mobi and azw3 support, install mobi module from pip.
    $ pip install mobi""")
     else:
-        sys.exit("ERR: Format not supported. (Supported: epub, fb2)")
+        sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
 
 
 def dots_path(curr, tofi):
@@ -1502,7 +1541,7 @@ def reader(ebook, index, width, y, pctg, sect):
                             impath = imgs[int(gambar[i])]
 
                     if impath != "":
-                        if ebook.__class__.__name__ == "Epub":
+                        if ebook.__class__.__name__ in {"Epub", "Azw3"}:
                             impath = dots_path(chpath, impath)
                         imgnm, imgbstr = ebook.get_img_bytestr(impath)
                         k = open_media(pad, imgnm, imgbstr)
@@ -1586,7 +1625,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         rows, cols = SCREEN.getmaxyx()
                         curses.resize_term(rows, cols)
                     if cols < 22 or rows < 12:
-                        sys.exit("ERR: Screen was too small (min 22cols x 12rows).")
+                        sys.exit("ERROR: Screen was too small (min 22cols x 12rows).")
                     if cols <= width + 4:
                         return 0, cols - 4, 0, y/totlines, ""
                     else:
@@ -1661,7 +1700,10 @@ def preread(stdscr, file):
             width = cols - 4
             pctg = STATE["States"][ebook.path].get("pctg", None)
 
-        ebook.initialize()
+        try:
+            ebook.initialize()
+        except:
+            sys.exit("ERROR: Badly-structured ebook.")
         find_media_viewer()
         find_dict_client()
         parse_keys()
@@ -1782,7 +1824,7 @@ def main():
 
     else:
         if termc < 22 or termr < 12:
-            sys.exit("ERR: Screen was too small (min 22cols x 12rows).")
+            sys.exit("ERROR: Screen was too small (min 22cols x 12rows).")
         curses.wrapper(preread, file)
 
 
