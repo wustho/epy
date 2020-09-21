@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.9.21"
+__version__ = "2020.9.22"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1644,34 +1644,31 @@ def preread(stdscr, file):
 
     ebook = det_ebook_cls(file)
 
-    if ebook.path in STATE["States"]:
-        idx = STATE["States"][ebook.path]["index"]
-        width = STATE["States"][ebook.path]["width"]
-        y = STATE["States"][ebook.path]["pos"]
-    else:
-        STATE["States"][ebook.path] = {}
-        STATE["States"][ebook.path]["bmarks"] = []
-        idx = 0
-        y = 0
-        width = 80
-    pctg = None
-
-    if cols <= width + 4:
-        width = cols - 4
-        pctg = STATE["States"][ebook.path].get("pctg", None)
-
     try:
+        if ebook.path in STATE["States"]:
+            idx = STATE["States"][ebook.path]["index"]
+            width = STATE["States"][ebook.path]["width"]
+            y = STATE["States"][ebook.path]["pos"]
+        else:
+            STATE["States"][ebook.path] = {}
+            STATE["States"][ebook.path]["bmarks"] = []
+            idx = 0
+            y = 0
+            width = 80
+        pctg = None
+
+        if cols <= width + 4:
+            width = cols - 4
+            pctg = STATE["States"][ebook.path].get("pctg", None)
+
         ebook.initialize()
-    except:
-        ebook.cleanup()
-    find_media_viewer()
-    find_dict_client()
-    parse_keys()
-    SHOWPROGRESS = CFG["ShowProgressIndicator"]
-    count_max_reading_pg(ebook)
+        find_media_viewer()
+        find_dict_client()
+        parse_keys()
+        SHOWPROGRESS = CFG["ShowProgressIndicator"]
+        count_max_reading_pg(ebook)
 
-    sec = ""
-    try:
+        sec = ""
         while True:
             incr, width, y, pctg, sec = reader(
                 ebook, idx, width, y, pctg, sec
