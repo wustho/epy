@@ -1660,7 +1660,10 @@ def preread(stdscr, file):
         width = cols - 4
         pctg = STATE["States"][ebook.path].get("pctg", None)
 
-    ebook.initialize()
+    try:
+        ebook.initialize()
+    except:
+        ebook.cleanup()
     find_media_viewer()
     find_dict_client()
     parse_keys()
