@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.9.20"
+__version__ = "2020.9.21"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1330,7 +1330,6 @@ def reader(ebook, index, width, y, pctg, sect):
                         countstring = ""
                     else:
                         savestate(ebook.path, index, width, y, y/totlines)
-                        ebook.cleanup()
                         sys.exit()
                 elif k in K["ScrollUp"]:
                     if count > 1:
@@ -1611,7 +1610,6 @@ def reader(ebook, index, width, y, pctg, sect):
                 svline = "dontsave"
     except KeyboardInterrupt:
         savestate(ebook.path, index, width, y, y/totlines)
-        ebook.cleanup()
         sys.exit()
 
 
@@ -1662,11 +1660,14 @@ def preread(stdscr, file):
     count_max_reading_pg(ebook)
 
     sec = ""
-    while True:
-        incr, width, y, pctg, sec = reader(
-            ebook, idx, width, y, pctg, sec
-        )
-        idx += incr
+    try:
+        while True:
+            incr, width, y, pctg, sec = reader(
+                ebook, idx, width, y, pctg, sec
+            )
+            idx += incr
+    finally:
+        ebook.cleanup()
 
 
 def main():
