@@ -39,7 +39,11 @@ from html.parser import HTMLParser
 from difflib import SequenceMatcher as SM
 from functools import wraps
 
-import mobi
+try:
+    import mobi
+    MOBISUPPORT = True
+except ModuleNotFoundError:
+    MOBISUPPORT = False
 
 
 # -1 is default terminal fg/bg colors
@@ -927,10 +931,14 @@ def det_ebook_cls(file):
         return Epub(file)
     elif filext == ".fb2":
         return FictionBook(file)
-    elif filext == ".mobi":
+    elif MOBISUPPORT and filext == ".mobi":
         return Mobi(file)
+    elif not MOBISUPPORT and filext == ".mobi":
+        sys.exit("""ERR: Format not supported. (Supported: epub, fb2).
+To get mobi support, install mobi module from pip.
+   $ pip install mobi""")
     else:
-        sys.exit("ERR: Format not supported. (Supported: epub, fb2, mobi)")
+        sys.exit("ERR: Format not supported. (Supported: epub, fb2)")
 
 
 def dots_path(curr, tofi):
