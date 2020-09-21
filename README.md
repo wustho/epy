@@ -1,6 +1,6 @@
 # `$ epy`
 
-![Screenshot](https://raw.githubusercontent.com/wustho/epy/master/screenshot.png)
+![Screenshot](https://raw.githubusercontent.com/wustho/epy/master/screencast.gif)
 
 CLI Ebook Reader.
 
