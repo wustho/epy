@@ -6,9 +6,12 @@ CLI Ebook Reader.
 
 This is just a fork of my own [epr](https://github.com/wustho/epr) with these extra features:
 
+- Supported formats:
+  - Epub (.epub, .epub3)
+  - FictionBook (.fb2)
+  - Mobi (.mobi), but image is not supported in mobi
+  - AZW3 (.azw3), some but not all (see [KindleUnpack](https://github.com/kevinhendricks/KindleUnpack))
 - Faster (although only noticeable when reading badly-structured thick ebook)
-- FictionBook (.fb2) support
-- Mobi (.mobi) support (but no image is supported in mobi)
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration
