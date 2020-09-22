@@ -209,7 +209,10 @@ class Epub:
                 src = i.get("href")
                 name = "".join(list(i.itertext()))
             src = src.split("#")
-            idx = contents.index(unquote(src[0]))
+            try:
+                idx = contents.index(unquote(src[0]))
+            except ValueError:
+                continue
             self.toc_entries[0].append(name)
             self.toc_entries[1].append(idx)
             if len(src) == 2:
@@ -302,7 +305,10 @@ class Mobi(Epub):
                 src = i.get("href")
                 name = "".join(list(i.itertext()))
             src = src.split("#")
-            idx = contents.index(unquote(src[0]))
+            try:
+                idx = contents.index(unquote(src[0]))
+            except ValueError:
+                continue
             self.toc_entries[0].append(name)
             self.toc_entries[1].append(idx)
             if len(src) == 2:
