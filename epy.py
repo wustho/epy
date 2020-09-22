@@ -130,6 +130,17 @@ class Epub:
     def __init__(self, fileepub):
         self.path = os.path.abspath(fileepub)
         self.file = zipfile.ZipFile(fileepub, "r")
+
+    def get_meta(self):
+        meta = []
+        # why self.file.read(self.rootfile) problematic
+        cont = ET.fromstring(self.file.open(self.rootfile).read())
+        for i in cont.findall("OPF:metadata/*", self.NS):
+            if i.text is not None:
+                meta.append([re.sub("{.*?}", "", i.tag), i.text])
+        return meta
+
+    def initialize(self):
         cont = ET.parse(self.file.open("META-INF/container.xml"))
         self.rootfile = cont.find(
             "CONT:rootfiles/CONT:rootfile",
@@ -157,17 +168,7 @@ class Epub:
         self.contents = []
         self.toc_entries = [[], [], []]
 
-    def get_meta(self):
-        meta = []
-        # why self.file.read(self.rootfile) problematic
-        cont = ET.fromstring(self.file.open(self.rootfile).read())
-        for i in cont.findall("OPF:metadata/*", self.NS):
-            if i.text is not None:
-                meta.append([re.sub("{.*?}", "", i.tag), i.text])
-        return meta
-
-    def initialize(self):
-        cont = ET.parse(self.file.open(self.rootfile)).getroot()
+        # cont = ET.parse(self.file.open(self.rootfile)).getroot()
         manifest = []
         for i in cont.findall("OPF:manifest/*", self.NS):
             # EPUB3
@@ -239,12 +240,6 @@ class Mobi(Epub):
     def __init__(self, filemobi):
         self.path = os.path.abspath(filemobi)
         self.file, _ = mobi.extract(filemobi)
-        self.rootdir = os.path.join(self.file, "mobi7")
-        self.toc = os.path.join(self.rootdir, "toc.ncx")
-        self.version = "2.0"
-
-        self.contents = []
-        self.toc_entries = [[], [], []]
 
     def get_meta(self):
         meta = []
@@ -257,6 +252,13 @@ class Mobi(Epub):
         return meta
 
     def initialize(self):
+        self.rootdir = os.path.join(self.file, "mobi7")
+        self.toc = os.path.join(self.rootdir, "toc.ncx")
+        self.version = "2.0"
+
+        self.contents = []
+        self.toc_entries = [[], [], []]
+
         with open(os.path.join(self.rootdir, "content.opf")) as f:
             cont = ET.parse(f).getroot()
         manifest = []
@@ -332,32 +334,6 @@ class Azw3(Epub):
         self.path = os.path.abspath(fileepub)
         self.tmpdir, self.tmpepub = mobi.extract(fileepub)
         self.file = zipfile.ZipFile(self.tmpepub, "r")
-        cont = ET.parse(self.file.open("META-INF/container.xml"))
-        self.rootfile = cont.find(
-            "CONT:rootfiles/CONT:rootfile",
-            self.NS
-        ).attrib["full-path"]
-        self.rootdir = os.path.dirname(self.rootfile)\
-            + "/" if os.path.dirname(self.rootfile) != "" else ""
-        cont = ET.parse(self.file.open(self.rootfile))
-        # EPUB3
-        self.version = cont.getroot().get("version")
-        if self.version == "2.0":
-            # "OPF:manifest/*[@id='ncx']"
-            self.toc = self.rootdir\
-                + cont.find(
-                    "OPF:manifest/*[@media-type='application/x-dtbncx+xml']",
-                    self.NS
-                ).get("href")
-        elif self.version == "3.0":
-            self.toc = self.rootdir\
-                + cont.find(
-                    "OPF:manifest/*[@properties='nav']",
-                    self.NS
-                ).get("href")
-
-        self.contents = []
-        self.toc_entries = [[], [], []]
 
     def cleanup(self):
         shutil.rmtree(self.tmpdir)
@@ -371,11 +347,7 @@ class FictionBook:
 
     def __init__(self, filefb):
         self.path = os.path.abspath(filefb)
-        cont = ET.parse(filefb)
-        self.root = cont.getroot()
-
-        self.contents = []
-        self.toc_entries = [[], [], []]
+        self.file = filefb
 
     def get_meta(self):
         desc = self.root.find("FB2:description", self.NS)
@@ -383,6 +355,12 @@ class FictionBook:
         return [[re.sub("{.*?}", "", i.tag), " ".join(i.itertext())] for i in alltags]
 
     def initialize(self):
+        cont = ET.parse(self.file)
+        self.root = cont.getroot()
+
+        self.contents = []
+        self.toc_entries = [[], [], []]
+
         self.contents = self.root.findall("FB2:body/*", self.NS)
         # TODO
         for n, i in enumerate(self.contents):
@@ -1702,8 +1680,8 @@ def preread(stdscr, file):
 
         try:
             ebook.initialize()
-        except:
-            sys.exit("ERROR: Badly-structured ebook.")
+        except Exception as e:
+            sys.exit("ERROR: Badly-structured ebook.\n"+str(e))
         find_media_viewer()
         find_dict_client()
         parse_keys()
@@ -1807,19 +1785,25 @@ def main():
 
     if dump:
         ebook = det_ebook_cls(file)
-        ebook.initialize()
-        for i in ebook.contents:
-            content = ebook.get_raw_text(i)
-            parser = HTMLtoLines()
-            # try:
-            parser.feed(content)
-            parser.close()
-            # except:
-            #     pass
-            src_lines = parser.get_lines()
-            # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
-            for j in src_lines:
-                sys.stdout.buffer.write((j+"\n\n").encode("utf-8"))
+        try:
+            try:
+                ebook.initialize()
+            except Exception as e:
+                sys.exit("ERROR: Badly-structured ebook.\n"+str(e))
+            for i in ebook.contents:
+                content = ebook.get_raw_text(i)
+                parser = HTMLtoLines()
+                # try:
+                parser.feed(content)
+                parser.close()
+                # except:
+                #     pass
+                src_lines = parser.get_lines()
+                # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
+                for j in src_lines:
+                    sys.stdout.buffer.write((j+"\n\n").encode("utf-8"))
+        finally:
+            ebook.cleanup()
         sys.exit()
 
     else:
