@@ -437,7 +437,7 @@ class HTMLtoLines(HTMLParser):
                     self.imgs.append(unquote(i[1]))
         if self.sects != {""}:
             for i in attrs:
-                if i[1] in self.sects:
+                if i[0] == "id" and i[1] in self.sects:
                     self.text[-1] += " (#" + i[1] + ") "
 
     def handle_startendtag(self, tag, attrs):
@@ -454,7 +454,7 @@ class HTMLtoLines(HTMLParser):
         # especially html from mobi module (kindleunpack fork)
         if self.sects != {""}:
             for i in attrs:
-                if i[1] in self.sects:
+                if i[0] == "id" and i[1] in self.sects:
                     self.text[-1] += " (#" + i[1] + ") "
 
     def handle_endtag(self, tag):
