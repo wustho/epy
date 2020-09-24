@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.9.22"
+__version__ = "2020.9.24"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -1194,6 +1194,10 @@ def searching(pad, src, width, y, ch, tot):
         elif s == curses.KEY_RESIZE:
             return s
 
+        # TODO
+        if y+rows-1 > pad.chunks[pad.find_chunkidx(y)]:
+            y = pad.chunks[pad.find_chunkidx(y)] + 1
+
         while found[sidx][0] not in list(range(y, y+rows-1)):
             if found[sidx][0] > y:
                 y += rows - 1
@@ -1442,7 +1446,10 @@ def reader(ebook, index, width, y, pctg, sect):
                         y = totlines - rows
                 elif k in K["PageDown"]:
                     if totlines - y - LINEPRSRV > rows:
-                        y += rows - LINEPRSRV
+                        if y+rows > pad.chunks[pad.find_chunkidx(y)]:
+                            y = pad.chunks[pad.find_chunkidx(y)] + 1
+                        else:
+                            y += rows - LINEPRSRV
                         # SCREEN.clear()
                         # SCREEN.refresh()
                     elif index != len(contents)-1:
