@@ -534,6 +534,67 @@ class HTMLtoLines(HTMLParser):
         return text, self.imgs, sect
 
 
+class Board:
+    MAXCHUNKS = 32000  # lines
+
+    def __init__(self, totlines, width):
+        self.chunks = [self.MAXCHUNKS*(i+1)-1 for i in range(totlines // self.MAXCHUNKS)]
+        self.chunks += [] if totlines % self.MAXCHUNKS == 0 else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])] # -1
+        self.pad = curses.newpad(min([self.MAXCHUNKS, totlines]), width)
+        self.pad.keypad(True)
+        # self.current_chunk = 0
+        self.y = 0
+        self.width = width
+
+    def feed(self, textlist):
+        self.text = textlist
+
+    def getch(self):
+        return self.pad.getch()
+
+    def bkgd(self, bg):
+        self.pad.bkgd(SCREEN.getbkgd())
+
+    def find_chunkidx(self, y):
+        for n, i in enumerate(self.chunks):
+            if y <= i:
+                return n
+
+    def paint_text(self, chunkidx=0):
+        self.pad.clear()
+        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx-1]+1
+        end_chunk = self.chunks[chunkidx]
+        for n, i in enumerate(self.text[start_chunk:end_chunk+1]):
+            if re.search("\\[IMG:[0-9]+\\]", i):
+                self.pad.addstr(n, self.width//2 - len(i)//2 + 1, i, curses.A_REVERSE)
+            else:
+                self.pad.addstr(n, 0, i)
+        # chapter suffix
+        ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
+        try:
+            self.pad.addstr(n+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
+        except curses.error:
+            pass
+
+    def chgat(self, y, x, n, attr):
+        chunkidx = self.find_chunkidx(y)
+        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx-1]+1
+        end_chunk = self.chunks[chunkidx]
+        if y in range(start_chunk, end_chunk+1):
+            self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
+
+    def getbkgd(self):
+        return self.pad.getbkgd()
+
+    def refresh(self, y, b, c, d, e, f):
+        chunkidx = self.find_chunkidx(y)
+        if chunkidx != self.find_chunkidx(self.y):
+            self.paint_text(chunkidx)
+        # TODO: not modulo by self.MAXCHUNKS but self.pad.height
+        self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
+        self.y = y
+
+
 def text_win(textfunc):
     @wraps(textfunc)
     def wrapper(*args, **kwargs):
@@ -1283,67 +1344,6 @@ def count_max_reading_pg(ebook):
             MULTIPROC = False
     if not MULTIPROC:
         ALLPREVLETTERS, SUMALLLETTERS = count_pct(ebook)
-
-
-class Board:
-    MAXCHUNKS = 32000  # lines
-
-    def __init__(self, totlines, width):
-        self.chunks = [self.MAXCHUNKS*(i+1)-1 for i in range(totlines // self.MAXCHUNKS)]
-        self.chunks += [] if totlines % self.MAXCHUNKS == 0 else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])] # -1
-        self.pad = curses.newpad(min([self.MAXCHUNKS, totlines]), width)
-        self.pad.keypad(True)
-        # self.current_chunk = 0
-        self.y = 0
-        self.width = width
-
-    def feed(self, textlist):
-        self.text = textlist
-
-    def getch(self):
-        return self.pad.getch()
-
-    def bkgd(self, bg):
-        self.pad.bkgd(SCREEN.getbkgd())
-
-    def find_chunkidx(self, y):
-        for n, i in enumerate(self.chunks):
-            if y <= i:
-                return n
-
-    def paint_text(self, chunkidx=0):
-        self.pad.clear()
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx-1]+1
-        end_chunk = self.chunks[chunkidx]
-        for n, i in enumerate(self.text[start_chunk:end_chunk+1]):
-            if re.search("\\[IMG:[0-9]+\\]", i):
-                self.pad.addstr(n, self.width//2 - len(i)//2 + 1, i, curses.A_REVERSE)
-            else:
-                self.pad.addstr(n, 0, i)
-        # chapter suffix
-        ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
-        try:
-            self.pad.addstr(n+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
-        except curses.error:
-            pass
-
-    def chgat(self, y, x, n, attr):
-        chunkidx = self.find_chunkidx(y)
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx-1]+1
-        end_chunk = self.chunks[chunkidx]
-        if y in range(start_chunk, end_chunk+1):
-            self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
-
-    def getbkgd(self):
-        return self.pad.getbkgd()
-
-    def refresh(self, y, b, c, d, e, f):
-        chunkidx = self.find_chunkidx(y)
-        if chunkidx != self.find_chunkidx(self.y):
-            self.paint_text(chunkidx)
-        # TODO: not modulo by self.MAXCHUNKS but self.pad.height
-        self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
-        self.y = y
 
 
 def reader(ebook, index, width, y, pctg, sect):
