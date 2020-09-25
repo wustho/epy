@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.9.24"
+__version__ = "2020.9.25"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -789,6 +789,14 @@ def choice_win(allowdel=False):
             return None, None, None
         return wrapper
     return inner_f
+
+
+def show_loader(scr, msg="Loading"):
+    scr.clear()
+    rows, cols = scr.getmaxyx()
+    scr.addstr((rows-2)//2, (cols-1)//2, "\u231B")
+    scr.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
+    scr.refresh()
 
 
 def loadstate():
@@ -1724,8 +1732,7 @@ def preread(stdscr, file):
     curses.curs_set(0)
     SCREEN.clear()
     rows, cols = SCREEN.getmaxyx()
-    SCREEN.addstr(rows-1, 0, "Loading...")
-    SCREEN.refresh()
+    show_loader(SCREEN)
 
     ebook = det_ebook_cls(file)
 
@@ -1762,6 +1769,7 @@ def preread(stdscr, file):
                 ebook, idx, width, y, pctg, sec
             )
             idx += incr
+            show_loader(SCREEN)
     finally:
         ebook.cleanup()
 
