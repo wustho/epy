@@ -11,7 +11,6 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
   - FictionBook (.fb2)
   - Mobi (.mobi), but image is not supported in mobi
   - AZW3 (.azw3), some but not all (see [KindleUnpack](https://github.com/kevinhendricks/KindleUnpack))
-- Faster (although only noticeable when reading badly-structured thick ebook)
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration
