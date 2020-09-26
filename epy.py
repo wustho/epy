@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.9.25"
+__version__ = "2020.9.26"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __url__ = "https://github.com/wustho/epy"
@@ -791,11 +791,11 @@ def choice_win(allowdel=False):
     return inner_f
 
 
-def show_loader(scr, msg="Loading"):
+def show_loader(scr):
     scr.clear()
     rows, cols = scr.getmaxyx()
-    scr.addstr((rows-2)//2, (cols-1)//2, "\u231B")
-    scr.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
+    scr.addstr((rows-1)//2, (cols-1)//2, "\u231B")
+    # scr.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
     scr.refresh()
 
 
@@ -1398,7 +1398,7 @@ def reader(ebook, index, width, y, pctg, sect):
     pad.paint_text(0)
 
     LOCALPCTG = []
-    for n, i in enumerate(src_lines):
+    for i in src_lines:
         LOCALPCTG.append(len(re.sub("\s", "", i)))
 
     SCREEN.clear()
