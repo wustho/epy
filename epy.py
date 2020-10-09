@@ -954,6 +954,11 @@ def truncate(teks, subte, maxlen, startsub=0):
         end = teks[startsub+lensu-maxlen:] if lensu < maxlen - startsub else ""
         return beg+mid+end
 
+def safe_curs_set(state):
+    try:
+        curses.curs_set(state)
+    except:
+        return
 
 def input_prompt(prompt):
     # prevent pad hole when prompting for input while
@@ -965,7 +970,7 @@ def input_prompt(prompt):
         stat.bkgd(SCREEN.getbkgd())
     stat.keypad(True)
     curses.echo(1)
-    curses.curs_set(1)
+    safe_curs_set(1)
 
     init_text = ""
 
@@ -980,13 +985,13 @@ def input_prompt(prompt):
                 stat.clear()
                 stat.refresh()
                 curses.echo(0)
-                curses.curs_set(0)
+                safe_curs_set(0)
                 return
             elif ipt == 10:
                 stat.clear()
                 stat.refresh()
                 curses.echo(0)
-                curses.curs_set(0)
+                safe_curs_set(0)
                 return init_text
             elif ipt in {8, curses.KEY_BACKSPACE}:
                 init_text = init_text[:-1]
@@ -994,7 +999,7 @@ def input_prompt(prompt):
                 stat.clear()
                 stat.refresh()
                 curses.echo(0)
-                curses.curs_set(0)
+                safe_curs_set(0)
                 return curses.KEY_RESIZE
             # elif len(init_text) <= maxlen:
             else:
@@ -1011,7 +1016,7 @@ def input_prompt(prompt):
         stat.clear()
         stat.refresh()
         curses.echo(0)
-        curses.curs_set(0)
+        safe_curs_set(0)
         return
 
 
@@ -1582,7 +1587,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         while p not in K["Quit"] and p not in K["Follow"]:
                             SCREEN.move(idx[i], x + width//2 + len(gambar[i]) + 1)
                             SCREEN.refresh()
-                            curses.curs_set(1)
+                            safe_curs_set(1)
                             p = pad.getch()
                             if p in K["ScrollDown"]:
                                 i += 1
@@ -1590,7 +1595,7 @@ def reader(ebook, index, width, y, pctg, sect):
                                 i -= 1
                             i = i % len(gambar)
 
-                        curses.curs_set(0)
+                        safe_curs_set(0)
                         if p in K["Follow"]:
                             impath = imgs[int(gambar[i])]
 
@@ -1729,7 +1734,7 @@ def preread(stdscr, file):
     SCREEN = stdscr
 
     SCREEN.keypad(True)
-    curses.curs_set(0)
+    safe_curs_set(0)
     SCREEN.clear()
     rows, cols = SCREEN.getmaxyx()
     show_loader(SCREEN)
