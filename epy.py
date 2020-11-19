@@ -14,9 +14,10 @@ Options:
 """
 
 
-__version__ = "2020.9.26"
+__version__ = "2020.11.19"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
+__email__ = "benawiadha@gmail.com"
 __url__ = "https://github.com/wustho/epy"
 
 
