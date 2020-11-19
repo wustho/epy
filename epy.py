@@ -1717,8 +1717,8 @@ def reader(ebook, index, width, y, pctg, sect):
 def preread(stdscr, file):
     global COLORSUPPORT, SHOWPROGRESS, SCREEN
 
-    curses.use_default_colors()
     try:
+        curses.use_default_colors()
         curses.init_pair(1, -1, -1)
         curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
         curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
