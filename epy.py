@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2020.11.19"
+__version__ = "2021.1.29"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -414,6 +414,7 @@ class HTMLtoLines(HTMLParser):
         self.idbull = set()
         self.idpref = set()
         self.sects = sects
+        self.sectsindex = {}
 
     def handle_starttag(self, tag, attrs):
         if re.match("h[1-6]", tag) is not None:
@@ -439,7 +440,9 @@ class HTMLtoLines(HTMLParser):
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
-                    self.text[-1] += " (#" + i[1] + ") "
+                    # self.text[-1] += " (#" + i[1] + ") "
+                    # self.sectsindex.append([len(self.text), i[1]])
+                    self.sectsindex[len(self.text)-1] = i[1]
 
     def handle_startendtag(self, tag, attrs):
         if tag == "br":
@@ -456,7 +459,8 @@ class HTMLtoLines(HTMLParser):
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
-                    self.text[-1] += " (#" + i[1] + ") "
+                    # self.text[-1] += " (#" + i[1] + ") "
+                    self.sectsindex[len(self.text)-1] = i[1]
 
     def handle_endtag(self, tag):
         if re.match("h[1-6]", tag) is not None:
@@ -510,9 +514,13 @@ class HTMLtoLines(HTMLParser):
             return self.text
         for n, i in enumerate(self.text):
             findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
-            if findsect is not None and findsect.group() in self.sects:
-                i = i.replace(" (#" + findsect.group() + ") ", "")
-                sect[findsect.group()] = len(text)
+            # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
+            # if findsect is not None and findsect.group() in self.sects:
+                # i = i.replace(" (#" + findsect.group() + ") ", "")
+                # # i = i.replace(" (#" + findsect.group() + ") ", " "*(5+len(findsect.group())))
+                # sect[findsect.group()] = len(text)
+            if n in self.sectsindex.keys():
+                sect[self.sectsindex[n]] = len(text)-1
             if n in self.idhead:
                 text += [i.rjust(width//2 + len(i)//2)] + [""]
             elif n in self.idinde:
