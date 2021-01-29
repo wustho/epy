@@ -513,7 +513,7 @@ class HTMLtoLines(HTMLParser):
         if width == 0:
             return self.text
         for n, i in enumerate(self.text):
-            findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
+            # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
             # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
             # if findsect is not None and findsect.group() in self.sects:
                 # i = i.replace(" (#" + findsect.group() + ") ", "")
