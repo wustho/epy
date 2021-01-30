@@ -46,6 +46,12 @@ try:
 except ModuleNotFoundError:
     MOBISUPPORT = False
 
+if shutil.which("pico2wave") is None\
+        or shutil.which("play") is None:
+    TTSSUPPORT = False
+else:
+    TTSSUPPORT = True
+SPEAKING = False
 
 # -1 is default terminal fg/bg colors
 CFG = {
@@ -83,7 +89,8 @@ CFG = {
         "ShowBookmarks": "B",
         "Quit": "q",
         "Help": "?",
-        "SwitchColor": "c"
+        "SwitchColor": "c",
+        "TTSToggle": "!"
     }
 }
 STATE = {
@@ -1515,8 +1522,48 @@ def count_max_reading_pg(ebook):
         ALLPREVLETTERS, SUMALLLETTERS = count_pct(ebook)
 
 
+def speaking(text):
+    global SPEAKING
+
+    SPEAKING = True
+    rows, _ = SCREEN.getmaxyx()
+    SCREEN.addstr(rows-1, 0, ' Speaking! ', curses.A_REVERSE)
+    SCREEN.refresh()
+    SCREEN.timeout(3)
+    try:
+        _, path = tempfile.mkstemp(suffix=".wav")
+        subprocess.call(
+            [ "pico2wave", "-w", path, text],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        SPEAKER = subprocess.Popen(
+            [ "play", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        while True:
+            if SPEAKER.poll() is not None:
+                k = ord("l")
+                break
+            k = SCREEN.getch()
+            # if k != -1:
+            if k in K["Quit"]|K["PageUp"]|K["PageDown"]|K["ScrollUp"]|K["ScrollDown"]|{curses.KEY_RESIZE}:
+                SPEAKER.terminate()
+                # SPEAKER.kill()
+                break
+    finally:
+        SCREEN.timeout(-1)
+        os.remove(path)
+
+    if k in K["Quit"]:
+        SPEAKING = False
+        k = None
+    return k
+
+
 def reader(ebook, index, width, y, pctg, sect):
-    global SHOWPROGRESS
+    global SHOWPROGRESS, SPEAKING
 
     k = 0 if SEARCHPATTERN is None else ord("/")
     rows, cols = SCREEN.getmaxyx()
@@ -1592,6 +1639,18 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         savestate(ebook.path, index, width, y, y/totlines)
                         sys.exit()
+                elif k in K["TTSToggle"] and TTSSUPPORT:
+                    # tospeak = "\n".join(src_lines[y:y+rows-1])
+                    tospeak = ""
+                    for i in src_lines[y:y+rows]:
+                        if re.match(r"^\s*$", i) is not None:
+                            tospeak += "\n. \n"
+                        else:
+                            tospeak += i + " "
+                    k = speaking(tospeak)
+                    if totlines-y <= rows and index == len(contents)-1:
+                        SPEAKING = False
+                    continue
                 elif k in K["ScrollUp"]:
                     if count > 1:
                         svline = y - 1
@@ -1867,6 +1926,9 @@ def reader(ebook, index, width, y, pctg, sect):
                     pad.refresh(y, 0, 0, x, rows-1, x+width)
             except curses.error:
                 pass
+            if SPEAKING:
+                k = list(K["TTSToggle"])[0]
+                continue
             k = pad.getch()
             if k == curses.KEY_MOUSE:
                 mouse_event = curses.getmouse()
