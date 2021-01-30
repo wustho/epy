@@ -589,11 +589,18 @@ class HTMLtoLines(HTMLParser):
                 tmp_count = 0
                 # for k in text[startline:endline]:
                 for k in range(startline, endline):
-                    if tmp_count <= j[1]:
-                        tmp_start = [k, j[1]-tmp_count]
-                    if tmp_count <= j[1]+j[2]:
-                        tmp_end = [k, j[1]+j[2]-tmp_count]
-                    tmp_count += len(text[k]) + 1
+                    if n in self.idbull|self.idinde:
+                        if tmp_count <= j[1]:
+                            tmp_start = [k, j[1]-tmp_count+3]
+                        if tmp_count <= j[1]+j[2]:
+                            tmp_end = [k, j[1]+j[2]-tmp_count+3]
+                        tmp_count += len(text[k]) - 2
+                    else:
+                        if tmp_count <= j[1]:
+                            tmp_start = [k, j[1]-tmp_count]
+                        if tmp_count <= j[1]+j[2]:
+                            tmp_end = [k, j[1]+j[2]-tmp_count]
+                        tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
                     formatting["italic"].append(tmp_start + [tmp_end[1]-tmp_start[1]])
                 elif tmp_start[0] == tmp_end[0]-1:
@@ -610,11 +617,18 @@ class HTMLtoLines(HTMLParser):
                 tmp_count = 0
                 # for k in text[startline:endline]:
                 for k in range(startline, endline):
-                    if tmp_count <= j[1]:
-                        tmp_start = [k, j[1]-tmp_count]
-                    if tmp_count <= j[1]+j[2]:
-                        tmp_end = [k, j[1]+j[2]-tmp_count]
-                    tmp_count += len(text[k]) + 1
+                    if n in self.idbull|self.idinde:
+                        if tmp_count <= j[1]:
+                            tmp_start = [k, j[1]-tmp_count+3]
+                        if tmp_count <= j[1]+j[2]:
+                            tmp_end = [k, j[1]+j[2]-tmp_count+3]
+                        tmp_count += len(text[k]) - 2
+                    else:
+                        if tmp_count <= j[1]:
+                            tmp_start = [k, j[1]-tmp_count]
+                        if tmp_count <= j[1]+j[2]:
+                            tmp_end = [k, j[1]+j[2]-tmp_count]
+                        tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
                     formatting["bold"].append(tmp_start + [tmp_end[1]-tmp_start[1]])
                 elif tmp_start[0] == tmp_end[0]-1:
@@ -650,9 +664,15 @@ class Board:
 
     def format(self):
         for i in self.formatting["italic"]:
-            self.pad.chgat(i[0], i[1], i[2], curses.A_ITALIC)
+            try:
+                self.pad.chgat(i[0], i[1], i[2], curses.A_ITALIC)
+            except:
+                pass
         for i in self.formatting["bold"]:
-            self.pad.chgat(i[0], i[1], i[2], curses.A_BOLD)
+            try:
+                self.pad.chgat(i[0], i[1], i[2], curses.A_BOLD)
+            except:
+                pass
 
     def getch(self):
         return self.pad.getch()
@@ -695,6 +715,7 @@ class Board:
         chunkidx = self.find_chunkidx(y)
         if chunkidx != self.find_chunkidx(self.y):
             self.paint_text(chunkidx)
+            self.format()
         # TODO: not modulo by self.MAXCHUNKS but self.pad.height
         self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
         self.y = y
