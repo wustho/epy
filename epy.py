@@ -561,7 +561,7 @@ class HTMLtoLines(HTMLParser):
                 # # i = i.replace(" (#" + findsect.group() + ") ", " "*(5+len(findsect.group())))
                 # sect[findsect.group()] = len(text)
             if n in self.sectsindex.keys():
-                sect[self.sectsindex[n]] = len(text)-1
+                sect[self.sectsindex[n]] = len(text)
             if n in self.idhead:
                 text += [i.rjust(width//2 + len(i)//2)] + [""]
             elif n in self.idinde:
