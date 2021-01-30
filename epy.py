@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.1.30"
+__version__ = "2021.1.31"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -921,6 +921,23 @@ def choice_win(allowdel=False):
                 pad.refresh(y, 0, Y+4+(1 if allowdel else 0), X+4, rows - 5, cols - 6)
                 # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
                 key_chwin = chwin.getch()
+                if key_chwin == curses.KEY_MOUSE:
+                    mouse_event = curses.getmouse()
+                    if mouse_event[4] == curses.BUTTON4_PRESSED:
+                        key_chwin = ord("k")
+                    elif mouse_event[4] == 2097152:
+                        key_chwin = ord("j")
+                    elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
+                        if mouse_event[2] >= 6 and mouse_event[2] < rows-4\
+                                and mouse_event[2] < 6+totlines:
+                            index = mouse_event[2]-6+y
+                        key_chwin = ord("f")
+                    elif mouse_event[4] == curses.BUTTON1_CLICKED\
+                        and mouse_event[2] >= 6 and mouse_event[2] < rows-4\
+                        and mouse_event[2] < 6+totlines:
+                        index = mouse_event[2]-6+y
+                    elif mouse_event[4] == curses.BUTTON3_CLICKED:
+                        key_chwin = ord("q")
 
             chwin.clear()
             chwin.refresh()
@@ -1851,6 +1868,23 @@ def reader(ebook, index, width, y, pctg, sect):
             except curses.error:
                 pass
             k = pad.getch()
+            if k == curses.KEY_MOUSE:
+                mouse_event = curses.getmouse()
+                if mouse_event[4] == curses.BUTTON1_CLICKED:
+                    if mouse_event[1] < cols//2:
+                        k = ord("h")
+                    else:
+                        k = ord("l")
+                elif mouse_event[4] == curses.BUTTON3_CLICKED:
+                    k = ord("t")
+                elif mouse_event[4] == curses.BUTTON4_PRESSED:
+                    k = ord("k")
+                elif mouse_event[4] == 2097152:
+                    k = ord("j")
+                elif mouse_event[4] == curses.BUTTON4_PRESSED+curses.BUTTON_CTRL:
+                    k = ord("+")
+                elif mouse_event[4] == 2097152+curses.BUTTON_CTRL:
+                    k = ord("-")
 
             if svline != "dontsave":
                 pad.chgat(svline, 0, width, curses.A_NORMAL)
@@ -1876,6 +1910,8 @@ def preread(stdscr, file):
 
     SCREEN.keypad(True)
     safe_curs_set(0)
+    curses.mousemask(-1)
+    # curses.mouseinterval(0)
     SCREEN.clear()
     rows, cols = SCREEN.getmaxyx()
     show_loader(SCREEN)

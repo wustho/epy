@@ -35,3 +35,15 @@ $ pip3 install git+https://github.com/wustho/epy
 When reading using `epy` you might occasionally find triple asteriks `***`.
 That means you reach the end of some section in your ebook and the next line (right after those three asteriks, which is in new section) will start at the top of the page.
 This might be disorienting, so the best way to get seamless reading experience is by using next-page control (`space`, `l` or `Right`) instead of next-line control (`j` or `Down`).
+
+# Using Mouse
+
+| Key | Action |
+| --- | --- |
+| `Left Click` (right side of screen) | next page |
+| `Left Click` (left side of screen) | prev page |
+| `Right Click` | ToC |
+| `Scroll Up` | scroll up |
+| `Scroll Down` | scroll down |
+| `Ctrl` + `Scroll Up` | increase text width |
+| `Ctrl` + `Scroll Down` | decrease text width |
