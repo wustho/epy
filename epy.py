@@ -399,6 +399,7 @@ class HTMLtoLines(HTMLParser):
     bull = {"li"}
     hide = {"script", "style", "head"}
     ital = {"i", "em"}
+    bold = {"b"}
     # hide = {"script", "style", "head", ", "sub}
 
     def __init__(self, sects={""}):
@@ -417,6 +418,7 @@ class HTMLtoLines(HTMLParser):
         self.sects = sects
         self.sectsindex = {}
         self.initital = []
+        self.initbold = []
 
     def handle_starttag(self, tag, attrs):
         if re.match("h[1-6]", tag) is not None:
@@ -441,6 +443,8 @@ class HTMLtoLines(HTMLParser):
                     self.imgs.append(unquote(i[1]))
         elif tag in self.ital:
             self.initital.append([len(self.text)-1, len(self.text[-1])])
+        elif tag in self.bold:
+            self.initbold.append([len(self.text)-1, len(self.text[-1])])
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
@@ -493,6 +497,8 @@ class HTMLtoLines(HTMLParser):
             self.text.append("")
         elif tag in self.ital:
             self.initital[-1] += [len(self.text)-1, len(self.text[-1])]
+        elif tag in self.bold:
+            self.initbold[-1] += [len(self.text)-1, len(self.text[-1])]
 
     def handle_data(self, raw):
         if raw and not self.ishidden:
@@ -517,7 +523,8 @@ class HTMLtoLines(HTMLParser):
     def get_lines(self, width=0):
         text, sect = [], {}
         formatting = {
-            "italic": []
+            "italic": [],
+            "bold": []
         }
         tmpital = []
         for i in self.initital:
@@ -531,6 +538,18 @@ class HTMLtoLines(HTMLParser):
                 for j in range(i[0]+1, i[2]):
                     tmpital.append([j, 0, len(self.text[j])])
                 tmpital.append([i[2], 0, i[3]])
+        tmpbold = []
+        for i in self.initbold:
+            if i[0] == i[2]:
+                tmpbold.append([i[0], i[1], i[3]-i[1]])
+            elif i[0] == i[2]-1:
+                tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                tmpbold.append([i[2], 0, i[3]])
+            elif i[2]-i[0] > 1:
+                tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                for j in range(i[0]+1, i[2]):
+                    tmpbold.append([j, 0, len(self.text[j])])
+                tmpbold.append([i[2], 0, i[3]])
 
         if width == 0:
             return self.text
@@ -563,7 +582,7 @@ class HTMLtoLines(HTMLParser):
             else:
                 text += textwrap.wrap(i, width) + [""]
 
-            # TODO
+            # TODO: inline formats for indents
             endline = len(text)  # -1
             tmp_filtered = [j for j in tmpital if j[0] == n]
             for j in tmp_filtered:
@@ -586,6 +605,27 @@ class HTMLtoLines(HTMLParser):
                     for l in range(tmp_start[0]+1, tmp_end[0]):
                         formatting["italic"].append([l, 0, len(text[l])])
                     formatting["italic"].append([tmp_end[0], 0, tmp_end[1]])
+            tmp_filtered = [j for j in tmpbold if j[0] == n]
+            for j in tmp_filtered:
+                tmp_count = 0
+                # for k in text[startline:endline]:
+                for k in range(startline, endline):
+                    if tmp_count <= j[1]:
+                        tmp_start = [k, j[1]-tmp_count]
+                    if tmp_count <= j[1]+j[2]:
+                        tmp_end = [k, j[1]+j[2]-tmp_count]
+                    tmp_count += len(text[k]) + 1
+                if tmp_start[0] == tmp_end[0]:
+                    formatting["bold"].append(tmp_start + [tmp_end[1]-tmp_start[1]])
+                elif tmp_start[0] == tmp_end[0]-1:
+                    formatting["bold"].append(tmp_start + [len(text[tmp_start[0]])-tmp_start[1]+1])
+                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+                # elif tmp_start[0]-tmp_end[1] > 1:
+                else:
+                    formatting["bold"].append(tmp_start + [len(text[tmp_start[0]])-tmp_start[1]+1])
+                    for l in range(tmp_start[0]+1, tmp_end[0]):
+                        formatting["bold"].append([l, 0, len(text[l])])
+                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
 
         return text, self.imgs, sect, formatting
 
@@ -611,6 +651,8 @@ class Board:
     def format(self):
         for i in self.formatting["italic"]:
             self.pad.chgat(i[0], i[1], i[2], curses.A_ITALIC)
+        for i in self.formatting["bold"]:
+            self.pad.chgat(i[0], i[1], i[2], curses.A_BOLD)
 
     def getch(self):
         return self.pad.getch()

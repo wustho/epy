@@ -14,6 +14,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration
+- Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
 
 # Installation
 
