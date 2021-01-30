@@ -645,12 +645,12 @@ class HTMLtoLines(HTMLParser):
 
 
 class Board:
-    MAXCHUNKS = 32000  # lines
+    MAXCHUNKS = 32000-2  # lines
 
     def __init__(self, totlines, width):
         self.chunks = [self.MAXCHUNKS*(i+1)-1 for i in range(totlines // self.MAXCHUNKS)]
         self.chunks += [] if totlines % self.MAXCHUNKS == 0 else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])] # -1
-        self.pad = curses.newpad(min([self.MAXCHUNKS, totlines]), width)
+        self.pad = curses.newpad(min([self.MAXCHUNKS+2, totlines]), width)
         self.pad.keypad(True)
         # self.current_chunk = 0
         self.y = 0
@@ -704,6 +704,12 @@ class Board:
             self.pad.addstr(n+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
         except curses.error:
             pass
+
+        # if chunkidx < len(self.chunks)-1:
+            # try:
+                # self.pad.addstr(self.MAXCHUNKS+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
+            # except curses.error:
+                # pass
 
     def chgat(self, y, x, n, attr):
         chunkidx = self.find_chunkidx(y)
