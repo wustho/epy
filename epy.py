@@ -564,6 +564,7 @@ class HTMLtoLines(HTMLParser):
                 sect[self.sectsindex[n]] = len(text)
             if n in self.idhead:
                 text += [i.rjust(width//2 + len(i)//2)] + [""]
+                formatting["bold"] += [[j, 0, len(text[j])] for j in range(startline, len(text))]
             elif n in self.idinde:
                 text += [
                     "   "+j for j in textwrap.wrap(i, width - 3)
