@@ -663,14 +663,18 @@ class Board:
         self.formatting = formatting
 
     def format(self):
-        for i in self.formatting["italic"]:
+        chunkidx = self.find_chunkidx(self.y)
+        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx-1]+1
+        end_chunk = self.chunks[chunkidx]
+        # if y in range(start_chunk, end_chunk+1):
+        for i in [j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk]:
             try:
-                self.pad.chgat(i[0], i[1], i[2], curses.A_ITALIC)
+                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], curses.A_ITALIC)
             except:
                 pass
-        for i in self.formatting["bold"]:
+        for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
             try:
-                self.pad.chgat(i[0], i[1], i[2], curses.A_BOLD)
+                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], curses.A_BOLD)
             except:
                 pass
 
@@ -715,6 +719,7 @@ class Board:
         chunkidx = self.find_chunkidx(y)
         if chunkidx != self.find_chunkidx(self.y):
             self.paint_text(chunkidx)
+            self.y = y
             self.format()
         # TODO: not modulo by self.MAXCHUNKS but self.pad.height
         self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
