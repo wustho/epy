@@ -1929,7 +1929,7 @@ def reader(ebook, index, width, y, pctg, sect):
                 countstring = ""
 
             if svline != "dontsave":
-                pad.chgat(svline, 0, width, curses.A_UNDERLINE)
+                pad.chgat(svline, 0, width, SCREEN.getbkgd()|curses.A_UNDERLINE)
 
             try:
                 SCREEN.clear()
@@ -1971,7 +1971,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     k = list(K["TTSToggle"])[0]
 
             if svline != "dontsave":
-                pad.chgat(svline, 0, width, curses.A_NORMAL)
+                pad.chgat(svline, 0, width, SCREEN.getbkgd()|curses.A_NORMAL)
                 svline = "dontsave"
     except KeyboardInterrupt:
         savestate(ebook.path, index, width, y, y/totlines)
