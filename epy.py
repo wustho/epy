@@ -980,8 +980,14 @@ def loadstate():
     STATEFILE = os.path.join(prefix, "state.json")
 
     try:
+        cfg_tmp = CFG
         with open(CFGFILE) as f:
-            CFG = json.load(f)
+            cfg = json.load(f)
+        for i in cfg_tmp:
+            if i != "Keys" and i in cfg:
+                cfg_tmp[i] = cfg[i]
+        cfg_tmp["Keys"].update(cfg["Keys"])
+        CFG = cfg_tmp
         with open(STATEFILE) as f:
             STATE = json.load(f)
     except FileNotFoundError:
