@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.1.31"
+__version__ = "2021.2.1"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -677,12 +677,12 @@ class Board:
         # if y in range(start_chunk, end_chunk+1):
         for i in [j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk]:
             try:
-                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], curses.A_ITALIC)
+                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], SCREEN.getbkgd()|curses.A_ITALIC)
             except:
                 pass
         for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
             try:
-                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], curses.A_BOLD)
+                self.pad.chgat(i[0] % self.MAXCHUNKS, i[1], i[2], SCREEN.getbkgd()|curses.A_BOLD)
             except:
                 pass
 
@@ -931,20 +931,20 @@ def choice_win(allowdel=False):
                 if key_chwin == curses.KEY_MOUSE:
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON4_PRESSED:
-                        key_chwin = ord("k")
+                        key_chwin = list(K["ScrollUp"])[0]
                     elif mouse_event[4] == 2097152:
-                        key_chwin = ord("j")
+                        key_chwin = list(K["ScrollDown"])[0]
                     elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
                         if mouse_event[2] >= 6 and mouse_event[2] < rows-4\
                                 and mouse_event[2] < 6+totlines:
                             index = mouse_event[2]-6+y
-                        key_chwin = ord("f")
+                        key_chwin = list(K["Follow"])[0]
                     elif mouse_event[4] == curses.BUTTON1_CLICKED\
                         and mouse_event[2] >= 6 and mouse_event[2] < rows-4\
                         and mouse_event[2] < 6+totlines:
                         index = mouse_event[2]-6+y
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        key_chwin = ord("q")
+                        key_chwin = list(K["Quit"])[0]
 
             chwin.clear()
             chwin.refresh()
@@ -1535,7 +1535,7 @@ def speaking(text):
     rows, _ = SCREEN.getmaxyx()
     SCREEN.addstr(rows-1, 0, ' Speaking! ', curses.A_REVERSE)
     SCREEN.refresh()
-    SCREEN.timeout(3)
+    SCREEN.timeout(1)
     try:
         _, path = tempfile.mkstemp(suffix=".wav")
         subprocess.call(
@@ -1553,6 +1553,19 @@ def speaking(text):
                 k = ord("l")
                 break
             k = SCREEN.getch()
+            if k == curses.KEY_MOUSE:
+                mouse_event = curses.getmouse()
+                if mouse_event[4] == curses.BUTTON2_CLICKED:
+                    k = list(K["Quit"])[0]
+                elif mouse_event[4] == curses.BUTTON1_CLICKED:
+                    if mouse_event[1] < SCREEN.getmaxyx()[1]//2:
+                        k = list(K["PageUp"])[0]
+                    else:
+                        k = list(K["PageDown"])[0]
+                elif mouse_event[4] == curses.BUTTON4_PRESSED:
+                    k = list(K["ScrollUp"])[0]
+                elif mouse_event[4] == 2097152:
+                    k = list(K["ScrollDown"])[0]
             # if k != -1:
             if k in K["Quit"]|K["PageUp"]|K["PageDown"]|K["ScrollUp"]|K["ScrollDown"]|{curses.KEY_RESIZE}:
                 SPEAKER.terminate()
@@ -1652,7 +1665,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         if re.match(r"^\s*$", i) is not None:
                             tospeak += "\n. \n"
                         else:
-                            tospeak += i + " "
+                            tospeak += re.sub("\[IMG:[0-9]+\]", "Image", i) + " "
                     k = speaking(tospeak)
                     if totlines-y <= rows and index == len(contents)-1:
                         SPEAKING = False
@@ -1836,6 +1849,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         count_color = count
                     SCREEN.bkgd(curses.color_pair(count_color+1))
+                    pad.format()
                     return 0, width, y, None, ""
                 elif k in K["AddBookmark"]:
                     defbmname_suffix = 1
@@ -1940,19 +1954,21 @@ def reader(ebook, index, width, y, pctg, sect):
                 mouse_event = curses.getmouse()
                 if mouse_event[4] == curses.BUTTON1_CLICKED:
                     if mouse_event[1] < cols//2:
-                        k = ord("h")
+                        k = list(K["PageUp"])[0]
                     else:
-                        k = ord("l")
+                        k = list(K["PageDown"])[0]
                 elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                    k = ord("t")
+                    k = list(K["TableOfContents"])[0]
                 elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                    k = ord("k")
+                    k = list(K["ScrollUp"])[0]
                 elif mouse_event[4] == 2097152:
-                    k = ord("j")
+                    k = list(K["ScrollDown"])[0]
                 elif mouse_event[4] == curses.BUTTON4_PRESSED+curses.BUTTON_CTRL:
-                    k = ord("+")
+                    k = list(K["Enlarge"])[0]
                 elif mouse_event[4] == 2097152+curses.BUTTON_CTRL:
-                    k = ord("-")
+                    k = list(K["Shrink"])[0]
+                elif mouse_event[4] == curses.BUTTON2_CLICKED:
+                    k = list(K["TTSToggle"])[0]
 
             if svline != "dontsave":
                 pad.chgat(svline, 0, width, curses.A_NORMAL)
