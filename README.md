@@ -15,6 +15,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - Bookmarks
 - External dictionary integration
 - Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
+- Text-to-Speech (with additional setup, read [below](#text-to-speech))
 
 # Installation
 
@@ -47,3 +48,23 @@ This might be disorienting, so the best way to get seamless reading experience i
 | `Scroll Down` | scroll down |
 | `Ctrl` + `Scroll Up` | increase text width |
 | `Ctrl` + `Scroll Down` | decrease text width |
+
+# Text-to-Speech
+
+To get Text-to-Speech (TTS) support, you need to install these external dependencies:
+
+- `pico2wave` (from `libttspico-utils` package (Ubuntu) or `svox-pico-bin` package (AUR))
+- `play` (from `sox` package)
+
+eg.
+
+```shell
+$ # Ubuntu
+$ apt install libttspico-utils sox
+
+$ # Arch
+$ yay -S svox-pico-bin
+$ pacman -S sox
+```
+
+And then make sure `pico2wave` and `play` is in `$PATH`.
