@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.2.1"
+__version__ = "2021.2.2"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -59,6 +59,7 @@ CFG = {
     "DictionaryClient": "auto",
     "ShowProgressIndicator": True,
     "PageScrollAnimation": True,
+    "TTSSpeed": 1,
     "DarkColorFG": 252,
     "DarkColorBG": 235,
     "LightColorFG": 238,
@@ -114,7 +115,6 @@ WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
 COLORSUPPORT = False
-LINEPRSRV = 0  # 2
 SEARCHPATTERN = None
 VWR = None
 DICT = None
@@ -1549,7 +1549,7 @@ def speaking(text):
             stderr=subprocess.DEVNULL
         )
         SPEAKER = subprocess.Popen(
-            [ "play", path],
+            [ "play", path, "tempo", str(CFG["TTSSpeed"])],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
@@ -1670,7 +1670,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         if re.match(r"^\s*$", i) is not None:
                             tospeak += "\n. \n"
                         else:
-                            tospeak += re.sub("\[IMG:[0-9]+\]", "Image", i) + " "
+                            tospeak += re.sub(r"\[IMG:[0-9]+\]", "Image", i) + " "
                     k = speaking(tospeak)
                     if totlines-y <= rows and index == len(contents)-1:
                         SPEAKING = False
@@ -1681,6 +1681,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     if y >= count:
                         y -= count
                     elif y == 0 and index != 0:
+                        ANIMATE = "prev"
                         return -1, width, -rows, None, ""
                     else:
                         y = 0
@@ -1689,24 +1690,28 @@ def reader(ebook, index, width, y, pctg, sect):
                         ANIMATE = "prev"
                         return -1, width, -rows, None, ""
                     else:
-                        ANIMATE = "prev"
-                        y = pgup(y, rows, LINEPRSRV, count)
+                        if y >= rows*count:
+                            ANIMATE = "prev"
+                            y -= rows*count
+                        else:
+                            y = 0
                 elif k in K["ScrollDown"]:
                     if count > 1:
                         svline = y + rows - 1
                     if y + count <= totlines - rows:
                         y += count
                     elif y == totlines - rows and index != len(contents)-1:
+                        ANIMATE = "next"
                         return 1, width, 0, None, ""
                     else:
                         y = totlines - rows
                 elif k in K["PageDown"]:
-                    if totlines - y - LINEPRSRV > rows:
+                    if totlines - y > rows:
                         ANIMATE = "next"
                         if y+rows > pad.chunks[pad.find_chunkidx(y)]:
                             y = pad.chunks[pad.find_chunkidx(y)] + 1
                         else:
-                            y += rows - LINEPRSRV
+                            y += rows
                         # SCREEN.clear()
                         # SCREEN.refresh()
                     elif index != len(contents)-1:

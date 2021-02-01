@@ -13,7 +13,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
   - AZW3 (.azw3), some but not all (see [KindleUnpack](https://github.com/kevinhendricks/KindleUnpack))
 - Reading progress percentage
 - Bookmarks
-- External dictionary integration
+- External dictionary integration (`sdcv` or `dict`)
 - Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
 - Text-to-Speech (with additional setup, read [below](#text-to-speech))
 
@@ -37,7 +37,18 @@ When reading using `epy` you might occasionally find triple asteriks `***`.
 That means you reach the end of some section in your ebook and the next line (right after those three asteriks, which is in new section) will start at the top of the page.
 This might be disorienting, so the best way to get seamless reading experience is by using next-page control (`space`, `l` or `Right`) instead of next-line control (`j` or `Down`).
 
+# Configuration File
+
+Config file is available in json format which is located at:
+
+- Linux: `~/.config/epy/config.json` or `~/.epy/config.json`
+- Windows: `%USERPROFILE%\.epy\config.json`
+
+Although, there are not many stuffs to configure.
+
 # Using Mouse
+
+Pretty useful when running `epy` on Termux Android.
 
 | Key | Action |
 | --- | --- |
