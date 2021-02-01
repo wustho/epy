@@ -58,6 +58,7 @@ CFG = {
     "DefaultViewer": "auto",
     "DictionaryClient": "auto",
     "ShowProgressIndicator": True,
+    "PageScrollAnimation": True,
     "DarkColorFG": 252,
     "DarkColorBG": 235,
     "LightColorFG": 238,
@@ -124,6 +125,7 @@ MULTIPROC = False if multiprocessing.cpu_count() == 1 else True
 ALLPREVLETTERS = []
 SUMALLLETTERS = 0
 PROC_COUNTLETTERS = None
+ANIMATE = None
 
 
 class Epub:
@@ -1582,7 +1584,7 @@ def speaking(text):
 
 
 def reader(ebook, index, width, y, pctg, sect):
-    global SHOWPROGRESS, SPEAKING
+    global SHOWPROGRESS, SPEAKING, ANIMATE
 
     k = 0 if SEARCHPATTERN is None else ord("/")
     rows, cols = SCREEN.getmaxyx()
@@ -1681,8 +1683,10 @@ def reader(ebook, index, width, y, pctg, sect):
                         y = 0
                 elif k in K["PageUp"]:
                     if y == 0 and index != 0:
+                        ANIMATE = "prev"
                         return -1, width, -rows, None, ""
                     else:
+                        ANIMATE = "prev"
                         y = pgup(y, rows, LINEPRSRV, count)
                 elif k in K["ScrollDown"]:
                     if count > 1:
@@ -1695,6 +1699,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         y = totlines - rows
                 elif k in K["PageDown"]:
                     if totlines - y - LINEPRSRV > rows:
+                        ANIMATE = "next"
                         if y+rows > pad.chunks[pad.find_chunkidx(y)]:
                             y = pad.chunks[pad.find_chunkidx(y)] + 1
                         else:
@@ -1702,6 +1707,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         # SCREEN.clear()
                         # SCREEN.refresh()
                     elif index != len(contents)-1:
+                        ANIMATE = "next"
                         return 1, width, 0, None, ""
                 elif k in K["HalfScreenUp"]|K["HalfScreenDown"]:
                     countstring = str(rows//2)
@@ -1932,18 +1938,49 @@ def reader(ebook, index, width, y, pctg, sect):
                 pad.chgat(svline, 0, width, SCREEN.getbkgd()|curses.A_UNDERLINE)
 
             try:
+                # NOTE: clear() will delete everything but doesnt need refresh()
+                # while refresh() id necessary whenever a char added to scr
                 SCREEN.clear()
                 SCREEN.addstr(0, 0, countstring)
+                SCREEN.refresh()
+                if totlines - y < rows:
+                    if CFG["PageScrollAnimation"] and ANIMATE is not None:
+                        for i in range(width+1):
+                            curses.napms(1)
+                            # to optimize performance
+                            if i == width:
+                                # to cleanup screen from animation residue
+                                # actually only problematic for "next" animation
+                                # but just to be safe
+                                SCREEN.clear()
+                                SCREEN.refresh()
+                            if ANIMATE == "next":
+                                pad.refresh(y, 0, 0, x+width-i, totlines-y, x+width)
+                            elif ANIMATE == "prev":
+                                pad.refresh(y, width-i-1, 0, x, totlines-y, x+i)
+                    else:
+                        pad.refresh(y, 0, 0, x, totlines-y, x+width)
+                else:
+                    if CFG["PageScrollAnimation"] and ANIMATE is not None:
+                        for i in range(width+1):
+                            curses.napms(1)
+                            if i == width:
+                                SCREEN.clear()
+                                SCREEN.refresh()
+                            if ANIMATE == "next":
+                                pad.refresh(y, 0, 0, x+width-i, rows-1, x+width)
+                            elif ANIMATE == "prev":
+                                pad.refresh(y, width-i-1, 0, x, rows-1, x+i)
+                    else:
+                        pad.refresh(y, 0, 0, x, rows-1, x+width)
+                ANIMATE = None
+
                 LOCALSUMALLL = SUMALLLETTERS.value if MULTIPROC else SUMALLLETTERS
                 if SHOWPROGRESS and (cols-width-2)//2 > 3 and LOCALSUMALLL != 0:
                     PROGRESS = (ALLPREVLETTERS[index] + sum(LOCALPCTG[:y+rows-1])) / LOCALSUMALLL
                     PROGRESSTR = "{}%".format(int(PROGRESS*100))
                     SCREEN.addstr(0, cols-len(PROGRESSTR), PROGRESSTR)
                 SCREEN.refresh()
-                if totlines - y < rows:
-                    pad.refresh(y, 0, 0, x, totlines-y, x+width)
-                else:
-                    pad.refresh(y, 0, 0, x, rows-1, x+width)
             except curses.error:
                 pass
             if SPEAKING:
