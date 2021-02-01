@@ -944,6 +944,9 @@ def choice_win(allowdel=False):
                     elif mouse_event[4] == curses.BUTTON1_CLICKED\
                         and mouse_event[2] >= 6 and mouse_event[2] < rows-4\
                         and mouse_event[2] < 6+totlines:
+                        if index == mouse_event[2]-6+y:
+                            key_chwin = list(K["Follow"])[0]
+                            continue
                         index = mouse_event[2]-6+y
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
                         key_chwin = list(K["Quit"])[0]
