@@ -1715,7 +1715,10 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["PageUp"]:
                     if y == 0 and index != 0:
                         ANIMATE = "prev"
-                        return -1, width, -(rows*SPREAD), None, ""
+                        tmp_parser = HTMLtoLines()
+                        tmp_parser.feed(ebook.get_raw_text(contents[index-1]))
+                        tmp_parser.close()
+                        return -1, width, rows*SPREAD*(len(tmp_parser.get_lines(width)[0])//(rows*SPREAD)), None, ""
                     else:
                         if y >= rows*SPREAD*count:
                             ANIMATE = "prev"
