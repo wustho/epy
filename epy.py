@@ -59,6 +59,7 @@ CFG = {
     "DictionaryClient": "auto",
     "ShowProgressIndicator": True,
     "PageScrollAnimation": True,
+    "StartWithDoubleSpread": False,
     "TTSSpeed": 1,
     "DarkColorFG": 252,
     "DarkColorBG": 235,
@@ -92,7 +93,8 @@ CFG = {
         "Quit": "q",
         "Help": "?",
         "SwitchColor": "c",
-        "TTSToggle": "!"
+        "TTSToggle": "!",
+        "DoubleSpreadToggle": "D"
     }
 }
 STATE = {
@@ -126,7 +128,7 @@ ALLPREVLETTERS = []
 SUMALLLETTERS = 0
 PROC_COUNTLETTERS = None
 ANIMATE = None
-SPREAD = 2
+SPREAD = 1
 
 
 class Epub:
@@ -1606,7 +1608,9 @@ def reader(ebook, index, width, y, pctg, sect):
 
     k = 0 if SEARCHPATTERN is None else ord("/")
     rows, cols = SCREEN.getmaxyx()
-    if cols < 2 + 22 + 3 + 22 + 2:
+
+    mincols_doublespr = 2 + 22 + 3 + 22 + 2
+    if cols < mincols_doublespr:
         SPREAD = 1
     if SPREAD == 2:
         width = (cols-7)//2
@@ -1699,6 +1703,15 @@ def reader(ebook, index, width, y, pctg, sect):
                     if totlines-y <= rows and index == len(contents)-1:
                         SPEAKING = False
                     continue
+                elif k in K["DoubleSpreadToggle"]:
+                    if cols < mincols_doublespr:
+                        k = text_win(lambda: (
+                            "Screen is too small",
+                            "Min: {} cols x {} rows".format(mincols_doublespr, 12),
+                            {ord("D")}
+                        ))()
+                    SPREAD = (SPREAD % 2) + 1
+                    return 0, width, 0, y/totlines, ""
                 elif k in K["ScrollUp"]:
                     if SPREAD == 2:
                         k = list(K["PageUp"])[0]
@@ -1996,19 +2009,17 @@ def reader(ebook, index, width, y, pctg, sect):
                             SCREEN.refresh()
                         if ANIMATE == "next":
                             pad.refresh(y, 0, 0, x+width-i, rows-1, x+width)
+                            if SPREAD == 2 and y+rows < totlines:
+                                pad.refresh(y+rows, 0, 0, cols-2-i, rows-1, cols-2)
                         elif ANIMATE == "prev":
                             pad.refresh(y, width-i-1, 0, x, rows-1, x+i)
+                            if SPREAD == 2 and y+rows < totlines:
+                                pad.refresh(y+rows, width-i-1, 0, cols-2-width, rows-1, cols-2-width+i)
                 else:
                     pad.refresh(y, 0, 0, x, rows-1, x+width)
+                    if SPREAD == 2 and y+rows < totlines:
+                        pad.refresh(y+rows, 0, 0, cols-2-width, rows-1, cols-2)
                 ANIMATE = None
-
-                if SPREAD == 2:
-                    try:
-                        if y+rows < totlines:
-                            # sys.exit(f"{totlines}-{y+rows}")
-                            pad.refresh(y+rows, 0, 0, cols-2-width, rows-1, cols-2)
-                    except Exception as e:
-                        sys.exit(str(e))
 
                 LOCALSUMALLL = SUMALLLETTERS.value if MULTIPROC else SUMALLLETTERS
                 if SHOWPROGRESS and (cols-width-2)//2 > 3 and LOCALSUMALLL != 0:
@@ -2051,7 +2062,7 @@ def reader(ebook, index, width, y, pctg, sect):
 
 
 def preread(stdscr, file):
-    global COLORSUPPORT, SHOWPROGRESS, SCREEN
+    global COLORSUPPORT, SHOWPROGRESS, SCREEN, SPREAD
 
     try:
         curses.use_default_colors()
@@ -2099,6 +2110,7 @@ def preread(stdscr, file):
         find_dict_client()
         parse_keys()
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
+        SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
         count_max_reading_pg(ebook)
 
         sec = ""
