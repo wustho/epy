@@ -16,6 +16,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - External dictionary integration (`sdcv` or `dict`)
 - Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
 - Text-to-Speech (with additional setup, read [below](#text-to-speech))
+- [Double Spread](#double-spread)
 
 # Installation
 
@@ -79,3 +80,7 @@ $ pacman -S sox
 ```
 
 And then make sure `pico2wave` and `play` is in `$PATH`.
+
+# Double Spread
+
+Double spread is intended to mimic the behaviour of real book, so line scrolling navigation will act as scrolling page.
