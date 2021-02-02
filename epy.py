@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.2.2"
+__version__ = "2021.2.3"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -1694,7 +1694,7 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["TTSToggle"] and TTSSUPPORT:
                     # tospeak = "\n".join(src_lines[y:y+rows-1])
                     tospeak = ""
-                    for i in src_lines[y:y+rows]:
+                    for i in src_lines[y:y+(rows*SPREAD)]:
                         if re.match(r"^\s*$", i) is not None:
                             tospeak += "\n. \n"
                         else:
