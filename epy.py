@@ -1951,36 +1951,22 @@ def reader(ebook, index, width, y, pctg, sect):
                 SCREEN.clear()
                 SCREEN.addstr(0, 0, countstring)
                 SCREEN.refresh()
-                if totlines - y < rows:
-                    if CFG["PageScrollAnimation"] and ANIMATE is not None:
-                        for i in range(width+1):
-                            curses.napms(1)
-                            # to optimize performance
-                            if i == width:
-                                # to cleanup screen from animation residue
-                                # actually only problematic for "next" animation
-                                # but just to be safe
-                                SCREEN.clear()
-                                SCREEN.refresh()
-                            if ANIMATE == "next":
-                                pad.refresh(y, 0, 0, x+width-i, totlines-y, x+width)
-                            elif ANIMATE == "prev":
-                                pad.refresh(y, width-i-1, 0, x, totlines-y, x+i)
-                    else:
-                        pad.refresh(y, 0, 0, x, totlines-y, x+width)
+                if CFG["PageScrollAnimation"] and ANIMATE is not None:
+                    for i in range(width+1):
+                        curses.napms(1)
+                        # to optimize performance
+                        if i == width:
+                            # to cleanup screen from animation residue
+                            # actually only problematic for "next" animation
+                            # but just to be safe
+                            SCREEN.clear()
+                            SCREEN.refresh()
+                        if ANIMATE == "next":
+                            pad.refresh(y, 0, 0, x+width-i, rows-1, x+width)
+                        elif ANIMATE == "prev":
+                            pad.refresh(y, width-i-1, 0, x, rows-1, x+i)
                 else:
-                    if CFG["PageScrollAnimation"] and ANIMATE is not None:
-                        for i in range(width+1):
-                            curses.napms(1)
-                            if i == width:
-                                SCREEN.clear()
-                                SCREEN.refresh()
-                            if ANIMATE == "next":
-                                pad.refresh(y, 0, 0, x+width-i, rows-1, x+width)
-                            elif ANIMATE == "prev":
-                                pad.refresh(y, width-i-1, 0, x, rows-1, x+i)
-                    else:
-                        pad.refresh(y, 0, 0, x, rows-1, x+width)
+                    pad.refresh(y, 0, 0, x, rows-1, x+width)
                 ANIMATE = None
 
                 LOCALSUMALLL = SUMALLLETTERS.value if MULTIPROC else SUMALLLETTERS
