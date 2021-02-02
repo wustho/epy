@@ -1700,7 +1700,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         svline = y + rows - 1
                     if y + count <= totlines - rows:
                         y += count
-                    elif y == totlines - rows and index != len(contents)-1:
+                    elif y >= totlines - rows and index != len(contents)-1:
                         ANIMATE = "next"
                         return 1, width, 0, None, ""
                     else:
