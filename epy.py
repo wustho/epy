@@ -126,6 +126,7 @@ ALLPREVLETTERS = []
 SUMALLLETTERS = 0
 PROC_COUNTLETTERS = None
 ANIMATE = None
+SPREAD = 2
 
 
 class Epub:
@@ -1321,7 +1322,15 @@ def define_word(word):
 def searching(pad, src, width, y, ch, tot):
     global SEARCHPATTERN
     rows, cols = SCREEN.getmaxyx()
+    if SPREAD == 2:
+        width = (cols-7)//2
+
     x = (cols - width) // 2
+    if SPREAD == 1:
+        x = (cols - width) // 2
+    else:
+        x = 2
+
     if SEARCHPATTERN is None:
         candtext = input_prompt(" Regex:")
         if candtext is None:
@@ -1375,6 +1384,9 @@ def searching(pad, src, width, y, ch, tot):
                 )
                 SCREEN.refresh()
                 pad.refresh(y, 0, 0, x, rows-2, x+width)
+                if SPREAD == 2:
+                    if y+rows < len(src):
+                        pad.refresh(y+rows-1, 0, 0, cols-2-width, rows-2, cols-2)
                 s = pad.getch()
 
     sidx = len(found) - 1
@@ -1446,11 +1458,11 @@ def searching(pad, src, width, y, ch, tot):
         if y+rows-1 > pad.chunks[pad.find_chunkidx(y)]:
             y = pad.chunks[pad.find_chunkidx(y)] + 1
 
-        while found[sidx][0] not in list(range(y, y+rows-1)):
+        while found[sidx][0] not in list(range(y, y+(rows-1)*SPREAD )):
             if found[sidx][0] > y:
-                y += rows - 1
+                y += (rows - 1)*SPREAD
             else:
-                y -= rows - 1
+                y -= (rows - 1)*SPREAD
                 if y < 0:
                     y = 0
 
@@ -1462,6 +1474,9 @@ def searching(pad, src, width, y, ch, tot):
         SCREEN.addstr(rows-1, 0, msg, curses.A_REVERSE)
         SCREEN.refresh()
         pad.refresh(y, 0, 0, x, rows-2, x+width)
+        if SPREAD == 2:
+            if y+rows < len(src):
+                pad.refresh(y+rows-1, 0, 0, cols-2-width, rows-2, cols-2)
         s = pad.getch()
 
 
@@ -1587,11 +1602,20 @@ def speaking(text):
 
 
 def reader(ebook, index, width, y, pctg, sect):
-    global SHOWPROGRESS, SPEAKING, ANIMATE
+    global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
     k = 0 if SEARCHPATTERN is None else ord("/")
     rows, cols = SCREEN.getmaxyx()
+    if cols < 2 + 22 + 3 + 22 + 2:
+        SPREAD = 1
+    if SPREAD == 2:
+        width = (cols-7)//2
+
     x = (cols - width) // 2
+    if SPREAD == 1:
+        x = (cols - width) // 2
+    else:
+        x = 2
 
     contents = ebook.contents
     toc_name = ebook.toc_entries[0]
@@ -1612,7 +1636,7 @@ def reader(ebook, index, width, y, pctg, sect):
     src_lines, imgs, toc_secid, formatting = parser.get_lines(width)
     totlines = len(src_lines) + 1  # 1 extra line for suffix
 
-    if y < 0 and totlines <= rows:
+    if y < 0 and totlines <= rows*SPREAD:
         y = 0
     elif pctg is not None:
         y = round(pctg*totlines)
@@ -1676,6 +1700,9 @@ def reader(ebook, index, width, y, pctg, sect):
                         SPEAKING = False
                     continue
                 elif k in K["ScrollUp"]:
+                    if SPREAD == 2:
+                        k = list(K["PageUp"])[0]
+                        continue
                     if count > 1:
                         svline = y - 1
                     if y >= count:
@@ -1688,14 +1715,17 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["PageUp"]:
                     if y == 0 and index != 0:
                         ANIMATE = "prev"
-                        return -1, width, -rows, None, ""
+                        return -1, width, -(rows*SPREAD), None, ""
                     else:
-                        if y >= rows*count:
+                        if y >= rows*SPREAD*count:
                             ANIMATE = "prev"
-                            y -= rows*count
+                            y -= rows*SPREAD*count
                         else:
                             y = 0
                 elif k in K["ScrollDown"]:
+                    if SPREAD == 2:
+                        k = list(K["PageDown"])[0]
+                        continue
                     if count > 1:
                         svline = y + rows - 1
                     if y + count <= totlines - rows:
@@ -1706,12 +1736,12 @@ def reader(ebook, index, width, y, pctg, sect):
                     else:
                         y = totlines - rows
                 elif k in K["PageDown"]:
-                    if totlines - y > rows:
+                    if totlines - y > rows*SPREAD:
                         ANIMATE = "next"
-                        if y+rows > pad.chunks[pad.find_chunkidx(y)]:
+                        if y+(rows*SPREAD) > pad.chunks[pad.find_chunkidx(y)]:
                             y = pad.chunks[pad.find_chunkidx(y)] + 1
                         else:
-                            y += rows
+                            y += rows*SPREAD
                         # SCREEN.clear()
                         # SCREEN.refresh()
                     elif index != len(contents)-1:
@@ -1782,13 +1812,13 @@ def reader(ebook, index, width, y, pctg, sect):
                     k = help()
                     if k in WINKEYS:
                         continue
-                elif k in K["Enlarge"] and (width + count) < cols - 4:
+                elif k in K["Enlarge"] and (width + count) < cols - 4 and SPREAD == 1:
                     width += count
                     return 0, width, 0, y/totlines, ""
-                elif k in K["Shrink"] and width >= 22:
+                elif k in K["Shrink"] and width >= 22 and SPREAD == 1:
                     width -= count
                     return 0, width, 0, y/totlines, ""
-                elif k in K["SetWidth"]:
+                elif k in K["SetWidth"] and SPREAD == 1:
                     if countstring == "":
                         # if called without a count, toggle between 80 cols and full width
                         if width != 80 and cols - 4 >= 80:
@@ -1823,7 +1853,7 @@ def reader(ebook, index, width, y, pctg, sect):
                         y = fs
                 elif k in K["OpenImage"] and VWR is not None:
                     gambar, idx = [], []
-                    for n, i in enumerate(src_lines[y:y+rows]):
+                    for n, i in enumerate(src_lines[y:y+(rows*SPREAD)]):
                         img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
                         if img is not None:
                             gambar.append(img.group())
@@ -1835,7 +1865,7 @@ def reader(ebook, index, width, y, pctg, sect):
                     elif len(gambar) > 1:
                         p, i = 0, 0
                         while p not in K["Quit"] and p not in K["Follow"]:
-                            SCREEN.move(idx[i], x + width//2 + len(gambar[i]) + 1)
+                            SCREEN.move(idx[i] % rows, (x if idx[i]//rows==0 else cols-2-width) + width//2 + len(gambar[i]) + 1)
                             SCREEN.refresh()
                             safe_curs_set(1)
                             p = pad.getch()
@@ -1968,6 +1998,14 @@ def reader(ebook, index, width, y, pctg, sect):
                 else:
                     pad.refresh(y, 0, 0, x, rows-1, x+width)
                 ANIMATE = None
+
+                if SPREAD == 2:
+                    try:
+                        if y+rows < totlines:
+                            # sys.exit(f"{totlines}-{y+rows}")
+                            pad.refresh(y+rows, 0, 0, cols-2-width, rows-1, cols-2)
+                    except Exception as e:
+                        sys.exit(str(e))
 
                 LOCALSUMALLL = SUMALLLETTERS.value if MULTIPROC else SUMALLLETTERS
                 if SHOWPROGRESS and (cols-width-2)//2 > 3 and LOCALSUMALLL != 0:
