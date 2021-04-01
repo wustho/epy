@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.2.3"
+__version__ = "2021.4.1"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -205,33 +205,36 @@ class Epub:
                     # TODO: test is break necessary
                     break
 
-        toc = ET.parse(self.file.open(self.toc)).getroot()
-        # EPUB3
-        if self.version == "2.0":
-            navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
-        elif self.version == "3.0":
-            navPoints = toc.findall(
-                "XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a",
-                self.NS
-            )
-        for i in navPoints:
+        try:
+            toc = ET.parse(self.file.open(self.toc)).getroot()
+            # EPUB3
             if self.version == "2.0":
-                src = i.find("DAISY:content", self.NS).get("src")
-                name = i.find("DAISY:navLabel/DAISY:text", self.NS).text
+                navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
             elif self.version == "3.0":
-                src = i.get("href")
-                name = "".join(list(i.itertext()))
-            src = src.split("#")
-            try:
-                idx = contents.index(unquote(src[0]))
-            except ValueError:
-                continue
-            self.toc_entries[0].append(name)
-            self.toc_entries[1].append(idx)
-            if len(src) == 2:
-                self.toc_entries[2].append(src[1])
-            elif len(src) == 1:
-                self.toc_entries[2].append("")
+                navPoints = toc.findall(
+                    "XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a",
+                    self.NS
+                )
+            for i in navPoints:
+                if self.version == "2.0":
+                    src = i.find("DAISY:content", self.NS).get("src")
+                    name = i.find("DAISY:navLabel/DAISY:text", self.NS).text
+                elif self.version == "3.0":
+                    src = i.get("href")
+                    name = "".join(list(i.itertext()))
+                src = src.split("#")
+                try:
+                    idx = contents.index(unquote(src[0]))
+                except ValueError:
+                    continue
+                self.toc_entries[0].append(name)
+                self.toc_entries[1].append(idx)
+                if len(src) == 2:
+                    self.toc_entries[2].append(src[1])
+                elif len(src) == 1:
+                    self.toc_entries[2].append("")
+        except AttributeError:
+            pass
 
     def get_raw_text(self, chpath):
         # using try-except block to catch
@@ -410,7 +413,7 @@ class HTMLtoLines(HTMLParser):
     pref = {"pre"}
     bull = {"li"}
     hide = {"script", "style", "head"}
-    ital = {"i", "em"}
+    ital = {"i", "em", "blockquote"}
     bold = {"b"}
     # hide = {"script", "style", "head", ", "sub}
 
@@ -453,16 +456,17 @@ class HTMLtoLines(HTMLParser):
                 if i[0].endswith("href"):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
-        elif tag in self.ital:
-            self.initital.append([len(self.text)-1, len(self.text[-1])])
-        elif tag in self.bold:
-            self.initbold.append([len(self.text)-1, len(self.text[-1])])
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
                     # self.text[-1] += " (#" + i[1] + ") "
                     # self.sectsindex.append([len(self.text), i[1]])
                     self.sectsindex[len(self.text)-1] = i[1]
+        # formatting
+        if tag in self.ital:
+            self.initital.append([len(self.text)-1, len(self.text[-1])])
+        elif tag in self.bold:
+            self.initbold.append([len(self.text)-1, len(self.text[-1])])
 
     def handle_startendtag(self, tag, attrs):
         if tag == "br":
@@ -507,7 +511,8 @@ class HTMLtoLines(HTMLParser):
             self.text[-1] += "}"
         elif tag == "image":
             self.text.append("")
-        elif tag in self.ital:
+        # formatting
+        if tag in self.ital:
             self.initital[-1] += [len(self.text)-1, len(self.text[-1])]
         elif tag in self.bold:
             self.initbold[-1] += [len(self.text)-1, len(self.text[-1])]
@@ -1000,6 +1005,9 @@ def loadstate():
             STATE = json.load(f)
     except FileNotFoundError:
         pass
+
+    if sys.platform == "win32":
+        CFG["PageScrollAnimation"] = False
 
 
 def parse_keys():
@@ -2080,7 +2088,7 @@ def preread(stdscr, file):
     curses.mousemask(-1)
     # curses.mouseinterval(0)
     SCREEN.clear()
-    rows, cols = SCREEN.getmaxyx()
+    _, cols = SCREEN.getmaxyx()
     show_loader(SCREEN)
 
     ebook = det_ebook_cls(file)
