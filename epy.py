@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.4.1"
+__version__ = "2021.4.5"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -456,17 +456,17 @@ class HTMLtoLines(HTMLParser):
                 if i[0].endswith("href"):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
+        # formatting
+        elif tag in self.ital:
+            self.initital.append([len(self.text)-1, len(self.text[-1])])
+        elif tag in self.bold:
+            self.initbold.append([len(self.text)-1, len(self.text[-1])])
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
                     # self.text[-1] += " (#" + i[1] + ") "
                     # self.sectsindex.append([len(self.text), i[1]])
                     self.sectsindex[len(self.text)-1] = i[1]
-        # formatting
-        if tag in self.ital:
-            self.initital.append([len(self.text)-1, len(self.text[-1])])
-        elif tag in self.bold:
-            self.initbold.append([len(self.text)-1, len(self.text[-1])])
 
     def handle_startendtag(self, tag, attrs):
         if tag == "br":
@@ -512,7 +512,7 @@ class HTMLtoLines(HTMLParser):
         elif tag == "image":
             self.text.append("")
         # formatting
-        if tag in self.ital:
+        elif tag in self.ital:
             self.initital[-1] += [len(self.text)-1, len(self.text[-1])]
         elif tag in self.bold:
             self.initbold[-1] += [len(self.text)-1, len(self.text[-1])]
