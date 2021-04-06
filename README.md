@@ -9,7 +9,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - Supported formats:
   - Epub (.epub, .epub3)
   - FictionBook (.fb2)
-  - Mobi (.mobi), but image is not supported in mobi
+  - Mobi (.mobi)
   - AZW3 (.azw3), some but not all (see [KindleUnpack](https://github.com/kevinhendricks/KindleUnpack))
 - Reading progress percentage
 - Bookmarks
@@ -83,4 +83,8 @@ And then make sure `pico2wave` and `play` is in `$PATH`.
 
 # Double Spread
 
-Double spread is intended to mimic the behaviour of real book, so line scrolling navigation will act as scrolling page.
+Double spread is intended to mimic the behaviour of real book, so line scrolling navigation will act as scrolling page and textwidth is not adjustable.
+
+# Donation
+
+[PayPal](https://paypal.me/wustho)

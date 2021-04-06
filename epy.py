@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.4.5"
+__version__ = "2021.4.6"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -346,6 +346,13 @@ class Mobi(Epub):
         # return content.decode("utf-8")
         return content
 
+    def get_img_bytestr(self, impath):
+        # TODO: test on windows
+        # if impath "Images/asdf.png" is problematic
+        with open(os.path.join(self.rootdir, impath), "rb") as f:
+            src = f.read()
+        return impath, src
+
     def cleanup(self):
         shutil.rmtree(self.file)
         return
@@ -413,7 +420,7 @@ class HTMLtoLines(HTMLParser):
     pref = {"pre"}
     bull = {"li"}
     hide = {"script", "style", "head"}
-    ital = {"i", "em", "blockquote"}
+    ital = {"i", "em"}
     bold = {"b"}
     # hide = {"script", "style", "head", ", "sub}
 
@@ -450,6 +457,7 @@ class HTMLtoLines(HTMLParser):
             self.text[-1] += "^{"
         elif tag == "sub":
             self.text[-1] += "_{"
+        # TODO: research starttag "img"
         elif tag == "image":
             for i in attrs:
                 # if i[0] == "xlink:href":
@@ -545,28 +553,32 @@ class HTMLtoLines(HTMLParser):
         }
         tmpital = []
         for i in self.initital:
-            if i[0] == i[2]:
-                tmpital.append([i[0], i[1], i[3]-i[1]])
-            elif i[0] == i[2]-1:
-                tmpital.append([i[0], i[1], len(self.text[i[0]])-i[1]])
-                tmpital.append([i[2], 0, i[3]])
-            elif i[2]-i[0] > 1:
-                tmpital.append([i[0], i[1], len(self.text[i[0]])-i[1]])
-                for j in range(i[0]+1, i[2]):
-                    tmpital.append([j, 0, len(self.text[j])])
-                tmpital.append([i[2], 0, i[3]])
+            # handle uneven markup
+            # like <i> but no </i>
+            if len(i) == 4:
+                if i[0] == i[2]:
+                    tmpital.append([i[0], i[1], i[3]-i[1]])
+                elif i[0] == i[2]-1:
+                    tmpital.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                    tmpital.append([i[2], 0, i[3]])
+                elif i[2]-i[0] > 1:
+                    tmpital.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                    for j in range(i[0]+1, i[2]):
+                        tmpital.append([j, 0, len(self.text[j])])
+                    tmpital.append([i[2], 0, i[3]])
         tmpbold = []
         for i in self.initbold:
-            if i[0] == i[2]:
-                tmpbold.append([i[0], i[1], i[3]-i[1]])
-            elif i[0] == i[2]-1:
-                tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
-                tmpbold.append([i[2], 0, i[3]])
-            elif i[2]-i[0] > 1:
-                tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
-                for j in range(i[0]+1, i[2]):
-                    tmpbold.append([j, 0, len(self.text[j])])
-                tmpbold.append([i[2], 0, i[3]])
+            if len(i) == 4:
+                if i[0] == i[2]:
+                    tmpbold.append([i[0], i[1], i[3]-i[1]])
+                elif i[0] == i[2]-1:
+                    tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                    tmpbold.append([i[2], 0, i[3]])
+                elif i[2]-i[0] > 1:
+                    tmpbold.append([i[0], i[1], len(self.text[i[0]])-i[1]])
+                    for j in range(i[0]+1, i[2]):
+                        tmpbold.append([j, 0, len(self.text[j])])
+                    tmpbold.append([i[2], 0, i[3]])
 
         if width == 0:
             return self.text
