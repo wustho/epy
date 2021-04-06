@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.4.6"
+__version__ = "2021.4.7"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -457,18 +457,22 @@ class HTMLtoLines(HTMLParser):
             self.text[-1] += "^{"
         elif tag == "sub":
             self.text[-1] += "_{"
-        # TODO: research starttag "img"
-        elif tag == "image":
+        # NOTE: "img" and "image"
+        # In HTML, both are startendtag (no need endtag)
+        # but in XHTML both need endtag
+        elif tag in {"img", "image"}:
             for i in attrs:
-                # if i[0] == "xlink:href":
-                if i[0].endswith("href"):
+                if (tag == "img" and i[0] == "src")\
+                   or (tag == "image" and i[0].endswith("href")):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
         # formatting
         elif tag in self.ital:
-            self.initital.append([len(self.text)-1, len(self.text[-1])])
+            if len(self.initital) == 0 or len(self.initital[-1]) == 4:
+                self.initital.append([len(self.text)-1, len(self.text[-1])])
         elif tag in self.bold:
-            self.initbold.append([len(self.text)-1, len(self.text[-1])])
+            if len(self.initbold) == 0 or len(self.initbold[-1]) == 4:
+                self.initbold.append([len(self.text)-1, len(self.text[-1])])
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
@@ -481,8 +485,10 @@ class HTMLtoLines(HTMLParser):
             self.text += [""]
         elif tag in {"img", "image"}:
             for i in attrs:
+                #  if (tag == "img" and i[0] == "src")\
+                #     or (tag == "image" and i[0] == "xlink:href"):
                 if (tag == "img" and i[0] == "src")\
-                   or (tag == "image" and i[0] == "xlink:href"):
+                   or (tag == "image" and i[0].endswith("href")):
                     self.text.append("[IMG:{}]".format(len(self.imgs)))
                     self.imgs.append(unquote(i[1]))
                     self.text.append("")
@@ -517,13 +523,19 @@ class HTMLtoLines(HTMLParser):
             self.isbull = False
         elif tag in {"sub", "sup"}:
             self.text[-1] += "}"
-        elif tag == "image":
+        elif tag in {"img", "image"}:
             self.text.append("")
         # formatting
         elif tag in self.ital:
-            self.initital[-1] += [len(self.text)-1, len(self.text[-1])]
+            if len(self.initital[-1]) == 2:
+                self.initital[-1] += [len(self.text)-1, len(self.text[-1])]
+            elif len(self.initital[-1]) == 4:
+                self.initital[-1][2:4] = [len(self.text)-1, len(self.text[-1])]
         elif tag in self.bold:
-            self.initbold[-1] += [len(self.text)-1, len(self.text[-1])]
+            if len(self.initbold[-1]) == 2:
+                self.initbold[-1] += [len(self.text)-1, len(self.text[-1])]
+            elif len(self.initbold[-1]) == 4:
+                self.initbold[-1][2:4] = [len(self.text)-1, len(self.text[-1])]
 
     def handle_data(self, raw):
         if raw and not self.ishidden:
@@ -1916,11 +1928,14 @@ def reader(ebook, index, width, y, pctg, sect):
                             impath = imgs[int(gambar[i])]
 
                     if impath != "":
-                        if ebook.__class__.__name__ in {"Epub", "Azw3"}:
-                            impath = dots_path(chpath, impath)
-                        imgnm, imgbstr = ebook.get_img_bytestr(impath)
-                        k = open_media(pad, imgnm, imgbstr)
-                        continue
+                        try:
+                            if ebook.__class__.__name__ in {"Epub", "Azw3"}:
+                                impath = dots_path(chpath, impath)
+                            imgnm, imgbstr = ebook.get_img_bytestr(impath)
+                            k = open_media(pad, imgnm, imgbstr)
+                            continue
+                        except Exception as e:
+                            errmsg("Error Opening Image", str(e), set())
                 elif k in K["SwitchColor"] and COLORSUPPORT and countstring in {"", "0", "1", "2"}:
                     if countstring == "":
                         count_color = curses.pair_number(SCREEN.getbkgd())

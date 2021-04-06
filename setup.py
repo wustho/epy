@@ -10,7 +10,7 @@ if sys.platform == "win32":
 
 setup(
     name="epy-reader",
-    version="2021.4.6",
+    version="2021.4.7",
     description="Terminal/CLI Ebook (epub, fb2, mobi, azw3) Reader",
     long_description=long_description,
     long_description_content_type="text/markdown",
