@@ -85,6 +85,6 @@ And then make sure `pico2wave` and `play` is in `$PATH`.
 
 Double spread is intended to mimic the behaviour of real book, so line scrolling navigation will act as scrolling page and textwidth is not adjustable.
 
-# Donation
+# Tip Jar
 
 [PayPal](https://paypal.me/wustho)
