@@ -1052,6 +1052,10 @@ def parse_keys():
     WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|\
         K["TableOfContents"]|K["ShowBookmarks"]
 
+def updatestate():
+    with open(STATEFILE, "w") as f:
+        json.dump(STATE, f, indent=4)
+    
 
 def savestate(file, index, width, pos, pctg):
     with open(CFGFILE, "w") as f:
@@ -2224,18 +2228,27 @@ def main():
         xitmsg = 0
 
         val = 0
-        for i in STATE["States"].keys():
-            if not os.path.exists(i):
-                todel.append(i)
-            else:
-                match_val = sum([
-                    j.size for j in SM(
-                        None, i.lower(), " ".join(args).lower()
-                    ).get_matching_blocks()
-                ])
-                if match_val >= val:
-                    val = match_val
-                    file = i
+        state_changed = False
+        for file_hash in STATE["States"].keys():
+            for i in STATE["States"][file_hash]["locations"]:
+                if not os.path.isfile(i):
+                    state_changed = True
+                    STATE["States"][file_hash]["locations"].remove(i)
+                else:
+                    match_val = sum([
+                        j.size for j in SM(
+                            None, i.lower(), " ".join(args).lower()
+                        ).get_matching_blocks()
+                    ])
+                    if match_val >= val:
+                        val = match_val
+                        file = i
+                        
+        for file_has in STATE["States"].keys():
+            if len(STATE["States"][file_has]["locations"]) == 0:
+                # No paths here are valid anymore, thus deleting the whole element
+                del STATE["States"][file_hash]
+                
         if val == 0:
             xitmsg = "\nERROR: No matching file found in history."
 
@@ -2246,7 +2259,20 @@ def main():
 
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
-                file = list(STATE["States"].keys())[int(args[0])-1]
+                file_hash = list(STATE["States"].keys())[int(args[0])-1]
+                changed = False
+                for file_path in STATE["States"][file_hash]["locations"]:
+                    if os.path.isfile(file_path):
+                        file = file_path
+                        break
+                    else:
+                        STATE["States"][file_hash]["locations"].remove(file_path)
+                        changed = True
+                if changed:
+                    updatestate()
+                    
+                if not file:
+                    xitmsg = "ERROR: No existing file path for Book hash" + file_hash + "found."
                 xitmsg = 0
             except IndexError:
                 xitmsg = "ERROR: No matching file found in history."
@@ -2256,6 +2282,8 @@ def main():
             dig = len(str(len(STATE["States"].keys())+1))
             tcols = termc - dig - 2
             for n, i in enumerate(STATE["States"].keys()):
+                paths_string = "|"
+                i = paths_string.join(STATE["States"][i]["locations"])
                 p = i.replace(os.getenv("HOME"), "~")
                 print("{}{} {}".format(
                     str(n+1).rjust(dig),
