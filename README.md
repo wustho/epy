@@ -49,7 +49,9 @@ Although, there are not many stuffs to configure.
 
 # Using Mouse
 
-Pretty useful when running `epy` on Termux Android.
+Although mouse support is useful when running `epy` on Termux Android, it’s disabled by default
+since most people find it intrusive when using `epy` in desktop.
+But you can enable it by setting `MouseSupport` to `true` in config file.
 
 | Key | Action |
 | --- | --- |
