@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.7.8"
+__version__ = "2021.7.16"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -422,7 +422,7 @@ class HTMLtoLines(HTMLParser):
     bull = {"li"}
     hide = {"script", "style", "head"}
     ital = {"i", "em"}
-    bold = {"b"}
+    bold = {"b", "strong"}
     # hide = {"script", "style", "head", ", "sub}
 
     def __init__(self, sects={""}):
