@@ -13,7 +13,7 @@ Options:
     -h, --help      print short, long help
 """
 
-__version__ = "2021.4.7"
+__version__ = "2021.7.16"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -59,6 +59,7 @@ CFG = {
     "DictionaryClient": "auto",
     "ShowProgressIndicator": True,
     "PageScrollAnimation": True,
+    "MouseSupport": False,
     "StartWithDoubleSpread": False,
     "TTSSpeed": 1,
     "DarkColorFG": 252,
@@ -421,7 +422,7 @@ class HTMLtoLines(HTMLParser):
     bull = {"li"}
     hide = {"script", "style", "head"}
     ital = {"i", "em"}
-    bold = {"b"}
+    bold = {"b", "strong"}
     # hide = {"script", "style", "head", ", "sub}
 
     def __init__(self, sects={""}):
@@ -2125,7 +2126,8 @@ def preread(stdscr, file):
 
     SCREEN.keypad(True)
     safe_curs_set(0)
-    curses.mousemask(-1)
+    if CFG["MouseSupport"]:
+        curses.mousemask(-1)
     # curses.mouseinterval(0)
     SCREEN.clear()
     _, cols = SCREEN.getmaxyx()
