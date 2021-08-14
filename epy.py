@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.7.16"
+__version__ = "2021.8.14"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -1189,7 +1189,15 @@ def input_prompt(prompt):
 
     try:
         while True:
-            ipt = stat.getch()
+            # NOTE: getch() only handles ascii
+            # to handle wide char like: é, use get_wch()
+            # ipt = stat.getch()
+            ipt = stat.get_wch()
+            # get_wch() return ambiguous type
+            # str for string input but int for function or special keys
+            if type(ipt) == str:
+                ipt = ord(ipt)
+
             if ipt == 27:
                 stat.clear()
                 stat.refresh()
