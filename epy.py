@@ -13,7 +13,6 @@ Options:
     -h, --help      print short, long help
 """
 
-
 __version__ = "2021.8.14"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
@@ -31,6 +30,7 @@ import textwrap
 import json
 import tempfile
 import shutil
+import hashlib
 import subprocess
 import multiprocessing
 import xml.etree.ElementTree as ET
@@ -1053,15 +1053,28 @@ def parse_keys():
     WINKEYS = {curses.KEY_RESIZE}|K["Metadata"]|K["Help"]|\
         K["TableOfContents"]|K["ShowBookmarks"]
 
+def updatestate():
+    with open(STATEFILE, "w") as f:
+        json.dump(STATE, f, indent=4)
+    
 
 def savestate(file, index, width, pos, pctg):
     with open(CFGFILE, "w") as f:
         json.dump(CFG, f, indent=2)
-    STATE["LastRead"] = file
-    STATE["States"][file]["index"] = index
-    STATE["States"][file]["width"] = width
-    STATE["States"][file]["pos"] = pos
-    STATE["States"][file]["pctg"] = pctg
+    
+    hasher = hashlib.md5()
+    with open(file, 'rb') as ebook_file:
+        buf = ebook_file.read()
+        hasher.update(buf)
+    hash_string = hasher.hexdigest()
+    
+    STATE["LastRead"] = hash_string
+    if file not in STATE["States"][hash_string]["locations"]:
+        STATE["States"][hash_string]["locations"].append(file)
+    STATE["States"][hash_string]["index"] = index
+    STATE["States"][hash_string]["width"] = width
+    STATE["States"][hash_string]["pos"] = pos
+    STATE["States"][hash_string]["pctg"] = pctg
     with open(STATEFILE, "w") as f:
         json.dump(STATE, f, indent=4)
 
@@ -1644,7 +1657,7 @@ def speaking(text):
     return k
 
 
-def reader(ebook, index, width, y, pctg, sect):
+def reader(ebook, index, width, y, pctg, sect, hash_string):
     global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
     k = 0 if SEARCHPATTERN is None else ord("/")
@@ -1958,7 +1971,7 @@ def reader(ebook, index, width, y, pctg, sect):
                 elif k in K["AddBookmark"]:
                     defbmname_suffix = 1
                     defbmname = "Bookmark " + str(defbmname_suffix)
-                    occupiedbmnames = [i[0] for i in STATE["States"][ebook.path]["bmarks"]]
+                    occupiedbmnames = [i[0] for i in STATE["States"][hash_string]["bmarks"]]
                     while defbmname in occupiedbmnames:
                         defbmname_suffix += 1
                         defbmname = "Bookmark " + str(defbmname_suffix)
@@ -1966,11 +1979,11 @@ def reader(ebook, index, width, y, pctg, sect):
                     if bmname is not None:
                         if bmname.strip() == "":
                             bmname = defbmname
-                        STATE["States"][ebook.path]["bmarks"].append(
+                        STATE["States"][hash_string]["bmarks"].append(
                             [bmname, index, y, y/totlines]
                         )
                 elif k in K["ShowBookmarks"]:
-                    if STATE["States"][ebook.path]["bmarks"] == []:
+                    if STATE["States"][hash_string]["bmarks"] == []:
                         k = text_win(lambda: (
                             "Bookmarks",
                             "N/A: Bookmarks are not found in this book.",
@@ -1978,12 +1991,12 @@ def reader(ebook, index, width, y, pctg, sect):
                         ))()
                         continue
                     else:
-                        retk, idxchoice = bookmarks(ebook.path)
+                        retk, idxchoice = bookmarks(hash_string)
                         if retk is not None:
                             k = retk
                             continue
                         elif idxchoice is not None:
-                            bmtojump = STATE["States"][ebook.path]["bmarks"][idxchoice]
+                            bmtojump = STATE["States"][hash_string]["bmarks"][idxchoice]
                             return bmtojump[1]-index, width, bmtojump[2], bmtojump[3], ""
                 elif k in K["DefineWord"] and DICT is not None:
                     word = input_prompt(" Define:")
@@ -2130,14 +2143,21 @@ def preread(stdscr, file):
 
     ebook = det_ebook_cls(file)
 
+    hasher = hashlib.md5()
+    with open(file, 'rb') as ebook_file:
+        buf = ebook_file.read()
+        hasher.update(buf)
+    hash_string = hasher.hexdigest()
+
     try:
-        if ebook.path in STATE["States"]:
-            idx = STATE["States"][ebook.path]["index"]
-            width = STATE["States"][ebook.path]["width"]
-            y = STATE["States"][ebook.path]["pos"]
+        if hash_string in STATE["States"]:
+            idx = STATE["States"][hash_string]["index"]
+            width = STATE["States"][hash_string]["width"]
+            y = STATE["States"][hash_string]["pos"]
         else:
-            STATE["States"][ebook.path] = {}
-            STATE["States"][ebook.path]["bmarks"] = []
+            STATE["States"][hash_string] = {}
+            STATE["States"][hash_string]["bmarks"] = []
+            STATE["States"][hash_string]["locations"] = [ebook.path]
             idx = 0
             y = 0
             width = 80
@@ -2145,7 +2165,7 @@ def preread(stdscr, file):
 
         if cols <= width + 4:
             width = cols - 4
-            pctg = STATE["States"][ebook.path].get("pctg", None)
+            pctg = STATE["States"][hash_string].get("pctg", None)
 
         try:
             ebook.initialize()
@@ -2161,7 +2181,7 @@ def preread(stdscr, file):
         sec = ""
         while True:
             incr, width, y, pctg, sec = reader(
-                ebook, idx, width, y, pctg, sec
+                ebook, idx, width, y, pctg, sec, hash_string
             )
             idx += incr
             show_loader(SCREEN)
@@ -2200,9 +2220,13 @@ def main():
         dump = False
 
     if args == []:
-        file = STATE["LastRead"]
-        if not os.path.isfile(file):
-            # print(__doc__)
+        found_file = False
+        for location in STATE["States"][STATE["LastRead"]]["locations"]:
+            if os.path.isfile(location):
+                found_file = True
+                file = location
+                break
+        if not found_file:
             sys.exit("ERROR: Found no last read file.")
 
     elif os.path.isfile(args[0]):
@@ -2214,18 +2238,27 @@ def main():
         xitmsg = 0
 
         val = 0
-        for i in STATE["States"].keys():
-            if not os.path.exists(i):
-                todel.append(i)
-            else:
-                match_val = sum([
-                    j.size for j in SM(
-                        None, i.lower(), " ".join(args).lower()
-                    ).get_matching_blocks()
-                ])
-                if match_val >= val:
-                    val = match_val
-                    file = i
+        state_changed = False
+        for file_hash in STATE["States"].keys():
+            for i in STATE["States"][file_hash]["locations"]:
+                if not os.path.isfile(i):
+                    state_changed = True
+                    STATE["States"][file_hash]["locations"].remove(i)
+                else:
+                    match_val = sum([
+                        j.size for j in SM(
+                            None, i.lower(), " ".join(args).lower()
+                        ).get_matching_blocks()
+                    ])
+                    if match_val >= val:
+                        val = match_val
+                        file = i
+                        
+        for file_has in STATE["States"].keys():
+            if len(STATE["States"][file_has]["locations"]) == 0:
+                # No paths here are valid anymore, thus deleting the whole element
+                del STATE["States"][file_hash]
+                
         if val == 0:
             xitmsg = "\nERROR: No matching file found in history."
 
@@ -2236,7 +2269,20 @@ def main():
 
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
-                file = list(STATE["States"].keys())[int(args[0])-1]
+                file_hash = list(STATE["States"].keys())[int(args[0])-1]
+                changed = False
+                for file_path in STATE["States"][file_hash]["locations"]:
+                    if os.path.isfile(file_path):
+                        file = file_path
+                        break
+                    else:
+                        STATE["States"][file_hash]["locations"].remove(file_path)
+                        changed = True
+                if changed:
+                    updatestate()
+                    
+                if not file:
+                    xitmsg = "ERROR: No existing file path for Book hash" + file_hash + "found."
                 xitmsg = 0
             except IndexError:
                 xitmsg = "ERROR: No matching file found in history."
@@ -2246,6 +2292,8 @@ def main():
             dig = len(str(len(STATE["States"].keys())+1))
             tcols = termc - dig - 2
             for n, i in enumerate(STATE["States"].keys()):
+                paths_string = "|"
+                i = paths_string.join(STATE["States"][i]["locations"])
                 p = i.replace(os.getenv("HOME"), "~")
                 print("{}{} {}".format(
                     str(n+1).rjust(dig),
