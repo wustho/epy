@@ -12,6 +12,7 @@ mobi = "^0.3.2"
 [tool.poetry.dev-dependencies]
 black = "^21.9b0"
 pytest = "^6.2.5"
+mypy = "^0.910"
 
 [tool.black]
 line-length = 100
