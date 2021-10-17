@@ -36,7 +36,7 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 from difflib import SequenceMatcher as SM
 from functools import wraps
 from html import unescape
@@ -146,7 +146,7 @@ class Epub:
         "EPUB": "http://www.idpf.org/2007/ops",
     }
 
-    def __init__(self, fileepub):
+    def __init__(self, fileepub: str):
         self.path = os.path.abspath(fileepub)
         self.file = zipfile.ZipFile(fileepub, "r")
 
@@ -229,7 +229,7 @@ class Epub:
         except AttributeError:
             pass
 
-    def get_raw_text(self, chpath):
+    def get_raw_text(self, chpath: str) -> str:
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
@@ -241,15 +241,15 @@ class Epub:
                 continue
         return content.decode("utf-8")
 
-    def get_img_bytestr(self, impath):
+    def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
         return impath, self.file.read(impath)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         return
 
 
 class Mobi(Epub):
-    def __init__(self, filemobi):
+    def __init__(self, filemobi: str):
         self.path = os.path.abspath(filemobi)
         self.file, _ = mobi.extract(filemobi)
 
@@ -318,7 +318,7 @@ class Mobi(Epub):
             elif len(src) == 1:
                 self.toc_entries[2].append("")
 
-    def get_raw_text(self, chpath):
+    def get_raw_text(self, chpath: str) -> str:
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
@@ -332,14 +332,14 @@ class Mobi(Epub):
         # return content.decode("utf-8")
         return content
 
-    def get_img_bytestr(self, impath):
+    def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
         # TODO: test on windows
         # if impath "Images/asdf.png" is problematic
         with open(os.path.join(self.rootdir, impath), "rb") as f:
             src = f.read()
         return impath, src
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         shutil.rmtree(self.file)
         return
 
@@ -358,7 +358,7 @@ class Azw3(Epub):
 class FictionBook:
     NS = {"FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"}
 
-    def __init__(self, filefb):
+    def __init__(self, filefb: str):
         self.path = os.path.abspath(filefb)
         self.file = filefb
 
@@ -388,13 +388,13 @@ class FictionBook:
         # sys.exit(ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:",""))
         return ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:", "")
 
-    def get_img_bytestr(self, imgid):
+    def get_img_bytestr(self, imgid: str) -> Tuple[str, bytes]:
         imgid = imgid.replace("#", "")
         img = self.root.find("*[@id='{}']".format(imgid))
         imgtype = img.get("content-type").split("/")[1]
         return imgid + "." + imgtype, base64.b64decode(img.text)
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         return
 
 
@@ -2171,7 +2171,7 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, textwidth=count)
                         if reading_state.textwidth < 20:
                             # width = 20
-                            reading_state = (dataclasses.replace(reading_state, textwidth=20),)
+                            reading_state = dataclasses.replace(reading_state, textwidth=20)
                         elif reading_state.textwidth >= cols - 4:
                             # width = cols - 4
                             reading_state = dataclasses.replace(reading_state, textwidth=cols - 4)
@@ -2530,7 +2530,6 @@ class Reader:
 def preread(stdscr: curses.window, filepath: str) -> None:
     global SHOWPROGRESS, SCREEN, SPREAD
 
-    # TODO: redundant
     ebook = get_ebook_obj(filepath)
     state = State()
 
@@ -2556,7 +2555,7 @@ def preread(stdscr: curses.window, filepath: str) -> None:
         reader.cleanup()
 
 
-def main():
+def main() -> None:
     termc, termr = shutil.get_terminal_size()
 
     args = []
