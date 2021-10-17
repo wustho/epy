@@ -117,7 +117,6 @@ K = {
 WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
-DICT = None
 SCREEN = None
 JUMPLIST = {}
 SHOWPROGRESS = CFG["ShowProgressIndicator"]
@@ -946,20 +945,6 @@ def dots_path(curr, tofi):
     return "/".join(candir + tofi)
 
 
-def find_dict_client():
-    global DICT
-    if shutil.which(CFG["DictionaryClient"].split()[0]) is not None:
-        DICT = CFG["DictionaryClient"]
-    else:
-        DICT_LIST = ["sdcv", "dict"]
-        for i in DICT_LIST:
-            if shutil.which(i) is not None:
-                DICT = i
-                break
-        if DICT in {"sdcv"}:
-            DICT += " -n"
-
-
 def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
     ntoc = 0
     for n, (i, j) in enumerate(zip(toc_idx, toc_sect)):
@@ -1091,6 +1076,23 @@ class Reader:
             self.is_color_supported = True
         except:
             self.is_color_supported = False
+
+    @property
+    def ext_dict_app(self):
+        self._ext_dict_app: Optional[str] = None
+        dict_app_preset_list = ["sdcv", "dict"]
+
+        if shutil.which(CFG["DictionaryClient"].split()[0]) is not None:
+            self._ext_dict_app = CFG["DictionaryClient"]
+        else:
+            for i in dict_app_preset_list:
+                if shutil.which(i) is not None:
+                    self._ext_dict_app = i
+                    break
+            if self._ext_dict_app in {"sdcv"}:
+                self._ext_dict_app += " -n"
+
+        return self._ext_dict_app
 
     @property
     def image_viewer(self):
@@ -1406,12 +1408,15 @@ class Reader:
 
     @text_win
     def define_word(self, word):
-        rows, cols = SCREEN.getmaxyx()
+        rows, cols = self.screen.getmaxyx()
         hi, wi = 5, 16
         Y, X = (rows - hi) // 2, (cols - wi) // 2
 
         p = subprocess.Popen(
-            "{} {}".format(DICT, word), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+            "{} {}".format(self.ext_dict_app, word),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
         )
 
         dictwin = curses.newwin(hi, wi, Y, X)
@@ -1427,7 +1432,7 @@ class Reader:
         if err == b"":
             return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
         else:
-            return "Error: " + DICT, err.decode(), K["DefineWord"]
+            return "Error: " + self.ext_dict_app, err.decode(), K["DefineWord"]
 
     def bookmarks(self, ebookpath):
         idx = 0
@@ -1540,7 +1545,7 @@ class Reader:
             pattern = re.compile(self.search_pattern[1:], re.IGNORECASE)
         except re.error as reerrmsg:
             self.search_pattern = None
-            tmpk = errmsg("!Regex Error", str(reerrmsg), set())
+            tmpk = self.errmsg("!Regex Error", str(reerrmsg), set())
             return tmpk
 
         for n, i in enumerate(src):
@@ -2181,7 +2186,7 @@ class Reader:
                                 k = self.open_image(pad, imgnm, imgbstr)
                                 continue
                             except Exception as e:
-                                errmsg("Error Opening Image", str(e), set())
+                                self.errmsg("Error Opening Image", str(e), set())
                     elif (
                         k in K["SwitchColor"]
                         and self.is_color_supported
@@ -2243,7 +2248,7 @@ class Reader:
                                     row=bmtojump[2],
                                     rel_pctg=bmtojump[3],
                                 )
-                    elif k in K["DefineWord"] and DICT is not None:
+                    elif k in K["DefineWord"] and self.ext_dict_app is not None:
                         word = self.input_prompt(" Define:")
                         if word == curses.KEY_RESIZE:
                             k = word
@@ -2491,7 +2496,6 @@ def preread(stdscr, file):
 
         reading_state = ReadingState(content_index=idx, textwidth=width, row=y, rel_pctg=pctg)
 
-        find_dict_client()
         parse_keys()
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
         SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
