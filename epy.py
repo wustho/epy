@@ -117,8 +117,6 @@ K = {
 WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
-COLORSUPPORT = False
-VWR = None
 DICT = None
 SCREEN = None
 JUMPLIST = {}
@@ -962,42 +960,6 @@ def find_dict_client():
             DICT += " -n"
 
 
-def find_media_viewer():
-    global VWR
-    if shutil.which(CFG["DefaultViewer"].split()[0]) is not None:
-        VWR = CFG["DefaultViewer"]
-    elif sys.platform == "win32":
-        VWR = "start"
-    elif sys.platform == "darwin":
-        VWR = "open"
-    else:
-        VWR_LIST = ["feh", "gio", "gnome-open", "gvfs-open", "xdg-open", "kde-open", "firefox"]
-        for i in VWR_LIST:
-            if shutil.which(i) is not None:
-                VWR = i
-                break
-
-    if VWR in {"gio"}:
-        VWR += " open"
-
-
-def open_media(scr, name, bstr):
-    sfx = os.path.splitext(name)[1]
-    fd, path = tempfile.mkstemp(suffix=sfx)
-    try:
-        with os.fdopen(fd, "wb") as tmp:
-            # tmp.write(epub.file.read(src))
-            tmp.write(bstr)
-        # run(VWR + " " + path, shell=True)
-        subprocess.call(
-            VWR + " " + path, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        k = scr.getch()
-    finally:
-        os.remove(path)
-    return k
-
-
 def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
     ntoc = 0
     for n, (i, j) in enumerate(zip(toc_idx, toc_sect)):
@@ -1118,7 +1080,66 @@ def speaking(text):
 class Reader:
     def __init__(self, screen):
         self.screen = screen
-        self.search_pattern = None
+        self.search_pattern: Optional[str] = None
+
+        self.is_color_supported: bool = False
+        try:
+            curses.use_default_colors()
+            curses.init_pair(1, -1, -1)
+            curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
+            curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
+            self.is_color_supported = True
+        except:
+            self.is_color_supported = False
+
+    @property
+    def image_viewer(self):
+        self._image_viewer: Optional[str] = None
+        viewer_preset_list = [
+            "feh",
+            "gio",
+            "gnome-open",
+            "gvfs-open",
+            "xdg-open",
+            "kde-open",
+            "firefox",
+        ]
+
+        if shutil.which(CFG["DefaultViewer"].split()[0]) is not None:
+            self._image_viewer = CFG["DefaultViewer"]
+        elif sys.platform == "win32":
+            self._image_viewer = "start"
+        elif sys.platform == "darwin":
+            self._image_viewer = "open"
+        else:
+            for i in viewer_preset_list:
+                if shutil.which(i) is not None:
+                    self._image_viewer = i
+                    break
+
+        if self._image_viewer in {"gio"}:
+            self._image_viewer += " open"
+
+        return self._image_viewer
+
+    def open_image(self, pad, name, bstr):
+        sfx = os.path.splitext(name)[1]
+        fd, path = tempfile.mkstemp(suffix=sfx)
+        try:
+            with os.fdopen(fd, "wb") as tmp:
+                # tmp.write(epub.file.read(src))
+                tmp.write(bstr)
+            # run(VWR + " " + path, shell=True)
+            subprocess.call(
+                self.image_viewer + " " + path,
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            k = pad.getch()
+        finally:
+            os.remove(path)
+        return k
 
     def choice_win(allowdel=False):
         def inner_f(listgen):
@@ -1128,7 +1149,7 @@ class Reader:
                 hi, wi = rows - 4, cols - 4
                 Y, X = 2, 2
                 chwin = curses.newwin(hi, wi, Y, X)
-                if COLORSUPPORT:
+                if self.is_color_supported:
                     chwin.bkgd(self.screen.getbkgd())
 
                 title, ch_list, index, key = listgen(self, *args, **kwargs)
@@ -1147,7 +1168,7 @@ class Reader:
                 totlines = len(ch_list)
                 chwin.refresh()
                 pad = curses.newpad(totlines, wi - 2)
-                if COLORSUPPORT:
+                if self.is_color_supported:
                     pad.bkgd(self.screen.getbkgd())
 
                 pad.keypad(True)
@@ -1291,7 +1312,7 @@ class Reader:
             hi, wi = rows - 4, cols - 4
             Y, X = 2, 2
             textw = curses.newwin(hi, wi, Y, X)
-            if COLORSUPPORT:
+            if self.is_color_supported:
                 textw.bkgd(self.screen.getbkgd())
 
             title, raw_texts, key = textfunc(self, *args, **kwargs)
@@ -1312,7 +1333,7 @@ class Reader:
             totlines = len(texts)
 
             pad = curses.newpad(totlines, wi - 2)
-            if COLORSUPPORT:
+            if self.is_color_supported:
                 pad.bkgd(self.screen.getbkgd())
 
             pad.keypad(True)
@@ -1426,7 +1447,7 @@ class Reader:
         # pad.refresh(y, 0, 0, x, rows-2, x+width)
         rows, cols = self.screen.getmaxyx()
         stat = curses.newwin(1, cols, rows - 1, 0)
-        if COLORSUPPORT:
+        if self.is_color_supported:
             stat.bkgd(self.screen.getbkgd())
         stat.keypad(True)
         curses.echo(1)
@@ -1698,7 +1719,7 @@ class Reader:
 
         # this make curses.A_REVERSE not working
         # put before paint_text
-        if COLORSUPPORT:
+        if self.is_color_supported:
             pad.bkgd(self.screen.getbkgd())
 
         pad.paint_text(0)
@@ -2112,7 +2133,7 @@ class Reader:
                         else:
                             # y = fs
                             reading_state = dataclasses.replace(reading_state, row=fs)
-                    elif k in K["OpenImage"] and VWR is not None:
+                    elif k in K["OpenImage"] and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
                             src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]
@@ -2157,13 +2178,13 @@ class Reader:
                                 if ebook.__class__.__name__ in {"Epub", "Azw3"}:
                                     impath = dots_path(chpath, impath)
                                 imgnm, imgbstr = ebook.get_img_bytestr(impath)
-                                k = open_media(pad, imgnm, imgbstr)
+                                k = self.open_image(pad, imgnm, imgbstr)
                                 continue
                             except Exception as e:
                                 errmsg("Error Opening Image", str(e), set())
                     elif (
                         k in K["SwitchColor"]
-                        and COLORSUPPORT
+                        and self.is_color_supported
                         and countstring in {"", "0", "1", "2"}
                     ):
                         if countstring == "":
@@ -2431,16 +2452,7 @@ class Reader:
 
 
 def preread(stdscr, file):
-    global COLORSUPPORT, SHOWPROGRESS, SCREEN, SPREAD
-
-    try:
-        curses.use_default_colors()
-        curses.init_pair(1, -1, -1)
-        curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
-        curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
-        COLORSUPPORT = True
-    except:
-        COLORSUPPORT = False
+    global SHOWPROGRESS, SCREEN, SPREAD
 
     stdscr.keypad(True)
     safe_curs_set(0)
@@ -2479,7 +2491,6 @@ def preread(stdscr, file):
 
         reading_state = ReadingState(content_index=idx, textwidth=width, row=y, rel_pctg=pctg)
 
-        find_media_viewer()
         find_dict_client()
         parse_keys()
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
