@@ -734,6 +734,7 @@ class Board:
     def getch(self):
         return self.pad.getch()
 
+    # TODO: bg unnecessary
     def bkgd(self, bg):
         self.pad.bkgd(self.screen.getbkgd())
 
@@ -784,235 +785,6 @@ class Board:
         self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
         self.y = y
 
-
-def text_win(textfunc):
-    @wraps(textfunc)
-    def wrapper(*args, **kwargs):
-        rows, cols = SCREEN.getmaxyx()
-        hi, wi = rows - 4, cols - 4
-        Y, X = 2, 2
-        textw = curses.newwin(hi, wi, Y, X)
-        if COLORSUPPORT:
-            textw.bkgd(SCREEN.getbkgd())
-
-        title, raw_texts, key = textfunc(*args, **kwargs)
-
-        if len(title) > cols - 8:
-            title = title[: cols - 8]
-
-        texts = []
-        for i in raw_texts.splitlines():
-            texts += textwrap.wrap(i, wi - 6, drop_whitespace=False)
-
-        textw.box()
-        textw.keypad(True)
-        textw.addstr(1, 2, title)
-        textw.addstr(2, 2, "-" * len(title))
-        key_textw = 0
-
-        totlines = len(texts)
-
-        pad = curses.newpad(totlines, wi - 2)
-        if COLORSUPPORT:
-            pad.bkgd(SCREEN.getbkgd())
-
-        pad.keypad(True)
-        for n, i in enumerate(texts):
-            pad.addstr(n, 0, i)
-        y = 0
-        textw.refresh()
-        pad.refresh(y, 0, Y + 4, X + 4, rows - 5, cols - 6)
-        padhi = rows - 8 - Y
-
-        while key_textw not in K["Quit"] | key:
-            if key_textw in K["ScrollUp"] and y > 0:
-                y -= 1
-            elif key_textw in K["ScrollDown"] and y < totlines - hi + 6:
-                y += 1
-            elif key_textw in K["PageUp"]:
-                y = pgup(y, padhi)
-            elif key_textw in K["PageDown"]:
-                y = pgdn(y, totlines, padhi)
-            elif key_textw in K["BeginningOfCh"]:
-                y = 0
-            elif key_textw in K["EndOfCh"]:
-                y = pgend(totlines, padhi)
-            elif key_textw in WINKEYS - key:
-                textw.clear()
-                textw.refresh()
-                return key_textw
-            pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
-            key_textw = textw.getch()
-
-        textw.clear()
-        textw.refresh()
-        return
-
-    return wrapper
-
-
-def choice_win(allowdel=False):
-    def inner_f(listgen):
-        @wraps(listgen)
-        def wrapper(*args, **kwargs):
-            rows, cols = SCREEN.getmaxyx()
-            hi, wi = rows - 4, cols - 4
-            Y, X = 2, 2
-            chwin = curses.newwin(hi, wi, Y, X)
-            if COLORSUPPORT:
-                chwin.bkgd(SCREEN.getbkgd())
-
-            title, ch_list, index, key = listgen(*args, **kwargs)
-
-            if len(title) > cols - 8:
-                title = title[: cols - 8]
-
-            chwin.box()
-            chwin.keypad(True)
-            chwin.addstr(1, 2, title)
-            chwin.addstr(2, 2, "-" * len(title))
-            if allowdel:
-                chwin.addstr(3, 2, "HINT: Press 'd' to delete.")
-            key_chwin = 0
-
-            totlines = len(ch_list)
-            chwin.refresh()
-            pad = curses.newpad(totlines, wi - 2)
-            if COLORSUPPORT:
-                pad.bkgd(SCREEN.getbkgd())
-
-            pad.keypad(True)
-
-            padhi = rows - 5 - Y - 4 + 1 - (1 if allowdel else 0)
-            # padhi = rows - 5 - Y - 4 + 1 - 1
-            y = 0
-            if index in range(padhi // 2, totlines - padhi // 2):
-                y = index - padhi // 2 + 1
-            span = []
-
-            for n, i in enumerate(ch_list):
-                # strs = "  " + str(n+1).rjust(d) + " " + i[0]
-                strs = "  " + i
-                strs = strs[0 : wi - 3]
-                pad.addstr(n, 0, strs)
-                span.append(len(strs))
-
-            countstring = ""
-            while key_chwin not in K["Quit"] | key:
-                if countstring == "":
-                    count = 1
-                else:
-                    count = int(countstring)
-                if key_chwin in range(48, 58):  # i.e., k is a numeral
-                    countstring = countstring + chr(key_chwin)
-                else:
-                    if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
-                        index -= count
-                        if index < 0:
-                            index = 0
-                    elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
-                        index += count
-                        if index + 1 >= totlines:
-                            index = totlines - 1
-                    elif key_chwin in K["Follow"]:
-                        chwin.clear()
-                        chwin.refresh()
-                        return None, index, None
-                    # elif key_chwin in K["PageUp"]:
-                    #     index -= 3
-                    #     if index < 0:
-                    #         index = 0
-                    # elif key_chwin in K["PageDown"]:
-                    #     index += 3
-                    #     if index >= totlines:
-                    #         index = totlines - 1
-                    elif key_chwin in K["BeginningOfCh"]:
-                        index = 0
-                    elif key_chwin in K["EndOfCh"]:
-                        index = totlines - 1
-                    elif key_chwin == ord("D") and allowdel:
-                        return None, (0 if index == 0 else index - 1), index
-                        # chwin.redrawwin()
-                        # chwin.refresh()
-                    elif key_chwin == ord("d") and allowdel:
-                        resk, resp, _ = choice_win()(
-                            lambda: (
-                                "Delete '{}'?".format(ch_list[index]),
-                                ["(Y)es", "(N)o"],
-                                0,
-                                {ord("n")},
-                            )
-                        )()
-                        if resk is not None:
-                            key_chwin = resk
-                            continue
-                        elif resp == 0:
-                            return None, (0 if index == 0 else index - 1), index
-                        chwin.redrawwin()
-                        chwin.refresh()
-                    elif key_chwin in {ord(i) for i in ["Y", "y", "N", "n"]} and ch_list == [
-                        "(Y)es",
-                        "(N)o",
-                    ]:
-                        if key_chwin in {ord("Y"), ord("y")}:
-                            return None, 0, None
-                        else:
-                            return None, 1, None
-                    elif key_chwin in WINKEYS - key:
-                        chwin.clear()
-                        chwin.refresh()
-                        return key_chwin, index, None
-                    countstring = ""
-
-                while index not in range(y, y + padhi):
-                    if index < y:
-                        y -= 1
-                    else:
-                        y += 1
-
-                for n in range(totlines):
-                    att = curses.A_REVERSE if index == n else curses.A_NORMAL
-                    pre = ">>" if index == n else "  "
-                    pad.addstr(n, 0, pre)
-                    pad.chgat(n, 0, span[n], pad.getbkgd() | att)
-
-                pad.refresh(y, 0, Y + 4 + (1 if allowdel else 0), X + 4, rows - 5, cols - 6)
-                # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
-                key_chwin = chwin.getch()
-                if key_chwin == curses.KEY_MOUSE:
-                    mouse_event = curses.getmouse()
-                    if mouse_event[4] == curses.BUTTON4_PRESSED:
-                        key_chwin = list(K["ScrollUp"])[0]
-                    elif mouse_event[4] == 2097152:
-                        key_chwin = list(K["ScrollDown"])[0]
-                    elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
-                        if (
-                            mouse_event[2] >= 6
-                            and mouse_event[2] < rows - 4
-                            and mouse_event[2] < 6 + totlines
-                        ):
-                            index = mouse_event[2] - 6 + y
-                        key_chwin = list(K["Follow"])[0]
-                    elif (
-                        mouse_event[4] == curses.BUTTON1_CLICKED
-                        and mouse_event[2] >= 6
-                        and mouse_event[2] < rows - 4
-                        and mouse_event[2] < 6 + totlines
-                    ):
-                        if index == mouse_event[2] - 6 + y:
-                            key_chwin = list(K["Follow"])[0]
-                            continue
-                        index = mouse_event[2] - 6 + y
-                    elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        key_chwin = list(K["Quit"])[0]
-
-            chwin.clear()
-            chwin.refresh()
-            return None, None, None
-
-        return wrapper
-
-    return inner_f
 
 
 def show_loader(scr):
@@ -1124,49 +896,6 @@ def pgend(tot, winhi):
         return 0
 
 
-@choice_win()
-def toc(src, index):
-    return "Table of Contents", src, index, K["TableOfContents"]
-
-
-@text_win
-def meta(ebook):
-    mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
-        ebook.path, round(os.path.getsize(ebook.path) / 1024 ** 2, 2)
-    )
-    for i in ebook.get_meta():
-        data = re.sub("<[^>]*>", "", i[1])
-        mdata += i[0].upper() + ": " + data + "\n"
-        data = re.sub("\t", "", data)
-        # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
-    return "Metadata", mdata, K["Metadata"]
-
-
-@text_win
-def help():
-    src = "Key Bindings:\n"
-    dig = max([len(i) for i in CFG["Keys"].values()]) + 2
-    for i in CFG["Keys"].keys():
-        src += "{}  {}\n".format(CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i)))
-    return "Help", src, K["Help"]
-
-
-@text_win
-def errmsg(title, msg, key):
-    return title, msg, key
-
-
-def bookmarks(ebookpath):
-    idx = 0
-    while True:
-        bmarkslist = [i[0] for i in STATE["States"][ebookpath]["bmarks"]]
-        if bmarkslist == []:
-            return list(K["ShowBookmarks"])[0], None
-        retk, idx, todel = choice_win(True)(lambda: ("Bookmarks", bmarkslist, idx, {ord("B")}))()
-        if todel is not None:
-            del STATE["States"][ebookpath]["bmarks"][todel]
-        else:
-            return retk, idx
 
 
 def truncate(teks, subte, maxlen, startsub=0):
@@ -1186,77 +915,6 @@ def safe_curs_set(state):
     try:
         curses.curs_set(state)
     except:
-        return
-
-
-def input_prompt(prompt):
-    # prevent pad hole when prompting for input while
-    # other window is active
-    # pad.refresh(y, 0, 0, x, rows-2, x+width)
-    rows, cols = SCREEN.getmaxyx()
-    stat = curses.newwin(1, cols, rows - 1, 0)
-    if COLORSUPPORT:
-        stat.bkgd(SCREEN.getbkgd())
-    stat.keypad(True)
-    curses.echo(1)
-    safe_curs_set(1)
-
-    init_text = ""
-
-    stat.addstr(0, 0, prompt, curses.A_REVERSE)
-    stat.addstr(0, len(prompt), init_text)
-    stat.refresh()
-
-    try:
-        while True:
-            # NOTE: getch() only handles ascii
-            # to handle wide char like: é, use get_wch()
-            # ipt = stat.getch()
-            ipt = stat.get_wch()
-            # get_wch() return ambiguous type
-            # str for string input but int for function or special keys
-            if type(ipt) == str:
-                ipt = ord(ipt)
-
-            if ipt == 27:
-                stat.clear()
-                stat.refresh()
-                curses.echo(0)
-                safe_curs_set(0)
-                return
-            elif ipt == 10:
-                stat.clear()
-                stat.refresh()
-                curses.echo(0)
-                safe_curs_set(0)
-                return init_text
-            elif ipt in {8, 127, curses.KEY_BACKSPACE}:
-                init_text = init_text[:-1]
-            elif ipt == curses.KEY_RESIZE:
-                stat.clear()
-                stat.refresh()
-                curses.echo(0)
-                safe_curs_set(0)
-                return curses.KEY_RESIZE
-            # elif len(init_text) <= maxlen:
-            else:
-                init_text += chr(ipt)
-
-            stat.clear()
-            stat.addstr(0, 0, prompt, curses.A_REVERSE)
-            stat.addstr(
-                0,
-                len(prompt),
-                init_text
-                if len(prompt + init_text) < cols
-                else "..." + init_text[len(prompt) - cols + 4 :],
-            )
-            stat.refresh()
-    except KeyboardInterrupt:
-        stat.clear()
-        stat.refresh()
-        curses.echo(0)
-        safe_curs_set(0)
         return
 
 
@@ -1344,186 +1002,6 @@ def open_media(scr, name, bstr):
     return k
 
 
-@text_win
-def define_word(word):
-    rows, cols = SCREEN.getmaxyx()
-    hi, wi = 5, 16
-    Y, X = (rows - hi) // 2, (cols - wi) // 2
-
-    p = subprocess.Popen(
-        "{} {}".format(DICT, word), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
-    )
-
-    dictwin = curses.newwin(hi, wi, Y, X)
-    dictwin.box()
-    dictwin.addstr((hi - 1) // 2, (wi - 10) // 2, "Loading...")
-    dictwin.refresh()
-
-    out, err = p.communicate()
-
-    dictwin.clear()
-    dictwin.refresh()
-
-    if err == b"":
-        return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
-    else:
-        return "Error: " + DICT, err.decode(), K["DefineWord"]
-
-
-def searching(pad, src, width, y, ch, tot):
-    global SEARCHPATTERN
-    rows, cols = SCREEN.getmaxyx()
-    if SPREAD == 2:
-        width = (cols - 7) // 2
-
-    x = (cols - width) // 2
-    if SPREAD == 1:
-        x = (cols - width) // 2
-    else:
-        x = 2
-
-    if SEARCHPATTERN is None:
-        candtext = input_prompt(" Regex:")
-        if candtext is None:
-            return y
-        elif isinstance(candtext, str):
-            SEARCHPATTERN = "/" + candtext
-        elif candtext == curses.KEY_RESIZE:
-            return candtext
-
-    if SEARCHPATTERN in {"?", "/"}:
-        SEARCHPATTERN = None
-        return y
-
-    found = []
-    try:
-        pattern = re.compile(SEARCHPATTERN[1:], re.IGNORECASE)
-    except re.error as reerrmsg:
-        SEARCHPATTERN = None
-        tmpk = errmsg("!Regex Error", str(reerrmsg), set())
-        return tmpk
-
-    for n, i in enumerate(src):
-        for j in pattern.finditer(i):
-            found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
-
-    if found == []:
-        if SEARCHPATTERN[0] == "/" and ch + 1 < tot:
-            return 1
-        elif SEARCHPATTERN[0] == "?" and ch > 0:
-            return -1
-        else:
-            s = 0
-            while True:
-                if s in K["Quit"]:
-                    SEARCHPATTERN = None
-                    SCREEN.clear()
-                    SCREEN.refresh()
-                    return y
-                elif s == ord("n") and ch == 0:
-                    SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
-                    return 1
-                elif s == ord("N") and ch + 1 == tot:
-                    SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
-                    return -1
-
-                SCREEN.clear()
-                SCREEN.addstr(
-                    rows - 1,
-                    0,
-                    " Finished searching: " + SEARCHPATTERN[1 : cols - 22] + " ",
-                    curses.A_REVERSE,
-                )
-                SCREEN.refresh()
-                pad.refresh(y, 0, 0, x, rows - 2, x + width)
-                if SPREAD == 2:
-                    if y + rows < len(src):
-                        pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
-                s = pad.getch()
-
-    sidx = len(found) - 1
-    if SEARCHPATTERN[0] == "/":
-        if y > found[-1][0]:
-            return 1
-        for n, i in enumerate(found):
-            if i[0] >= y:
-                sidx = n
-                break
-
-    s = 0
-    msg = (
-        " Searching: "
-        + SEARCHPATTERN[1:]
-        + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
-    )
-    while True:
-        if s in K["Quit"]:
-            SEARCHPATTERN = None
-            for i in found:
-                pad.chgat(i[0], i[1], i[2], pad.getbkgd())
-            pad.format()
-            SCREEN.clear()
-            SCREEN.refresh()
-            return y
-        elif s == ord("n"):
-            SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
-            if sidx == len(found) - 1:
-                if ch + 1 < tot:
-                    return 1
-                else:
-                    s = 0
-                    msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
-                    continue
-            else:
-                sidx += 1
-                msg = (
-                    " Searching: "
-                    + SEARCHPATTERN[1:]
-                    + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
-                )
-        elif s == ord("N"):
-            SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
-            if sidx == 0:
-                if ch > 0:
-                    return -1
-                else:
-                    s = 0
-                    msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
-                    continue
-            else:
-                sidx -= 1
-                msg = (
-                    " Searching: "
-                    + SEARCHPATTERN[1:]
-                    + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
-                )
-        elif s == curses.KEY_RESIZE:
-            return s
-
-        # TODO
-        if y + rows - 1 > pad.chunks[pad.find_chunkidx(y)]:
-            y = pad.chunks[pad.find_chunkidx(y)] + 1
-
-        while found[sidx][0] not in list(range(y, y + (rows - 1) * SPREAD)):
-            if found[sidx][0] > y:
-                y += (rows - 1) * SPREAD
-            else:
-                y -= (rows - 1) * SPREAD
-                if y < 0:
-                    y = 0
-
-        for n, i in enumerate(found):
-            attr = curses.A_REVERSE if n == sidx else curses.A_NORMAL
-            pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
-
-        SCREEN.clear()
-        SCREEN.addstr(rows - 1, 0, msg, curses.A_REVERSE)
-        SCREEN.refresh()
-        pad.refresh(y, 0, 0, x, rows - 2, x + width)
-        if SPREAD == 2:
-            if y + rows < len(src):
-                pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
-        s = pad.getch()
 
 
 def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
@@ -1647,6 +1125,533 @@ class Reader:
     def __init__(self, screen):
         self.screen = screen
 
+    def choice_win(allowdel=False):
+        def inner_f(listgen):
+            @wraps(listgen)
+            def wrapper(self, *args, **kwargs):
+                rows, cols = self.screen.getmaxyx()
+                hi, wi = rows - 4, cols - 4
+                Y, X = 2, 2
+                chwin = curses.newwin(hi, wi, Y, X)
+                if COLORSUPPORT:
+                    chwin.bkgd(self.screen.getbkgd())
+
+                title, ch_list, index, key = listgen(self, *args, **kwargs)
+
+                if len(title) > cols - 8:
+                    title = title[: cols - 8]
+
+                chwin.box()
+                chwin.keypad(True)
+                chwin.addstr(1, 2, title)
+                chwin.addstr(2, 2, "-" * len(title))
+                if allowdel:
+                    chwin.addstr(3, 2, "HINT: Press 'd' to delete.")
+                key_chwin = 0
+
+                totlines = len(ch_list)
+                chwin.refresh()
+                pad = curses.newpad(totlines, wi - 2)
+                if COLORSUPPORT:
+                    pad.bkgd(self.screen.getbkgd())
+
+                pad.keypad(True)
+
+                padhi = rows - 5 - Y - 4 + 1 - (1 if allowdel else 0)
+                # padhi = rows - 5 - Y - 4 + 1 - 1
+                y = 0
+                if index in range(padhi // 2, totlines - padhi // 2):
+                    y = index - padhi // 2 + 1
+                span = []
+
+                for n, i in enumerate(ch_list):
+                    # strs = "  " + str(n+1).rjust(d) + " " + i[0]
+                    strs = "  " + i
+                    strs = strs[0 : wi - 3]
+                    pad.addstr(n, 0, strs)
+                    span.append(len(strs))
+
+                countstring = ""
+                while key_chwin not in K["Quit"] | key:
+                    if countstring == "":
+                        count = 1
+                    else:
+                        count = int(countstring)
+                    if key_chwin in range(48, 58):  # i.e., k is a numeral
+                        countstring = countstring + chr(key_chwin)
+                    else:
+                        if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
+                            index -= count
+                            if index < 0:
+                                index = 0
+                        elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
+                            index += count
+                            if index + 1 >= totlines:
+                                index = totlines - 1
+                        elif key_chwin in K["Follow"]:
+                            chwin.clear()
+                            chwin.refresh()
+                            return None, index, None
+                        # elif key_chwin in K["PageUp"]:
+                        #     index -= 3
+                        #     if index < 0:
+                        #         index = 0
+                        # elif key_chwin in K["PageDown"]:
+                        #     index += 3
+                        #     if index >= totlines:
+                        #         index = totlines - 1
+                        elif key_chwin in K["BeginningOfCh"]:
+                            index = 0
+                        elif key_chwin in K["EndOfCh"]:
+                            index = totlines - 1
+                        elif key_chwin == ord("D") and allowdel:
+                            return None, (0 if index == 0 else index - 1), index
+                            # chwin.redrawwin()
+                            # chwin.refresh()
+                        elif key_chwin == ord("d") and allowdel:
+                            # resk, resp, _ = Reader.choice_win()(
+                            #     lambda: ( "Delete '{}'?".format(ch_list[index]), ["(Y)es", "(N)o"], 0, {ord("n")},)
+                            # )()
+                            resk, resp, _ = self.show_win_options(
+                                "Delete '{}'?".format(ch_list[index]),
+                                ["(Y)es", "(N)o"],
+                                0,
+                                {ord("n")},
+                            )
+                            if resk is not None:
+                                key_chwin = resk
+                                continue
+                            elif resp == 0:
+                                return None, (0 if index == 0 else index - 1), index
+                            chwin.redrawwin()
+                            chwin.refresh()
+                        elif key_chwin in {ord(i) for i in ["Y", "y", "N", "n"]} and ch_list == [
+                            "(Y)es",
+                            "(N)o",
+                        ]:
+                            if key_chwin in {ord("Y"), ord("y")}:
+                                return None, 0, None
+                            else:
+                                return None, 1, None
+                        elif key_chwin in WINKEYS - key:
+                            chwin.clear()
+                            chwin.refresh()
+                            return key_chwin, index, None
+                        countstring = ""
+
+                    while index not in range(y, y + padhi):
+                        if index < y:
+                            y -= 1
+                        else:
+                            y += 1
+
+                    for n in range(totlines):
+                        att = curses.A_REVERSE if index == n else curses.A_NORMAL
+                        pre = ">>" if index == n else "  "
+                        pad.addstr(n, 0, pre)
+                        pad.chgat(n, 0, span[n], pad.getbkgd() | att)
+
+                    pad.refresh(y, 0, Y + 4 + (1 if allowdel else 0), X + 4, rows - 5, cols - 6)
+                    # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
+                    key_chwin = chwin.getch()
+                    if key_chwin == curses.KEY_MOUSE:
+                        mouse_event = curses.getmouse()
+                        if mouse_event[4] == curses.BUTTON4_PRESSED:
+                            key_chwin = list(K["ScrollUp"])[0]
+                        elif mouse_event[4] == 2097152:
+                            key_chwin = list(K["ScrollDown"])[0]
+                        elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
+                            if (
+                                mouse_event[2] >= 6
+                                and mouse_event[2] < rows - 4
+                                and mouse_event[2] < 6 + totlines
+                            ):
+                                index = mouse_event[2] - 6 + y
+                            key_chwin = list(K["Follow"])[0]
+                        elif (
+                            mouse_event[4] == curses.BUTTON1_CLICKED
+                            and mouse_event[2] >= 6
+                            and mouse_event[2] < rows - 4
+                            and mouse_event[2] < 6 + totlines
+                        ):
+                            if index == mouse_event[2] - 6 + y:
+                                key_chwin = list(K["Follow"])[0]
+                                continue
+                            index = mouse_event[2] - 6 + y
+                        elif mouse_event[4] == curses.BUTTON3_CLICKED:
+                            key_chwin = list(K["Quit"])[0]
+
+                chwin.clear()
+                chwin.refresh()
+                return None, None, None
+
+            return wrapper
+
+        return inner_f
+
+    def text_win(textfunc):
+        @wraps(textfunc)
+        def wrapper(self, *args, **kwargs):
+            rows, cols = self.screen.getmaxyx()
+            hi, wi = rows - 4, cols - 4
+            Y, X = 2, 2
+            textw = curses.newwin(hi, wi, Y, X)
+            if COLORSUPPORT:
+                textw.bkgd(self.screen.getbkgd())
+
+            title, raw_texts, key = textfunc(self, *args, **kwargs)
+
+            if len(title) > cols - 8:
+                title = title[: cols - 8]
+
+            texts = []
+            for i in raw_texts.splitlines():
+                texts += textwrap.wrap(i, wi - 6, drop_whitespace=False)
+
+            textw.box()
+            textw.keypad(True)
+            textw.addstr(1, 2, title)
+            textw.addstr(2, 2, "-" * len(title))
+            key_textw = 0
+
+            totlines = len(texts)
+
+            pad = curses.newpad(totlines, wi - 2)
+            if COLORSUPPORT:
+                pad.bkgd(self.screen.getbkgd())
+
+            pad.keypad(True)
+            for n, i in enumerate(texts):
+                pad.addstr(n, 0, i)
+            y = 0
+            textw.refresh()
+            pad.refresh(y, 0, Y + 4, X + 4, rows - 5, cols - 6)
+            padhi = rows - 8 - Y
+
+            while key_textw not in K["Quit"] | key:
+                if key_textw in K["ScrollUp"] and y > 0:
+                    y -= 1
+                elif key_textw in K["ScrollDown"] and y < totlines - hi + 6:
+                    y += 1
+                elif key_textw in K["PageUp"]:
+                    y = pgup(y, padhi)
+                elif key_textw in K["PageDown"]:
+                    y = pgdn(y, totlines, padhi)
+                elif key_textw in K["BeginningOfCh"]:
+                    y = 0
+                elif key_textw in K["EndOfCh"]:
+                    y = pgend(totlines, padhi)
+                elif key_textw in WINKEYS - key:
+                    textw.clear()
+                    textw.refresh()
+                    return key_textw
+                pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
+                key_textw = textw.getch()
+
+            textw.clear()
+            textw.refresh()
+            return
+
+        return wrapper
+
+
+    @choice_win(True)
+    def show_win_options(self, title, options, active_index, key_set):
+        return title, options, active_index, key_set
+
+    @choice_win()
+    def toc(self, src, index):
+        return "Table of Contents", src, index, K["TableOfContents"]
+
+    @text_win
+    def meta(self, ebook):
+        mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
+            ebook.path, round(os.path.getsize(ebook.path) / 1024 ** 2, 2)
+        )
+        for i in ebook.get_meta():
+            data = re.sub("<[^>]*>", "", i[1])
+            mdata += i[0].upper() + ": " + data + "\n"
+            data = re.sub("\t", "", data)
+            # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
+        return "Metadata", mdata, K["Metadata"]
+
+
+    @text_win
+    def help(self, ):
+        src = "Key Bindings:\n"
+        dig = max([len(i) for i in CFG["Keys"].values()]) + 2
+        for i in CFG["Keys"].keys():
+            src += "{}  {}\n".format(CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i)))
+        return "Help", src, K["Help"]
+
+
+    @text_win
+    def errmsg(self, title, msg, key):
+        return title, msg, key
+
+    @text_win
+    def define_word(self, word):
+        rows, cols = SCREEN.getmaxyx()
+        hi, wi = 5, 16
+        Y, X = (rows - hi) // 2, (cols - wi) // 2
+
+        p = subprocess.Popen(
+            "{} {}".format(DICT, word), stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
+        )
+
+        dictwin = curses.newwin(hi, wi, Y, X)
+        dictwin.box()
+        dictwin.addstr((hi - 1) // 2, (wi - 10) // 2, "Loading...")
+        dictwin.refresh()
+
+        out, err = p.communicate()
+
+        dictwin.clear()
+        dictwin.refresh()
+
+        if err == b"":
+            return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
+        else:
+            return "Error: " + DICT, err.decode(), K["DefineWord"]
+
+    def bookmarks(self, ebookpath):
+        idx = 0
+        while True:
+            bmarkslist = [i[0] for i in STATE["States"][ebookpath]["bmarks"]]
+            if bmarkslist == []:
+                return list(K["ShowBookmarks"])[0], None
+            retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, {ord("B")})
+            if todel is not None:
+                del STATE["States"][ebookpath]["bmarks"][todel]
+            else:
+                return retk, idx
+
+    def input_prompt(self, prompt):
+        # prevent pad hole when prompting for input while
+        # other window is active
+        # pad.refresh(y, 0, 0, x, rows-2, x+width)
+        rows, cols = self.screen.getmaxyx()
+        stat = curses.newwin(1, cols, rows - 1, 0)
+        if COLORSUPPORT:
+            stat.bkgd(self.screen.getbkgd())
+        stat.keypad(True)
+        curses.echo(1)
+        safe_curs_set(1)
+
+        init_text = ""
+
+        stat.addstr(0, 0, prompt, curses.A_REVERSE)
+        stat.addstr(0, len(prompt), init_text)
+        stat.refresh()
+
+        try:
+            while True:
+                # NOTE: getch() only handles ascii
+                # to handle wide char like: é, use get_wch()
+                # ipt = stat.getch()
+                ipt = stat.get_wch()
+                # get_wch() return ambiguous type
+                # str for string input but int for function or special keys
+                if type(ipt) == str:
+                    ipt = ord(ipt)
+
+                if ipt == 27:
+                    stat.clear()
+                    stat.refresh()
+                    curses.echo(0)
+                    safe_curs_set(0)
+                    return
+                elif ipt == 10:
+                    stat.clear()
+                    stat.refresh()
+                    curses.echo(0)
+                    safe_curs_set(0)
+                    return init_text
+                elif ipt in {8, 127, curses.KEY_BACKSPACE}:
+                    init_text = init_text[:-1]
+                elif ipt == curses.KEY_RESIZE:
+                    stat.clear()
+                    stat.refresh()
+                    curses.echo(0)
+                    safe_curs_set(0)
+                    return curses.KEY_RESIZE
+                # elif len(init_text) <= maxlen:
+                else:
+                    init_text += chr(ipt)
+
+                stat.clear()
+                stat.addstr(0, 0, prompt, curses.A_REVERSE)
+                stat.addstr(
+                    0,
+                    len(prompt),
+                    init_text
+                    if len(prompt + init_text) < cols
+                    else "..." + init_text[len(prompt) - cols + 4 :],
+                )
+                stat.refresh()
+        except KeyboardInterrupt:
+            stat.clear()
+            stat.refresh()
+            curses.echo(0)
+            safe_curs_set(0)
+            return
+
+    def searching(self, pad, src, width, y, ch, tot):
+        global SEARCHPATTERN
+        rows, cols = self.screen.getmaxyx()
+        if SPREAD == 2:
+            width = (cols - 7) // 2
+
+        x = (cols - width) // 2
+        if SPREAD == 1:
+            x = (cols - width) // 2
+        else:
+            x = 2
+
+        if SEARCHPATTERN is None:
+            candtext = self.input_prompt(" Regex:")
+            if candtext is None:
+                return y
+            elif isinstance(candtext, str):
+                SEARCHPATTERN = "/" + candtext
+            elif candtext == curses.KEY_RESIZE:
+                return candtext
+
+        if SEARCHPATTERN in {"?", "/"}:
+            SEARCHPATTERN = None
+            return y
+
+        found = []
+        try:
+            pattern = re.compile(SEARCHPATTERN[1:], re.IGNORECASE)
+        except re.error as reerrmsg:
+            SEARCHPATTERN = None
+            tmpk = errmsg("!Regex Error", str(reerrmsg), set())
+            return tmpk
+
+        for n, i in enumerate(src):
+            for j in pattern.finditer(i):
+                found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
+
+        if found == []:
+            if SEARCHPATTERN[0] == "/" and ch + 1 < tot:
+                return 1
+            elif SEARCHPATTERN[0] == "?" and ch > 0:
+                return -1
+            else:
+                s = 0
+                while True:
+                    if s in K["Quit"]:
+                        SEARCHPATTERN = None
+                        self.screen.clear()
+                        self.screen.refresh()
+                        return y
+                    elif s == ord("n") and ch == 0:
+                        SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
+                        return 1
+                    elif s == ord("N") and ch + 1 == tot:
+                        SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
+                        return -1
+
+                    self.screen.clear()
+                    self.screen.addstr(
+                        rows - 1,
+                        0,
+                        " Finished searching: " + SEARCHPATTERN[1 : cols - 22] + " ",
+                        curses.A_REVERSE,
+                    )
+                    self.screen.refresh()
+                    pad.refresh(y, 0, 0, x, rows - 2, x + width)
+                    if SPREAD == 2:
+                        if y + rows < len(src):
+                            pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
+                    s = pad.getch()
+
+        sidx = len(found) - 1
+        if SEARCHPATTERN[0] == "/":
+            if y > found[-1][0]:
+                return 1
+            for n, i in enumerate(found):
+                if i[0] >= y:
+                    sidx = n
+                    break
+
+        s = 0
+        msg = (
+            " Searching: "
+            + SEARCHPATTERN[1:]
+            + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
+        )
+        while True:
+            if s in K["Quit"]:
+                SEARCHPATTERN = None
+                for i in found:
+                    pad.chgat(i[0], i[1], i[2], pad.getbkgd())
+                pad.format()
+                self.screen.clear()
+                self.screen.refresh()
+                return y
+            elif s == ord("n"):
+                SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
+                if sidx == len(found) - 1:
+                    if ch + 1 < tot:
+                        return 1
+                    else:
+                        s = 0
+                        msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
+                        continue
+                else:
+                    sidx += 1
+                    msg = (
+                        " Searching: "
+                        + SEARCHPATTERN[1:]
+                        + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
+                    )
+            elif s == ord("N"):
+                SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
+                if sidx == 0:
+                    if ch > 0:
+                        return -1
+                    else:
+                        s = 0
+                        msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
+                        continue
+                else:
+                    sidx -= 1
+                    msg = (
+                        " Searching: "
+                        + SEARCHPATTERN[1:]
+                        + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
+                    )
+            elif s == curses.KEY_RESIZE:
+                return s
+
+            # TODO
+            if y + rows - 1 > pad.chunks[pad.find_chunkidx(y)]:
+                y = pad.chunks[pad.find_chunkidx(y)] + 1
+
+            while found[sidx][0] not in list(range(y, y + (rows - 1) * SPREAD)):
+                if found[sidx][0] > y:
+                    y += (rows - 1) * SPREAD
+                else:
+                    y -= (rows - 1) * SPREAD
+                    if y < 0:
+                        y = 0
+
+            for n, i in enumerate(found):
+                attr = curses.A_REVERSE if n == sidx else curses.A_NORMAL
+                pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
+
+            self.screen.clear()
+            self.screen.addstr(rows - 1, 0, msg, curses.A_REVERSE)
+            self.screen.refresh()
+            pad.refresh(y, 0, 0, x, rows - 2, x + width)
+            if SPREAD == 2:
+                if y + rows < len(src):
+                    pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
+            s = pad.getch()
+
+
     # def read(ebook, index, width, y, pctg, sect):
     def read(self, ebook, reading_state: ReadingState) -> ReadingState:
         global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
@@ -1766,13 +1771,11 @@ class Reader:
                         continue
                     elif k in K["DoubleSpreadToggle"]:
                         if cols < mincols_doublespr:
-                            k = text_win(
-                                lambda: (
+                            k = self.errmsg(
                                     "Screen is too small",
                                     "Min: {} cols x {} rows".format(mincols_doublespr, 12),
                                     {ord("D")},
                                 )
-                            )()
                         SPREAD = (SPREAD % 2) + 1
                         # return 0, width, 0, y / totlines, ""
                         # return dataclasses.replace(
@@ -1990,7 +1993,7 @@ class Reader:
                             )
                     elif k in K["TableOfContents"]:
                         if ebook.toc_entries == [[], [], []]:
-                            k = errmsg(
+                            k = self.errmsg(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
                                 K["TableOfContents"],
@@ -2003,7 +2006,7 @@ class Reader:
                             reading_state.content_index,
                             reading_state.row,
                         )
-                        rettock, fllwd, _ = toc(toc_name, ntoc)
+                        rettock, fllwd, _ = self.toc(toc_name, ntoc)
                         if rettock is not None:  # and rettock in WINKEYS:
                             k = rettock
                             continue
@@ -2025,11 +2028,11 @@ class Reader:
                                     section=toc_sect[fllwd],
                                 )
                     elif k in K["Metadata"]:
-                        k = meta(ebook)
+                        k = self.meta(ebook)
                         if k in WINKEYS:
                             continue
                     elif k in K["Help"]:
-                        k = help()
+                        k = self.help()
                         if k in WINKEYS:
                             continue
                     elif (
@@ -2095,7 +2098,7 @@ class Reader:
                     #     else:
                     #         return 0, cols - 2, 0, y/totlines, ""
                     elif k in K["RegexSearch"]:
-                        fs = searching(
+                        fs = self.searching(
                             pad,
                             src_lines,
                             reading_state.textwidth,
@@ -2103,6 +2106,8 @@ class Reader:
                             reading_state.content_index,
                             len(contents),
                         )
+                        # TODO: fix this! if y in WINKEYS, it would be problematic
+                        # like conjuring toc win
                         if fs in WINKEYS or fs is None:
                             k = fs
                             continue
@@ -2191,7 +2196,7 @@ class Reader:
                         while defbmname in occupiedbmnames:
                             defbmname_suffix += 1
                             defbmname = "Bookmark " + str(defbmname_suffix)
-                        bmname = input_prompt(" Add bookmark ({}):".format(defbmname))
+                        bmname = self.input_prompt(" Add bookmark ({}):".format(defbmname))
                         if bmname is not None:
                             if bmname.strip() == "":
                                 bmname = defbmname
@@ -2205,16 +2210,14 @@ class Reader:
                             )
                     elif k in K["ShowBookmarks"]:
                         if STATE["States"][ebook.path]["bmarks"] == []:
-                            k = text_win(
-                                lambda: (
+                            k = self.errmsg(
                                     "Bookmarks",
                                     "N/A: Bookmarks are not found in this book.",
                                     {ord("B")},
                                 )
-                            )()
                             continue
                         else:
-                            retk, idxchoice = bookmarks(ebook.path)
+                            retk, idxchoice = self.bookmarks(ebook.path)
                             if retk is not None:
                                 k = retk
                                 continue
@@ -2228,12 +2231,12 @@ class Reader:
                                     rel_pctg=bmtojump[3],
                                 )
                     elif k in K["DefineWord"] and DICT is not None:
-                        word = input_prompt(" Define:")
+                        word = self.input_prompt(" Define:")
                         if word == curses.KEY_RESIZE:
                             k = word
                             continue
                         elif word is not None:
-                            defin = define_word(word)
+                            defin = self.define_word(word)
                             if defin in WINKEYS:
                                 k = defin
                                 continue
@@ -2482,12 +2485,7 @@ def preread(stdscr, file):
         except Exception as e:
             sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
 
-        reading_state = ReadingState(
-            content_index=idx,
-            textwidth=width,
-            row=y,
-            rel_pctg=pctg,
-        )
+        reading_state = ReadingState(content_index=idx, textwidth=width, row=y, rel_pctg=pctg)
 
         find_media_viewer()
         find_dict_client()
