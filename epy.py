@@ -118,7 +118,6 @@ WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
 COLORSUPPORT = False
-SEARCHPATTERN = None
 VWR = None
 DICT = None
 SCREEN = None
@@ -786,7 +785,6 @@ class Board:
         self.y = y
 
 
-
 def show_loader(scr):
     scr.clear()
     rows, cols = scr.getmaxyx()
@@ -896,8 +894,6 @@ def pgend(tot, winhi):
         return 0
 
 
-
-
 def truncate(teks, subte, maxlen, startsub=0):
     if startsub > maxlen:
         raise ValueError("Var startsub cannot be bigger than maxlen.")
@@ -1000,8 +996,6 @@ def open_media(scr, name, bstr):
     finally:
         os.remove(path)
     return k
-
-
 
 
 def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
@@ -1124,6 +1118,7 @@ def speaking(text):
 class Reader:
     def __init__(self, screen):
         self.screen = screen
+        self.search_pattern = None
 
     def choice_win(allowdel=False):
         def inner_f(listgen):
@@ -1354,7 +1349,6 @@ class Reader:
 
         return wrapper
 
-
     @choice_win(True)
     def show_win_options(self, title, options, active_index, key_set):
         return title, options, active_index, key_set
@@ -1375,15 +1369,15 @@ class Reader:
             # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
         return "Metadata", mdata, K["Metadata"]
 
-
     @text_win
-    def help(self, ):
+    def help(self):
         src = "Key Bindings:\n"
         dig = max([len(i) for i in CFG["Keys"].values()]) + 2
         for i in CFG["Keys"].keys():
-            src += "{}  {}\n".format(CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i)))
+            src += "{}  {}\n".format(
+                CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
+            )
         return "Help", src, K["Help"]
-
 
     @text_win
     def errmsg(self, title, msg, key):
@@ -1497,7 +1491,6 @@ class Reader:
             return
 
     def searching(self, pad, src, width, y, ch, tot):
-        global SEARCHPATTERN
         rows, cols = self.screen.getmaxyx()
         if SPREAD == 2:
             width = (cols - 7) // 2
@@ -1508,24 +1501,24 @@ class Reader:
         else:
             x = 2
 
-        if SEARCHPATTERN is None:
+        if self.search_pattern is None:
             candtext = self.input_prompt(" Regex:")
             if candtext is None:
                 return y
             elif isinstance(candtext, str):
-                SEARCHPATTERN = "/" + candtext
+                self.search_pattern = "/" + candtext
             elif candtext == curses.KEY_RESIZE:
                 return candtext
 
-        if SEARCHPATTERN in {"?", "/"}:
-            SEARCHPATTERN = None
+        if self.search_pattern in {"?", "/"}:
+            self.search_pattern = None
             return y
 
         found = []
         try:
-            pattern = re.compile(SEARCHPATTERN[1:], re.IGNORECASE)
+            pattern = re.compile(self.search_pattern[1:], re.IGNORECASE)
         except re.error as reerrmsg:
-            SEARCHPATTERN = None
+            self.search_pattern = None
             tmpk = errmsg("!Regex Error", str(reerrmsg), set())
             return tmpk
 
@@ -1534,30 +1527,30 @@ class Reader:
                 found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
 
         if found == []:
-            if SEARCHPATTERN[0] == "/" and ch + 1 < tot:
+            if self.search_pattern[0] == "/" and ch + 1 < tot:
                 return 1
-            elif SEARCHPATTERN[0] == "?" and ch > 0:
+            elif self.search_pattern[0] == "?" and ch > 0:
                 return -1
             else:
                 s = 0
                 while True:
                     if s in K["Quit"]:
-                        SEARCHPATTERN = None
+                        self.search_pattern = None
                         self.screen.clear()
                         self.screen.refresh()
                         return y
                     elif s == ord("n") and ch == 0:
-                        SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
+                        self.search_pattern = "/" + self.search_pattern[1:]
                         return 1
                     elif s == ord("N") and ch + 1 == tot:
-                        SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
+                        self.search_pattern = "?" + self.search_pattern[1:]
                         return -1
 
                     self.screen.clear()
                     self.screen.addstr(
                         rows - 1,
                         0,
-                        " Finished searching: " + SEARCHPATTERN[1 : cols - 22] + " ",
+                        " Finished searching: " + self.search_pattern[1 : cols - 22] + " ",
                         curses.A_REVERSE,
                     )
                     self.screen.refresh()
@@ -1568,7 +1561,7 @@ class Reader:
                     s = pad.getch()
 
         sidx = len(found) - 1
-        if SEARCHPATTERN[0] == "/":
+        if self.search_pattern[0] == "/":
             if y > found[-1][0]:
                 return 1
             for n, i in enumerate(found):
@@ -1579,12 +1572,12 @@ class Reader:
         s = 0
         msg = (
             " Searching: "
-            + SEARCHPATTERN[1:]
+            + self.search_pattern[1:]
             + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
         )
         while True:
             if s in K["Quit"]:
-                SEARCHPATTERN = None
+                self.search_pattern = None
                 for i in found:
                     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
                 pad.format()
@@ -1592,35 +1585,35 @@ class Reader:
                 self.screen.refresh()
                 return y
             elif s == ord("n"):
-                SEARCHPATTERN = "/" + SEARCHPATTERN[1:]
+                self.search_pattern = "/" + self.search_pattern[1:]
                 if sidx == len(found) - 1:
                     if ch + 1 < tot:
                         return 1
                     else:
                         s = 0
-                        msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
+                        msg = " Finished searching: " + self.search_pattern[1:] + " "
                         continue
                 else:
                     sidx += 1
                     msg = (
                         " Searching: "
-                        + SEARCHPATTERN[1:]
+                        + self.search_pattern[1:]
                         + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
                     )
             elif s == ord("N"):
-                SEARCHPATTERN = "?" + SEARCHPATTERN[1:]
+                self.search_pattern = "?" + self.search_pattern[1:]
                 if sidx == 0:
                     if ch > 0:
                         return -1
                     else:
                         s = 0
-                        msg = " Finished searching: " + SEARCHPATTERN[1:] + " "
+                        msg = " Finished searching: " + self.search_pattern[1:] + " "
                         continue
                 else:
                     sidx -= 1
                     msg = (
                         " Searching: "
-                        + SEARCHPATTERN[1:]
+                        + self.search_pattern[1:]
                         + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
                     )
             elif s == curses.KEY_RESIZE:
@@ -1651,12 +1644,11 @@ class Reader:
                     pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
             s = pad.getch()
 
-
     # def read(ebook, index, width, y, pctg, sect):
     def read(self, ebook, reading_state: ReadingState) -> ReadingState:
         global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
-        k = 0 if SEARCHPATTERN is None else ord("/")
+        k = 0 if self.search_pattern is None else ord("/")
         rows, cols = self.screen.getmaxyx()
 
         mincols_doublespr = 2 + 22 + 3 + 22 + 2
@@ -1772,10 +1764,10 @@ class Reader:
                     elif k in K["DoubleSpreadToggle"]:
                         if cols < mincols_doublespr:
                             k = self.errmsg(
-                                    "Screen is too small",
-                                    "Min: {} cols x {} rows".format(mincols_doublespr, 12),
-                                    {ord("D")},
-                                )
+                                "Screen is too small",
+                                "Min: {} cols x {} rows".format(mincols_doublespr, 12),
+                                {ord("D")},
+                            )
                         SPREAD = (SPREAD % 2) + 1
                         # return 0, width, 0, y / totlines, ""
                         # return dataclasses.replace(
@@ -2111,7 +2103,7 @@ class Reader:
                         if fs in WINKEYS or fs is None:
                             k = fs
                             continue
-                        elif SEARCHPATTERN is not None:
+                        elif self.search_pattern is not None:
                             # return fs, width, 0, None, ""
                             return ReadingState(
                                 content_index=reading_state.content_index + fs,
@@ -2211,10 +2203,10 @@ class Reader:
                     elif k in K["ShowBookmarks"]:
                         if STATE["States"][ebook.path]["bmarks"] == []:
                             k = self.errmsg(
-                                    "Bookmarks",
-                                    "N/A: Bookmarks are not found in this book.",
-                                    {ord("B")},
-                                )
+                                "Bookmarks",
+                                "N/A: Bookmarks are not found in this book.",
+                                {ord("B")},
+                            )
                             continue
                         else:
                             retk, idxchoice = self.bookmarks(ebook.path)
