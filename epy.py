@@ -36,11 +36,11 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
+from typing import Optional, Union
 from difflib import SequenceMatcher as SM
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
-from typing import Optional
 from urllib.parse import unquote
 
 try:
@@ -126,19 +126,6 @@ SUMALLLETTERS = 0
 PROC_COUNTLETTERS = None
 ANIMATE = None
 SPREAD = 1
-
-
-@dataclasses.dataclass(frozen=True)
-class EbookFile:
-    rel_path: str
-
-    @property
-    def abs_path(self) -> str:
-        return os.path.abspath(self.rel_path)
-
-    @property
-    def ext(self) -> str:
-        return os.path.splitext(self.rel_path)[1]
 
 
 @dataclasses.dataclass
@@ -782,14 +769,6 @@ class Board:
         self.y = y
 
 
-def show_loader(scr):
-    scr.clear()
-    rows, cols = scr.getmaxyx()
-    scr.addstr((rows - 1) // 2, (cols - 1) // 2, "\u231B")
-    # scr.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
-    scr.refresh()
-
-
 def loadstate():
     global CFG, STATE, CFGFILE, STATEFILE
     prefix = ""
@@ -824,6 +803,73 @@ def loadstate():
 
     if sys.platform == "win32":
         CFG["PageScrollAnimation"] = False
+
+
+class AppData:
+    @property
+    def prefix_dir(self) -> Optional[str]:
+        prefix: Optional[str] = None
+        # UNIX filesystem
+        homedir = os.getenv("HOME")
+        # WIN filesystem
+        userdir = os.getenv("USERPROFILE")
+
+        if homedir is not None:
+            if os.path.isdir(os.path.join(homedir, ".config")):
+                prefix = os.path.join(homedir, ".config", "epy")
+            else:
+                prefix = os.path.join(homedir, ".epy")
+        elif userdir is not None:
+            prefix = os.path.join(userdir, ".epy")
+
+        if prefix:
+            os.makedirs(prefix, exist_ok=True)
+
+        return prefix
+
+
+class State(AppData):
+    def __init__(self):
+        with open(self.path) as f:
+            self.data = json.load(f)
+
+    @property
+    def path(self) -> str:
+        if self.prefix_dir:
+            state_file = os.path.join(self.prefix_dir, "state.json")
+            if os.path.isfile(state_file):
+                return state_file
+        return os.devnull
+
+    def get_last_reading_state(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> ReadingState:
+        if ebook.path in self.data["States"]:
+            return ReadingState(
+                content_index=self.data["States"][ebook.path]["index"],
+                textwidth=self.data["States"][ebook.path]["width"],
+                row=self.data["States"][ebook.path]["pos"],
+                rel_pctg=self.data["States"][ebook.path]["pctg"],
+            )
+        return ReadingState()
+
+
+def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
+    file_ext = os.path.splitext(filepath)[1]
+    if file_ext == ".epub":
+        return Epub(filepath)
+    elif file_ext == ".fb2":
+        return FictionBook(filepath)
+    elif MOBISUPPORT and file_ext == ".mobi":
+        return Mobi(filepath)
+    elif MOBISUPPORT and file_ext == ".azw3":
+        return Azw3(filepath)
+    elif not MOBISUPPORT and file_ext in {".mobi", ".azw3"}:
+        sys.exit(
+            """ERROR: Format not supported. (Supported: epub, fb2).
+To get mobi and azw3 support, install mobi module from pip.
+$ pip install mobi"""
+        )
+    else:
+        sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
 
 
 def parse_keys():
@@ -909,26 +955,6 @@ def safe_curs_set(state):
         curses.curs_set(state)
     except:
         return
-
-
-def det_ebook_cls(file):
-    filext = os.path.splitext(file)[1]
-    if filext == ".epub":
-        return Epub(file)
-    elif filext == ".fb2":
-        return FictionBook(file)
-    elif MOBISUPPORT and filext == ".mobi":
-        return Mobi(file)
-    elif MOBISUPPORT and filext == ".azw3":
-        return Azw3(file)
-    elif not MOBISUPPORT and filext in {".mobi", ".azw3"}:
-        sys.exit(
-            """ERROR: Format not supported. (Supported: epub, fb2).
-To get mobi and azw3 support, install mobi module from pip.
-   $ pip install mobi"""
-        )
-    else:
-        sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
 
 
 def dots_path(curr, tofi):
@@ -1063,10 +1089,35 @@ def speaking(text):
 
 
 class Reader:
-    def __init__(self, screen):
+    def __init__(
+        self, screen: curses.window, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State
+    ):
+
+        # screen initialization
         self.screen = screen
+        self.screen.keypad(True)
+        safe_curs_set(0)
+        if CFG["MouseSupport"]:
+            curses.mousemask(-1)
+        # curses.mouseinterval(0)
+        self.screen.clear()
+
+        self.show_loader()
+
+        # main ebook object
+        self.ebook = ebook
+        try:
+            self.ebook.initialize()
+        except Exception as e:
+            sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
+
+        # state
+        self.state = state
+
+        # search storage
         self.search_pattern: Optional[str] = None
 
+        # screen color
         self.is_color_supported: bool = False
         try:
             curses.use_default_colors()
@@ -1076,6 +1127,14 @@ class Reader:
             self.is_color_supported = True
         except:
             self.is_color_supported = False
+
+    @property
+    def screen_rows(self):
+        return self.screen.getmaxyx()[0]
+
+    @property
+    def screen_cols(self):
+        return self.screen.getmaxyx()[1]
 
     @property
     def ext_dict_app(self):
@@ -1142,6 +1201,13 @@ class Reader:
         finally:
             os.remove(path)
         return k
+
+    def show_loader(self):
+        self.screen.clear()
+        rows, cols = self.screen.getmaxyx()
+        self.screen.addstr((rows - 1) // 2, (cols - 1) // 2, "\u231B")
+        # self.screen.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
+        self.screen.refresh()
 
     def choice_win(allowdel=False):
         def inner_f(listgen):
@@ -1670,8 +1736,13 @@ class Reader:
                     pad.refresh(y + rows - 1, 0, 0, cols - 2 - width, rows - 2, cols - 2)
             s = pad.getch()
 
+    def cleanup(self):
+        self.ebook.cleanup()
+
     # def read(ebook, index, width, y, pctg, sect):
-    def read(self, ebook, reading_state: ReadingState) -> ReadingState:
+    def read(
+        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], reading_state: ReadingState
+    ) -> ReadingState:
         global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
         k = 0 if self.search_pattern is None else ord("/")
@@ -2456,45 +2527,22 @@ class Reader:
             sys.exit()
 
 
-def preread(stdscr, file):
+def preread(stdscr: curses.window, filepath: str) -> None:
     global SHOWPROGRESS, SCREEN, SPREAD
 
-    stdscr.keypad(True)
-    safe_curs_set(0)
-    if CFG["MouseSupport"]:
-        curses.mousemask(-1)
-    # curses.mouseinterval(0)
-    stdscr.clear()
-    _, cols = stdscr.getmaxyx()
-    show_loader(stdscr)
+    # TODO: redundant
+    ebook = get_ebook_obj(filepath)
+    state = State()
 
-    reader = Reader(stdscr)
-
-    ebook = det_ebook_cls(file)
+    reader = Reader(screen=stdscr, ebook=ebook, state=state)
 
     try:
-        if ebook.path in STATE["States"]:
-            idx = STATE["States"][ebook.path]["index"]
-            width = STATE["States"][ebook.path]["width"]
-            y = STATE["States"][ebook.path]["pos"]
+        reading_state = state.get_last_reading_state(reader.ebook)
+
+        if reader.screen_cols <= reading_state.textwidth + 4:
+            reading_state = dataclasses.replace(reading_state, textwidth=reader.screen_cols - 4)
         else:
-            STATE["States"][ebook.path] = {}
-            STATE["States"][ebook.path]["bmarks"] = []
-            idx = 0
-            y = 0
-            width = 80
-        pctg = None
-
-        if cols <= width + 4:
-            width = cols - 4
-            pctg = STATE["States"][ebook.path].get("pctg", None)
-
-        try:
-            ebook.initialize()
-        except Exception as e:
-            sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
-
-        reading_state = ReadingState(content_index=idx, textwidth=width, row=y, rel_pctg=pctg)
+            reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
         parse_keys()
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
@@ -2502,12 +2550,10 @@ def preread(stdscr, file):
         count_max_reading_pg(ebook)
 
         while True:
-            # incr, width, y, pctg, sec = reader(ebook, idx, width, y, pctg, sec)
-            # idx += incr
             reading_state = reader.read(ebook, reading_state)
-            show_loader(stdscr)
+            reader.show_loader()
     finally:
-        ebook.cleanup()
+        reader.cleanup()
 
 
 def main():
