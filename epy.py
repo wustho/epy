@@ -134,7 +134,7 @@ class Direction(Enum):
     BACKWARD = "backward"
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class ReadingState:
     content_index: int = 0
     textwidth: int = 80
@@ -142,11 +142,18 @@ class ReadingState:
     rel_pctg: Optional[float] = None
     section: str = ""
 
-@dataclasses.dataclass
+
+@dataclasses.dataclass(frozen=True)
 class SearchData:
     active: bool = False
     direction: Direction = Direction.FORWARD
     value: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class Button:
+    value: int
+
 
 class Epub:
     NS = {
@@ -1654,11 +1661,15 @@ class Reader:
                         return y
                     elif s == ord("n") and ch == 0:
                         # self.search_pattern = "/" + self.search_pattern[1:]
-                        self.search_data = dataclasses.replace(self.search_data, direction=Direction.FORWARD)
+                        self.search_data = dataclasses.replace(
+                            self.search_data, direction=Direction.FORWARD
+                        )
                         return 1
                     elif s == ord("N") and ch + 1 == tot:
                         # self.search_pattern = "?" + self.search_pattern[1:]
-                        self.search_data = dataclasses.replace(self.search_data, direction=Direction.BACKWARD)
+                        self.search_data = dataclasses.replace(
+                            self.search_data, direction=Direction.BACKWARD
+                        )
                         return -1
 
                     self.screen.clear()
@@ -1705,7 +1716,9 @@ class Reader:
                 return y
             elif s == ord("n"):
                 # self.search_pattern = "/" + self.search_pattern[1:]
-                self.search_data = dataclasses.replace(self.search_data, direction=Direction.FORWARD)
+                self.search_data = dataclasses.replace(
+                    self.search_data, direction=Direction.FORWARD
+                )
                 if sidx == len(found) - 1:
                     if ch + 1 < tot:
                         return 1
@@ -1724,7 +1737,9 @@ class Reader:
                     )
             elif s == ord("N"):
                 # self.search_pattern = "?" + self.search_pattern[1:]
-                self.search_data = dataclasses.replace(self.search_data, direction=Direction.BACKWARD)
+                self.search_data = dataclasses.replace(
+                    self.search_data, direction=Direction.BACKWARD
+                )
                 if sidx == 0:
                     if ch > 0:
                         return -1
