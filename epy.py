@@ -1616,8 +1616,10 @@ class Reader:
 
         # if self.search_pattern is None:
         if not self.search_data:
-            candidate_text: Union[int, str] = self.input_prompt(" Regex:")
-            if candidate_text is None:
+            candidate_text = self.input_prompt(" Regex:")
+            # if candidate_text is None:
+            if not candidate_text:
+                # self.search_data=None
                 return reading_state
             elif isinstance(candidate_text, str):
                 # self.search_pattern = "/" + candidate_text
@@ -1629,15 +1631,16 @@ class Reader:
 
         # if self.search_pattern in {"?", "/"}:
         #     self.search_pattern = None
-        if self.search_data.value == "":
+        # if self.search_data.value == "":
             # self.search_data = SearchData()
-            self.search_data = None
+            # self.search_data = None
             # return y
-            return reading_state
+            # return reading_state
 
         found = []
         try:
             # pattern = re.compile(self.search_pattern[1:], re.IGNORECASE)
+            # TODO: make sure self.search_date not None here
             pattern = re.compile(self.search_data.value, re.IGNORECASE)
         except re.error as reerrmsg:
             # self.search_pattern = None
