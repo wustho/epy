@@ -38,6 +38,7 @@ import zipfile
 
 from typing import Optional, Union, Tuple
 from difflib import SequenceMatcher as SM
+from enum import Enum
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
@@ -128,6 +129,11 @@ ANIMATE = None
 SPREAD = 1
 
 
+class Direction(Enum):
+    FORWARD = "forward"
+    BACKWARD = "backward"
+
+
 @dataclasses.dataclass
 class ReadingState:
     content_index: int = 0
@@ -136,6 +142,11 @@ class ReadingState:
     rel_pctg: Optional[float] = None
     section: str = ""
 
+@dataclasses.dataclass
+class SearchData:
+    active: bool = False
+    direction: Direction = Direction.FORWARD
+    value: str = ""
 
 class Epub:
     NS = {
@@ -1115,7 +1126,8 @@ class Reader:
         self.state = state
 
         # search storage
-        self.search_pattern: Optional[str] = None
+        # self.search_pattern: Optional[str] = None
+        self.search_data: SearchData = SearchData()
 
         # screen color
         self.is_color_supported: bool = False
@@ -1593,24 +1605,30 @@ class Reader:
         else:
             x = 2
 
-        if self.search_pattern is None:
-            candtext = self.input_prompt(" Regex:")
-            if candtext is None:
+        # if self.search_pattern is None:
+        if not self.search_data.active:
+            candidate_text: Union[int, str] = self.input_prompt(" Regex:")
+            if candidate_text is None:
                 return y
-            elif isinstance(candtext, str):
-                self.search_pattern = "/" + candtext
-            elif candtext == curses.KEY_RESIZE:
-                return candtext
+            elif isinstance(candidate_text, str):
+                # self.search_pattern = "/" + candidate_text
+                self.search_data = SearchData(active=True, value=candidate_text)
+            elif candidate_text == curses.KEY_RESIZE:
+                return candidate_text
 
-        if self.search_pattern in {"?", "/"}:
-            self.search_pattern = None
+        # if self.search_pattern in {"?", "/"}:
+        #     self.search_pattern = None
+        if self.search_data.value == "":
+            self.search_data = SearchData()
             return y
 
         found = []
         try:
-            pattern = re.compile(self.search_pattern[1:], re.IGNORECASE)
+            # pattern = re.compile(self.search_pattern[1:], re.IGNORECASE)
+            pattern = re.compile(self.search_data.value, re.IGNORECASE)
         except re.error as reerrmsg:
-            self.search_pattern = None
+            # self.search_pattern = None
+            self.search_data = SearchData()
             tmpk = self.errmsg("!Regex Error", str(reerrmsg), set())
             return tmpk
 
@@ -1619,30 +1637,36 @@ class Reader:
                 found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
 
         if found == []:
-            if self.search_pattern[0] == "/" and ch + 1 < tot:
+            # if self.search_pattern[0] == "/" and ch + 1 < tot:
+            if self.search_data.direction == Direction.FORWARD and ch + 1 < tot:
                 return 1
-            elif self.search_pattern[0] == "?" and ch > 0:
+            # elif self.search_pattern[0] == "?" and ch > 0:
+            elif self.search_data.direction == Direction.BACKWARD and ch > 0:
                 return -1
             else:
                 s = 0
                 while True:
                     if s in K["Quit"]:
-                        self.search_pattern = None
+                        # self.search_pattern = None
+                        self.search_data = SearchData()
                         self.screen.clear()
                         self.screen.refresh()
                         return y
                     elif s == ord("n") and ch == 0:
-                        self.search_pattern = "/" + self.search_pattern[1:]
+                        # self.search_pattern = "/" + self.search_pattern[1:]
+                        self.search_data = dataclasses.replace(self.search_data, direction=Direction.FORWARD)
                         return 1
                     elif s == ord("N") and ch + 1 == tot:
-                        self.search_pattern = "?" + self.search_pattern[1:]
+                        # self.search_pattern = "?" + self.search_pattern[1:]
+                        self.search_data = dataclasses.replace(self.search_data, direction=Direction.BACKWARD)
                         return -1
 
                     self.screen.clear()
                     self.screen.addstr(
                         rows - 1,
                         0,
-                        " Finished searching: " + self.search_pattern[1 : cols - 22] + " ",
+                        # " Finished searching: " + self.search_pattern[1 : cols - 22] + " ",
+                        " Finished searching: " + self.search_data.value[: cols - 22] + " ",
                         curses.A_REVERSE,
                     )
                     self.screen.refresh()
@@ -1653,7 +1677,8 @@ class Reader:
                     s = pad.getch()
 
         sidx = len(found) - 1
-        if self.search_pattern[0] == "/":
+        # if self.search_pattern[0] == "/":
+        if self.search_data.direction == Direction.FORWARD:
             if y > found[-1][0]:
                 return 1
             for n, i in enumerate(found):
@@ -1664,12 +1689,14 @@ class Reader:
         s = 0
         msg = (
             " Searching: "
-            + self.search_pattern[1:]
+            # + self.search_pattern[1:]
+            + self.search_data.value
             + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
         )
         while True:
             if s in K["Quit"]:
-                self.search_pattern = None
+                # self.search_pattern = None
+                self.search_data = SearchData()
                 for i in found:
                     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
                 pad.format()
@@ -1677,35 +1704,41 @@ class Reader:
                 self.screen.refresh()
                 return y
             elif s == ord("n"):
-                self.search_pattern = "/" + self.search_pattern[1:]
+                # self.search_pattern = "/" + self.search_pattern[1:]
+                self.search_data = dataclasses.replace(self.search_data, direction=Direction.FORWARD)
                 if sidx == len(found) - 1:
                     if ch + 1 < tot:
                         return 1
                     else:
                         s = 0
-                        msg = " Finished searching: " + self.search_pattern[1:] + " "
+                        # msg = " Finished searching: " + self.search_pattern[1:] + " "
+                        msg = " Finished searching: " + self.search_data.value + " "
                         continue
                 else:
                     sidx += 1
                     msg = (
                         " Searching: "
-                        + self.search_pattern[1:]
+                        # + self.search_pattern[1:]
+                        + self.search_data.value
                         + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
                     )
             elif s == ord("N"):
-                self.search_pattern = "?" + self.search_pattern[1:]
+                # self.search_pattern = "?" + self.search_pattern[1:]
+                self.search_data = dataclasses.replace(self.search_data, direction=Direction.BACKWARD)
                 if sidx == 0:
                     if ch > 0:
                         return -1
                     else:
                         s = 0
-                        msg = " Finished searching: " + self.search_pattern[1:] + " "
+                        # msg = " Finished searching: " + self.search_pattern[1:] + " "
+                        msg = " Finished searching: " + self.search_data.value + " "
                         continue
                 else:
                     sidx -= 1
                     msg = (
                         " Searching: "
-                        + self.search_pattern[1:]
+                        # + self.search_pattern[1:]
+                        + self.search_data.value
                         + " --- Res {}/{} Ch {}/{} ".format(sidx + 1, len(found), ch + 1, tot)
                     )
             elif s == curses.KEY_RESIZE:
@@ -1745,7 +1778,9 @@ class Reader:
     ) -> ReadingState:
         global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
-        k = 0 if self.search_pattern is None else ord("/")
+        # TODO: change ord("/") to read from cfg
+        # k = 0 if self.search_pattern is None else ord("/")
+        k = 0 if not self.search_data.active else ord("/")
         rows, cols = self.screen.getmaxyx()
 
         mincols_doublespr = 2 + 22 + 3 + 22 + 2
@@ -2200,7 +2235,8 @@ class Reader:
                         if fs in WINKEYS or fs is None:
                             k = fs
                             continue
-                        elif self.search_pattern is not None:
+                        # elif self.search_pattern is not None:
+                        elif self.search_data.active:
                             # return fs, width, 0, None, ""
                             return ReadingState(
                                 content_index=reading_state.content_index + fs,
