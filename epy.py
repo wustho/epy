@@ -115,7 +115,6 @@ WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
 SHOWPROGRESS = CFG["ShowProgressIndicator"]
-ANIMATE = None
 SPREAD = 1
 
 
@@ -1094,6 +1093,9 @@ class Reader:
         # state
         self.state = state
 
+        # page scroll animation
+        self.page_animation: Optional[Direction] = None
+
         # search storage
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
@@ -1926,7 +1928,7 @@ class Reader:
 
     # def read(ebook, index, width, y, pctg, sect):
     def read(self, reading_state: ReadingState) -> ReadingState:
-        global SHOWPROGRESS, ANIMATE, SPREAD
+        global SHOWPROGRESS, SPREAD
 
         # TODO: change ord("/") to read from cfg
         # k = 0 if self.search_pattern is None else ord("/")
@@ -2072,7 +2074,7 @@ class Reader:
                                 reading_state, row=reading_state.row - count
                             )
                         elif reading_state.row == 0 and reading_state.content_index != 0:
-                            ANIMATE = "prev"
+                            self.page_animation = Direction.BACKWARD
                             # return -1, width, -rows, None, ""
                             # return dataclasses.replace(
                             #     reading_state,
@@ -2091,7 +2093,7 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=0)
                     elif k in K["PageUp"]:
                         if reading_state.row == 0 and reading_state.content_index != 0:
-                            ANIMATE = "prev"
+                            self.page_animation = Direction.BACKWARD
                             tmp_parser = HTMLtoLines()
                             tmp_parser.feed(
                                 self.ebook.get_raw_text(contents[reading_state.content_index - 1])
@@ -2118,7 +2120,7 @@ class Reader:
                             )
                         else:
                             if reading_state.row >= rows * SPREAD * count:
-                                ANIMATE = "prev"
+                                self.page_animation = Direction.BACKWARD
                                 # y -= rows * SPREAD * count
                                 reading_state = dataclasses.replace(
                                     reading_state, row=reading_state.row - (rows * SPREAD * count)
@@ -2141,7 +2143,7 @@ class Reader:
                             reading_state.row >= totlines - rows
                             and reading_state.content_index != len(contents) - 1
                         ):
-                            ANIMATE = "next"
+                            self.page_animation = Direction.FORWARD
                             # return 1, width, 0, None, ""
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
@@ -2152,7 +2154,7 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
                     elif k in K["PageDown"]:
                         if totlines - reading_state.row > rows * SPREAD:
-                            ANIMATE = "next"
+                            self.page_animation = Direction.FORWARD
                             if (
                                 reading_state.row + (rows * SPREAD)
                                 > pad.chunks[pad.find_chunkidx(reading_state.row)]
@@ -2170,7 +2172,7 @@ class Reader:
                             # self.screen.clear()
                             # self.screen.refresh()
                         elif reading_state.content_index != len(contents) - 1:
-                            ANIMATE = "next"
+                            self.page_animation = Direction.FORWARD
                             # return 1, width, 0, None, ""
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
@@ -2595,7 +2597,7 @@ class Reader:
                     self.screen.clear()
                     self.screen.addstr(0, 0, countstring)
                     self.screen.refresh()
-                    if CFG["PageScrollAnimation"] and ANIMATE is not None:
+                    if CFG["PageScrollAnimation"] and self.page_animation is not None:
                         for i in range(reading_state.textwidth + 1):
                             curses.napms(1)
                             # to optimize performance
@@ -2605,7 +2607,7 @@ class Reader:
                                 # but just to be safe
                                 self.screen.clear()
                                 self.screen.refresh()
-                            if ANIMATE == "next":
+                            if self.page_animation == Direction.FORWARD:
                                 pad.refresh(
                                     reading_state.row,
                                     0,
@@ -2623,7 +2625,7 @@ class Reader:
                                         rows - 1,
                                         cols - 2,
                                     )
-                            elif ANIMATE == "prev":
+                            if self.page_animation == Direction.BACKWARD:
                                 pad.refresh(
                                     reading_state.row,
                                     reading_state.textwidth - i - 1,
@@ -2654,7 +2656,7 @@ class Reader:
                                 rows - 1,
                                 cols - 2,
                             )
-                    ANIMATE = None
+                    self.page_animation = None
 
                     # check self._process
                     if isinstance(self._process_counting_letter, multiprocessing.Process):
