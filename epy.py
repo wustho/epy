@@ -148,6 +148,7 @@ class SearchData:
     direction: Direction = Direction.FORWARD
     value: str = ""
 
+
 @dataclass(frozen=True)
 class LettersCount:
     """
@@ -158,6 +159,7 @@ class LettersCount:
                     50 is total cumulative letters of book contents[0] to contents[1]
                     89 is total cumulative letters of book contents[0] to contents[2]
     """
+
     all: int
     cumulative: Tuple[int, ...]
 
@@ -175,8 +177,16 @@ class LettersCount:
 #         return cls(ord(char))
 class Key:
     def __init__(self, char_or_int: Optional[Union[str, int]]):
-        self.value: Optional[int] = (char_or_int if isinstance(char_or_int, int) else ord(char_or_int)) if char_or_int else None
-        self.char: Optional[str] = (char_or_int if isinstance(char_or_int, str) else chr(char_or_int)) if char_or_int else None
+        self.value: Optional[int] = (
+            (char_or_int if isinstance(char_or_int, int) else ord(char_or_int))
+            if char_or_int
+            else None
+        )
+        self.char: Optional[str] = (
+            (char_or_int if isinstance(char_or_int, str) else chr(char_or_int))
+            if char_or_int
+            else None
+        )
 
     # def __setattr__(self, *args):
     #     raise TypeError
@@ -189,7 +199,7 @@ class Key:
     def __ne__(self, other):
         return self.__eq__(other)
 
-    
+
 class Epub:
     NS = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
@@ -1153,7 +1163,6 @@ class Reader:
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
 
-
         # multi process & progress percentage
         self._multiprocess_support: bool = False if multiprocessing.cpu_count() == 1 else True
         self._process_counting_letter: Optional[multiprocessing.Process] = None
@@ -1661,10 +1670,10 @@ class Reader:
         # if self.search_pattern in {"?", "/"}:
         #     self.search_pattern = None
         # if self.search_data.value == "":
-            # self.search_data = SearchData()
-            # self.search_data = None
-            # return y
-            # return reading_state
+        # self.search_data = SearchData()
+        # self.search_data = None
+        # return y
+        # return reading_state
 
         found = []
         try:
@@ -1692,7 +1701,9 @@ class Reader:
             ):
                 # return 1
                 # return dataclasses.replace(reading_state, content_index=reading_state.content_index+1)
-                return ReadingState(content_index=reading_state.content_index+1, textwidth=reading_state.textwidth)
+                return ReadingState(
+                    content_index=reading_state.content_index + 1, textwidth=reading_state.textwidth
+                )
             # elif self.search_pattern[0] == "?" and ch > 0:
             elif (
                 self.search_data.direction == Direction.BACKWARD and reading_state.content_index > 0
@@ -1700,7 +1711,9 @@ class Reader:
                 # return -1
                 # return dataclasses.replace(reading_state, row=-1)
                 # return dataclasses.replace(reading_state, content_index=reading_state.content_index-1)
-                return ReadingState(content_index=reading_state.content_index-1, textwidth=reading_state.textwidth)
+                return ReadingState(
+                    content_index=reading_state.content_index - 1, textwidth=reading_state.textwidth
+                )
             else:
                 s = 0
                 while True:
@@ -1721,7 +1734,10 @@ class Reader:
                         # return 1
                         # return dataclasses.replace(reading_state, row=1)
                         # return dataclasses.replace(reading_state, content_index=reading_state.content_index+1)
-                        return ReadingState(content_index=reading_state.content_index+1, textwidth=reading_state.textwidth)
+                        return ReadingState(
+                            content_index=reading_state.content_index + 1,
+                            textwidth=reading_state.textwidth,
+                        )
                     elif s == ord("N") and reading_state.content_index + 1 == tot:
                         # self.search_pattern = "?" + self.search_pattern[1:]
                         self.search_data = dataclasses.replace(
@@ -1730,7 +1746,10 @@ class Reader:
                         # return -1
                         # return dataclasses.replace(reading_state, row=-1)
                         # return dataclasses.replace(reading_state, content_index=reading_state.content_index-1)
-                        return ReadingState(content_index=reading_state.content_index-1, textwidth=reading_state.textwidth)
+                        return ReadingState(
+                            content_index=reading_state.content_index - 1,
+                            textwidth=reading_state.textwidth,
+                        )
 
                     self.screen.clear()
                     self.screen.addstr(
@@ -1761,7 +1780,9 @@ class Reader:
                 # return 1
                 # return dataclasses.replace(reading_state, row=1)
                 # return dataclasses.replace(reading_state, content_index=reading_state.content_index+1)
-                return ReadingState(content_index=reading_state.content_index+1, textwidth=reading_state.textwidth)
+                return ReadingState(
+                    content_index=reading_state.content_index + 1, textwidth=reading_state.textwidth
+                )
             for n, i in enumerate(found):
                 if i[0] >= reading_state.row:
                     sidx = n
@@ -1798,7 +1819,10 @@ class Reader:
                         # return 1
                         # return dataclasses.replace(reading_state, row=1)
                         # return dataclasses.replace(reading_state, content_index=reading_state.content_index+1)
-                        return ReadingState(content_index=reading_state.content_index+1, textwidth=reading_state.textwidth)
+                        return ReadingState(
+                            content_index=reading_state.content_index + 1,
+                            textwidth=reading_state.textwidth,
+                        )
                     else:
                         s = 0
                         # msg = " Finished searching: " + self.search_pattern[1:] + " "
@@ -1824,7 +1848,10 @@ class Reader:
                         # return -1
                         # return dataclasses.replace(reading_state, row=-1)
                         # return dataclasses.replace(reading_state, content_index=reading_state.content_index-1)
-                        return ReadingState(content_index=reading_state.content_index-1, textwidth=reading_state.textwidth)
+                        return ReadingState(
+                            content_index=reading_state.content_index - 1,
+                            textwidth=reading_state.textwidth,
+                        )
                     else:
                         s = 0
                         # msg = " Finished searching: " + self.search_pattern[1:] + " "
@@ -1892,9 +1919,11 @@ class Reader:
 
     def cleanup(self):
         self.ebook.cleanup()
-        if isinstance(self._process_counting_letter, multiprocessing.Process) and self._process_counting_letter.is_alive():
-            self._process_counting_letter.terminate()
-            self._process_counting_letter.close()
+
+        if isinstance(self._process_counting_letter, multiprocessing.Process):
+            if self._process_counting_letter.is_alive():
+                self._process_counting_letter.terminate()
+                self._process_counting_letter.close()
 
     # def read(ebook, index, width, y, pctg, sect):
     def read(
@@ -2649,16 +2678,18 @@ class Reader:
                             self._process_counting_letter = None
 
                     if (
-                            SHOWPROGRESS
-                            and (cols - reading_state.textwidth - 2) // 2 > 3
-                            and self.letters_count
+                        SHOWPROGRESS
+                        and (cols - reading_state.textwidth - 2) // 2 > 3
+                        and self.letters_count
                     ):
                         reading_progress = (
-                                           self.letters_count.cumulative[reading_state.content_index]
-                                           + sum(LOCALPCTG[: reading_state.row + rows - 1])
-                                   ) / self.letters_count.all
+                            self.letters_count.cumulative[reading_state.content_index]
+                            + sum(LOCALPCTG[: reading_state.row + rows - 1])
+                        ) / self.letters_count.all
                         reading_progress_str = "{}%".format(int(reading_progress * 100))
-                        self.screen.addstr(0, cols - len(reading_progress_str), reading_progress_str)
+                        self.screen.addstr(
+                            0, cols - len(reading_progress_str), reading_progress_str
+                        )
 
                     self.screen.refresh()
                 except curses.error:
