@@ -36,7 +36,8 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Tuple
+from typing import Optional, Union, Tuple, List
+from dataclasses import dataclass
 from difflib import SequenceMatcher as SM
 from enum import Enum
 from functools import wraps
@@ -121,7 +122,6 @@ STATEFILE = ""
 SCREEN = None
 JUMPLIST = {}
 SHOWPROGRESS = CFG["ShowProgressIndicator"]
-MULTIPROC = False if multiprocessing.cpu_count() == 1 else True
 ALLPREVLETTERS = []
 SUMALLLETTERS = 0
 PROC_COUNTLETTERS = None
@@ -134,7 +134,7 @@ class Direction(Enum):
     BACKWARD = "backward"
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class ReadingState:
     content_index: int = 0
     textwidth: int = 80
@@ -143,17 +143,53 @@ class ReadingState:
     section: str = ""
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class SearchData:
     direction: Direction = Direction.FORWARD
     value: str = ""
 
+@dataclass(frozen=True)
+class LettersCount:
+    """
+    all: total letters in book
+    cumulative: list of total letters for previous contents
+                eg. let's say cumulative = (0, 50, 89, ...) it means
+                    0  is total cumulative letters of book contents[-1] to contents[0]
+                    50 is total cumulative letters of book contents[0] to contents[1]
+                    89 is total cumulative letters of book contents[0] to contents[2]
+    """
+    all: int
+    cumulative: Tuple[int, ...]
 
-@dataclasses.dataclass(frozen=True)
-class Button:
-    value: int
 
+# @dataclass(frozen=True)
+# class Key:
+#     value: int
+#
+#     @property
+#     def char(self) -> str:
+#         return chr(self.value)
+#
+#     @classmethod
+#     def from_char(cls, char: str) -> "Key":
+#         return cls(ord(char))
+class Key:
+    def __init__(self, char_or_int: Optional[Union[str, int]]):
+        self.value: Optional[int] = (char_or_int if isinstance(char_or_int, int) else ord(char_or_int)) if char_or_int else None
+        self.char: Optional[str] = (char_or_int if isinstance(char_or_int, str) else chr(char_or_int)) if char_or_int else None
 
+    # def __setattr__(self, *args):
+    #     raise TypeError
+    #
+    def __eq__(self, other):
+        if isinstance(other, Key):
+            return self.value == other.value
+        return False
+
+    def __ne__(self, other):
+        return self.__eq__(other)
+
+    
 class Epub:
     NS = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
@@ -920,14 +956,14 @@ def savestate(file, index, width, pos, pctg):
     with open(STATEFILE, "w") as f:
         json.dump(STATE, f, indent=4)
 
-    if MULTIPROC:
-        # PROC_COUNTLETTERS.terminate()
-        # PROC_COUNTLETTERS.kill()
-        # PROC_COUNTLETTERS.join()
-        try:
-            PROC_COUNTLETTERS.kill()
-        except AttributeError:
-            PROC_COUNTLETTERS.terminate()
+    # if MULTIPROC:
+    #     # PROC_COUNTLETTERS.terminate()
+    #     # PROC_COUNTLETTERS.kill()
+    #     # PROC_COUNTLETTERS.join()
+    #     try:
+    #         PROC_COUNTLETTERS.kill()
+    #     except AttributeError:
+    #         PROC_COUNTLETTERS.terminate()
 
 
 def pgup(pos, winhi, preservedline=0, c=1):
@@ -999,25 +1035,9 @@ def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
     return ntoc
 
 
-def count_pct_async(ebook, allprev, sumlet):
-    perch = []
-    for n, i in enumerate(ebook.contents):
-        content = ebook.get_raw_text(i)
-        parser = HTMLtoLines()
-        # try:
-        parser.feed(content)
-        parser.close()
-        # except:
-        #     pass
-        src_lines = parser.get_lines()
-        allprev[n] = sum(perch)
-        perch.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
-    sumlet.value = sum(perch)
-
-
-def count_pct(ebook):
-    perch = []
-    allprev = []
+def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
+    per_content_counts: List[int] = []
+    cumulative_counts: List[int] = []
     for i in ebook.contents:
         content = ebook.get_raw_text(i)
         parser = HTMLtoLines()
@@ -1027,29 +1047,15 @@ def count_pct(ebook):
         # except:
         #     pass
         src_lines = parser.get_lines()
-        allprev.append(sum(perch))
-        perch.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
-    sumlet = sum(perch)
-    return allprev, sumlet
+        cumulative_counts.append(sum(per_content_counts))
+        per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
+
+    return LettersCount(all=sum(per_content_counts), cumulative=cumulative_counts)
 
 
-def count_max_reading_pg(ebook):
-    global ALLPREVLETTERS, SUMALLLETTERS, PROC_COUNTLETTERS, MULTIPROC
-
-    if MULTIPROC:
-        try:
-            ALLPREVLETTERS = multiprocessing.Array("i", len(ebook.contents))
-            SUMALLLETTERS = multiprocessing.Value("i", 0)
-            PROC_COUNTLETTERS = multiprocessing.Process(
-                target=count_pct_async, args=(ebook, ALLPREVLETTERS, SUMALLLETTERS)
-            )
-            # forking PROC_COUNTLETTERS will raise
-            # zlib.error: Error -3 while decompressing data: invalid distance too far back
-            PROC_COUNTLETTERS.start()
-        except:
-            MULTIPROC = False
-    if not MULTIPROC:
-        ALLPREVLETTERS, SUMALLLETTERS = count_pct(ebook)
+def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_conn):
+    child_conn.send(count_letters(ebook))
+    child_conn.close()
 
 
 def speaking(text):
@@ -1119,6 +1125,18 @@ class Reader:
         # curses.mouseinterval(0)
         self.screen.clear()
 
+        # screen color
+        self.is_color_supported: bool = False
+        try:
+            curses.use_default_colors()
+            curses.init_pair(1, -1, -1)
+            curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
+            curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
+            self.is_color_supported = True
+        except:
+            self.is_color_supported = False
+
+        # show loader and start heavy resources processes
         self.show_loader()
 
         # main ebook object
@@ -1135,16 +1153,26 @@ class Reader:
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
 
-        # screen color
-        self.is_color_supported: bool = False
-        try:
-            curses.use_default_colors()
-            curses.init_pair(1, -1, -1)
-            curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
-            curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
-            self.is_color_supported = True
-        except:
-            self.is_color_supported = False
+
+        # multi process & progress percentage
+        self._multiprocess_support: bool = False if multiprocessing.cpu_count() == 1 else True
+        self._process_counting_letter: Optional[multiprocessing.Process] = None
+        self.letters_count: Optional[LettersCount] = None
+
+    def run_counting_letters(self, ebook):
+        if self._multiprocess_support:
+            try:
+                self._proc_parent, self._proc_child = multiprocessing.Pipe()
+                self._process_counting_letter = multiprocessing.Process(
+                    target=count_letters_parallel, args=(ebook, self._proc_child)
+                )
+                # forking PROC_COUNTLETTERS will raise
+                # zlib.error: Error -3 while decompressing data: invalid distance too far back
+                self._process_counting_letter.start()
+            except:
+                self._multiprocess_support = False
+        if not self._multiprocess_support:
+            self.letters_count = count_letters(ebook)
 
     @property
     def screen_rows(self):
@@ -1452,6 +1480,7 @@ class Reader:
 
             textw.clear()
             textw.refresh()
+            # TODO: do not return None
             return
 
         return wrapper
@@ -1601,7 +1630,7 @@ class Reader:
             return
 
     # def searching(self, pad, src, width, y, ch, tot):
-    def searching(self, pad, src, reading_state: ReadingState, tot) -> Union[ReadingState, Button]:
+    def searching(self, pad, src, reading_state: ReadingState, tot) -> Union[ReadingState, Key]:
         rows, cols = self.screen.getmaxyx()
         if SPREAD == 2:
             # TODO: maybe dont change textwidth but make a copy?
@@ -1627,7 +1656,7 @@ class Reader:
                 self.search_data = SearchData(value=candidate_text)
             elif candidate_text == curses.KEY_RESIZE:
                 # return candidate_text
-                return Button(value=candidate_text)
+                return Key(candidate_text)
 
         # if self.search_pattern in {"?", "/"}:
         #     self.search_pattern = None
@@ -1648,7 +1677,8 @@ class Reader:
             self.search_data = None
             tmpk = self.errmsg("!Regex Error", str(reerrmsg), set())
             # return tmpk
-            return Button(value=tmpk)
+            # TODO: catch for None
+            return Key(tmpk)
 
         for n, i in enumerate(src):
             for j in pattern.finditer(i):
@@ -1812,7 +1842,7 @@ class Reader:
                     )
             elif s == curses.KEY_RESIZE:
                 # return s
-                return Button(value=s)
+                return Key(s)
 
             # TODO
             if reading_state.row + rows - 1 > pad.chunks[pad.find_chunkidx(reading_state.row)]:
@@ -1862,6 +1892,9 @@ class Reader:
 
     def cleanup(self):
         self.ebook.cleanup()
+        if isinstance(self._process_counting_letter, multiprocessing.Process) and self._process_counting_letter.is_alive():
+            self._process_counting_letter.terminate()
+            self._process_counting_letter.close()
 
     # def read(ebook, index, width, y, pctg, sect):
     def read(
@@ -2313,7 +2346,7 @@ class Reader:
                     #     else:
                     #         return 0, cols - 2, 0, y/totlines, ""
                     elif k in K["RegexSearch"]:
-                        fs = self.searching(
+                        ret_object = self.searching(
                             pad,
                             src_lines,
                             reading_state,
@@ -2323,25 +2356,26 @@ class Reader:
                             len(contents),
                         )
                         # TODO: fix this! if y in WINKEYS, it would be problematic
+                        # TODO: handle ret_object is None
                         # like conjuring toc win
-                        # if fs in WINKEYS or fs is None:
-                        if isinstance(fs, Button):
-                            # k = fs
-                            k = fs.value
+                        # if ret_object in WINKEYS or ret_object is None:
+                        if isinstance(ret_object, Key):
+                            # k = ret_object
+                            k = ret_object.value
                             continue
                         # elif self.search_pattern is not None:
-                        elif isinstance(fs, ReadingState) and self.search_data:
-                            # return fs, width, 0, None, ""
+                        elif isinstance(ret_object, ReadingState) and self.search_data:
+                            # return ret_object, width, 0, None, ""
                             # return ReadingState(
-                            #     content_index=reading_state.content_index + fs,
+                            #     content_index=reading_state.content_index + ret_object,
                             #     textwidth=reading_state.textwidth,
                             # )
-                            return fs
+                            return ret_object
                         # else:
-                        elif isinstance(fs, ReadingState):
-                            # y = fs
-                            reading_state = fs
-                            # reading_state = dataclasses.replace(reading_state, row=fs)
+                        elif isinstance(ret_object, ReadingState):
+                            # y = ret_object
+                            reading_state = ret_object
+                            # reading_state = dataclasses.replace(reading_state, row=ret_object)
                     elif k in K["OpenImage"] and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
@@ -2605,18 +2639,27 @@ class Reader:
                             )
                     ANIMATE = None
 
-                    LOCALSUMALLL = SUMALLLETTERS.value if MULTIPROC else SUMALLLETTERS
+                    # check self._process
+                    if isinstance(self._process_counting_letter, multiprocessing.Process):
+                        if self._process_counting_letter.exitcode == 0:
+                            self.letters_count = self._proc_parent.recv()
+                            self._proc_parent.close()
+                            self._process_counting_letter.terminate()
+                            self._process_counting_letter.close()
+                            self._process_counting_letter = None
+
                     if (
-                        SHOWPROGRESS
-                        and (cols - reading_state.textwidth - 2) // 2 > 3
-                        and LOCALSUMALLL != 0
+                            SHOWPROGRESS
+                            and (cols - reading_state.textwidth - 2) // 2 > 3
+                            and self.letters_count
                     ):
-                        PROGRESS = (
-                            ALLPREVLETTERS[reading_state.content_index]
-                            + sum(LOCALPCTG[: reading_state.row + rows - 1])
-                        ) / LOCALSUMALLL
-                        PROGRESSTR = "{}%".format(int(PROGRESS * 100))
-                        self.screen.addstr(0, cols - len(PROGRESSTR), PROGRESSTR)
+                        reading_progress = (
+                                           self.letters_count.cumulative[reading_state.content_index]
+                                           + sum(LOCALPCTG[: reading_state.row + rows - 1])
+                                   ) / self.letters_count.all
+                        reading_progress_str = "{}%".format(int(reading_progress * 100))
+                        self.screen.addstr(0, cols - len(reading_progress_str), reading_progress_str)
+
                     self.screen.refresh()
                 except curses.error:
                     pass
@@ -2679,7 +2722,8 @@ def preread(stdscr: curses.window, filepath: str) -> None:
         parse_keys()
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
         SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
-        count_max_reading_pg(ebook)
+        # count_max_reading_pg(ebook)
+        reader.run_counting_letters(ebook)
 
         while True:
             reading_state = reader.read(ebook, reading_state)
