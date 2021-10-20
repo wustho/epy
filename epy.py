@@ -114,7 +114,6 @@ K = {
 WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
-JUMPLIST = {}
 SHOWPROGRESS = CFG["ShowProgressIndicator"]
 ANIMATE = None
 SPREAD = 1
@@ -1059,8 +1058,6 @@ def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_co
     child_conn.close()
 
 
-
-
 class Reader:
     def __init__(self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State):
 
@@ -1100,6 +1097,9 @@ class Reader:
         # search storage
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
+
+        # jumps marker container
+        self.jump_list: Mapping[str, ReadingState] = dict()
 
         # TTS speaker utils
         self._tts_support: bool = any([shutil.which("pico2wave"), shutil.which("play")])
@@ -1869,7 +1869,9 @@ class Reader:
         try:
             _, path = tempfile.mkstemp(suffix=".wav")
             subprocess.call(
-                ["pico2wave", "-w", path, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                ["pico2wave", "-w", path, text],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
             speaker = subprocess.Popen(
                 ["play", path, "tempo", str(CFG["TTSSpeed"])],
@@ -1895,9 +1897,9 @@ class Reader:
                     elif mouse_event[4] == 2097152:
                         k = list(K["ScrollDown"])[0]
                 # if k != -1:
-                if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K["ScrollDown"] | {
-                    curses.KEY_RESIZE
-                }:
+                if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K[
+                    "ScrollDown"
+                ] | {curses.KEY_RESIZE}:
                     speaker.terminate()
                     # speaker.kill()
                     break
@@ -2523,32 +2525,23 @@ class Reader:
                     elif k in K["MarkPosition"]:
                         jumnum = pad.getch()
                         if jumnum in range(49, 58):
-                            JUMPLIST[chr(jumnum)] = [
-                                reading_state.content_index,
-                                reading_state.textwidth,
-                                reading_state.row,
-                                reading_state.row / totlines,
-                            ]
+                            self.jump_list[chr(jumnum)] = reading_state
                         else:
                             k = jumnum
                             continue
                     elif k in K["JumpToPosition"]:
                         jumnum = pad.getch()
-                        if jumnum in range(49, 58) and chr(jumnum) in JUMPLIST.keys():
-                            tojumpidx = JUMPLIST[chr(jumnum)][0]
-                            tojumpy = JUMPLIST[chr(jumnum)][2]
-                            tojumpctg = (
-                                None
-                                if JUMPLIST[chr(jumnum)][1] == reading_state.textwidth
-                                else JUMPLIST[chr(jumnum)][3]
+                        if jumnum in range(49, 58) and chr(jumnum) in self.jump_list.keys():
+                            marked_reading_state = self.jump_list[chr(jumnum)]
+                            return dataclasses.replace(
+                                marked_reading_state,
+                                textwidth=reading_state.textwidth,
+                                rel_pctg=None
+                                if marked_reading_state.textwidth == reading_state.textwidth
+                                else marked_reading_state.rel_pctg,
+                                section="",
                             )
                             # return tojumpidxdiff, width, tojumpy, tojumpctg, ""
-                            return ReadingState(
-                                content_index=tojumpidx,
-                                textwidth=reading_state.textwidth,
-                                row=tojumpy,
-                                rel_pctg=tojumpctg,
-                            )
                         else:
                             k = jumnum
                             continue
