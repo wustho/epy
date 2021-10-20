@@ -1503,11 +1503,11 @@ class Reader:
         return "Table of Contents", src, index, K["TableOfContents"]
 
     @text_win
-    def meta(self, ebook):
+    def show_win_metadata(self):
         mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
-            ebook.path, round(os.path.getsize(ebook.path) / 1024 ** 2, 2)
+            self.ebook.path, round(os.path.getsize(self.ebook.path) / 1024 ** 2, 2)
         )
-        for i in ebook.get_meta():
+        for i in self.ebook.get_meta():
             data = re.sub("<[^>]*>", "", i[1])
             mdata += i[0].upper() + ": " + data + "\n"
             data = re.sub("\t", "", data)
@@ -1515,7 +1515,7 @@ class Reader:
         return "Metadata", mdata, K["Metadata"]
 
     @text_win
-    def help(self):
+    def show_win_help(self):
         src = "Key Bindings:\n"
         dig = max([len(i) for i in CFG["Keys"].values()]) + 2
         for i in CFG["Keys"].keys():
@@ -1525,7 +1525,7 @@ class Reader:
         return "Help", src, K["Help"]
 
     @text_win
-    def errmsg(self, title, msg, key):
+    def show_win_error(self, title, msg, key):
         return title, msg, key
 
     @text_win
@@ -1556,15 +1556,15 @@ class Reader:
         else:
             return "Error: " + self.ext_dict_app, err.decode(), K["DefineWord"]
 
-    def bookmarks(self, ebookpath):
+    def show_win_choices_bookmarks(self):
         idx = 0
         while True:
-            bmarkslist = [i[0] for i in STATE["States"][ebookpath]["bmarks"]]
+            bmarkslist = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
             if bmarkslist == []:
                 return list(K["ShowBookmarks"])[0], None
             retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, {ord("B")})
             if todel is not None:
-                del STATE["States"][ebookpath]["bmarks"][todel]
+                del STATE["States"][self.ebook.path]["bmarks"][todel]
             else:
                 return retk, idx
 
@@ -1684,7 +1684,7 @@ class Reader:
             # self.search_pattern = None
             # self.search_data = SearchData()
             self.search_data = None
-            tmpk = self.errmsg("!Regex Error", str(reerrmsg), set())
+            tmpk = self.show_win_error("!Regex Error", str(reerrmsg), set())
             # return tmpk
             # TODO: catch for None
             return Key(tmpk)
@@ -2050,7 +2050,7 @@ class Reader:
                         continue
                     elif k in K["DoubleSpreadToggle"]:
                         if cols < mincols_doublespr:
-                            k = self.errmsg(
+                            k = self.show_win_error(
                                 "Screen is too small",
                                 "Min: {} cols x {} rows".format(mincols_doublespr, 12),
                                 {ord("D")},
@@ -2272,7 +2272,7 @@ class Reader:
                             )
                     elif k in K["TableOfContents"]:
                         if self.ebook.toc_entries == [[], [], []]:
-                            k = self.errmsg(
+                            k = self.show_win_error(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
                                 K["TableOfContents"],
@@ -2307,11 +2307,11 @@ class Reader:
                                     section=toc_sect[fllwd],
                                 )
                     elif k in K["Metadata"]:
-                        k = self.meta(self.ebook)
+                        k = self.show_win_metadata(self.ebook)
                         if k in WINKEYS:
                             continue
                     elif k in K["Help"]:
-                        k = self.help()
+                        k = self.show_win_help()
                         if k in WINKEYS:
                             continue
                     elif (
@@ -2455,7 +2455,7 @@ class Reader:
                                 k = self.open_image(pad, imgnm, imgbstr)
                                 continue
                             except Exception as e:
-                                self.errmsg("Error Opening Image", str(e), set())
+                                self.show_win_error("Error Opening Image", str(e), set())
                     elif (
                         k in K["SwitchColor"]
                         and self.is_color_supported
@@ -2497,14 +2497,14 @@ class Reader:
                             )
                     elif k in K["ShowBookmarks"]:
                         if STATE["States"][self.ebook.path]["bmarks"] == []:
-                            k = self.errmsg(
+                            k = self.show_win_error(
                                 "Bookmarks",
                                 "N/A: Bookmarks are not found in this book.",
                                 {ord("B")},
                             )
                             continue
                         else:
-                            retk, idxchoice = self.bookmarks(self.ebook.path)
+                            retk, idxchoice = self.show_win_choices_bookmarks()
                             if retk is not None:
                                 k = retk
                                 continue
