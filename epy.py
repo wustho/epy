@@ -1123,7 +1123,7 @@ def speaking(text):
 
 class Reader:
     def __init__(
-        self, screen: curses.window, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State
+        self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State
     ):
 
         # screen initialization
@@ -1173,7 +1173,9 @@ class Reader:
             try:
                 self._proc_parent, self._proc_child = multiprocessing.Pipe()
                 self._process_counting_letter = multiprocessing.Process(
-                    target=count_letters_parallel, args=(ebook, self._proc_child)
+                    name="epy-subprocess-counting-letters",
+                    target=count_letters_parallel,
+                    args=(ebook, self._proc_child),
                 )
                 # forking PROC_COUNTLETTERS will raise
                 # zlib.error: Error -3 while decompressing data: invalid distance too far back
@@ -2734,7 +2736,7 @@ class Reader:
             sys.exit()
 
 
-def preread(stdscr: curses.window, filepath: str) -> None:
+def preread(stdscr, filepath: str):
     global SHOWPROGRESS, SCREEN, SPREAD
 
     ebook = get_ebook_obj(filepath)
@@ -2763,7 +2765,7 @@ def preread(stdscr: curses.window, filepath: str) -> None:
         reader.cleanup()
 
 
-def main() -> None:
+def main():
     termc, termr = shutil.get_terminal_size()
 
     args = []
