@@ -52,10 +52,6 @@ try:
 except ModuleNotFoundError:
     MOBISUPPORT = False
 
-if shutil.which("pico2wave") is None or shutil.which("play") is None:
-    TTSSUPPORT = False
-else:
-    TTSSUPPORT = True
 
 # -1 is default terminal fg/bg colors
 CFG = {
@@ -1105,7 +1101,8 @@ class Reader:
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
 
-        # if currrently speaking using TTS
+        # TTS speaker utils
+        self._tts_support: bool = any([shutil.which("pico2wave"), shutil.which("play")])
         self.is_speaking: bool = False
 
         # multi process & progress percentage
@@ -2029,7 +2026,7 @@ class Reader:
                                 reading_state.row / totlines,
                             )
                             sys.exit()
-                    elif k in K["TTSToggle"] and TTSSUPPORT:
+                    elif k in K["TTSToggle"] and self._tts_support:
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
                         for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
