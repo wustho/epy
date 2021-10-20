@@ -1184,15 +1184,15 @@ class Reader:
             self.letters_count = count_letters(self.ebook)
 
     @property
-    def screen_rows(self):
+    def screen_rows(self) -> int:
         return self.screen.getmaxyx()[0]
 
     @property
-    def screen_cols(self):
+    def screen_cols(self) -> int:
         return self.screen.getmaxyx()[1]
 
     @property
-    def ext_dict_app(self):
+    def ext_dict_app(self) -> str:
         self._ext_dict_app: Optional[str] = None
         dict_app_preset_list = ["sdcv", "dict"]
 
@@ -1209,7 +1209,7 @@ class Reader:
         return self._ext_dict_app
 
     @property
-    def image_viewer(self):
+    def image_viewer(self) -> str:
         self._image_viewer: Optional[str] = None
         viewer_preset_list = [
             "feh",
@@ -1923,6 +1923,10 @@ class Reader:
         if isinstance(self._process_counting_letter, multiprocessing.Process):
             if self._process_counting_letter.is_alive():
                 self._process_counting_letter.terminate()
+                # weird python multiprocessing issue, need to call .join() before .close()
+                # ValueError: Cannot close a process while it is still running.
+                # You should first call join() or terminate().
+                self._process_counting_letter.join()
                 self._process_counting_letter.close()
 
     # def read(ebook, index, width, y, pctg, sect):
