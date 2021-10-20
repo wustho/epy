@@ -1122,9 +1122,7 @@ def speaking(text):
 
 
 class Reader:
-    def __init__(
-        self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State
-    ):
+    def __init__(self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State):
 
         # screen initialization
         self.screen = screen
@@ -1168,22 +1166,22 @@ class Reader:
         self._process_counting_letter: Optional[multiprocessing.Process] = None
         self.letters_count: Optional[LettersCount] = None
 
-    def run_counting_letters(self, ebook):
+    def run_counting_letters(self):
         if self._multiprocess_support:
             try:
                 self._proc_parent, self._proc_child = multiprocessing.Pipe()
                 self._process_counting_letter = multiprocessing.Process(
                     name="epy-subprocess-counting-letters",
                     target=count_letters_parallel,
-                    args=(ebook, self._proc_child),
+                    args=(self.ebook, self._proc_child),
                 )
-                # forking PROC_COUNTLETTERS will raise
+                # forking will raise
                 # zlib.error: Error -3 while decompressing data: invalid distance too far back
                 self._process_counting_letter.start()
             except:
                 self._multiprocess_support = False
         if not self._multiprocess_support:
-            self.letters_count = count_letters(ebook)
+            self.letters_count = count_letters(self.ebook)
 
     @property
     def screen_rows(self):
@@ -1928,9 +1926,7 @@ class Reader:
                 self._process_counting_letter.close()
 
     # def read(ebook, index, width, y, pctg, sect):
-    def read(
-        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], reading_state: ReadingState
-    ) -> ReadingState:
+    def read(self, reading_state: ReadingState) -> ReadingState:
         global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
 
         # TODO: change ord("/") to read from cfg
@@ -1951,13 +1947,13 @@ class Reader:
         else:
             x = 2
 
-        contents = ebook.contents
-        toc_name = ebook.toc_entries[0]
-        toc_idx = ebook.toc_entries[1]
-        toc_sect = ebook.toc_entries[2]
+        contents = self.ebook.contents
+        toc_name = self.ebook.toc_entries[0]
+        toc_idx = self.ebook.toc_entries[1]
+        toc_sect = self.ebook.toc_entries[2]
         toc_secid = {}
         chpath = contents[reading_state.content_index]
-        content = ebook.get_raw_text(chpath)
+        content = self.ebook.get_raw_text(chpath)
 
         parser = HTMLtoLines(set(toc_sect))
         # parser = HTMLtoLines()
@@ -2026,7 +2022,7 @@ class Reader:
                         else:
                             # TODO
                             savestate(
-                                ebook.path,
+                                self.ebook.path,
                                 reading_state.content_index,
                                 reading_state.textwidth,
                                 reading_state.row,
@@ -2099,7 +2095,7 @@ class Reader:
                             ANIMATE = "prev"
                             tmp_parser = HTMLtoLines()
                             tmp_parser.feed(
-                                ebook.get_raw_text(contents[reading_state.content_index - 1])
+                                self.ebook.get_raw_text(contents[reading_state.content_index - 1])
                             )
                             tmp_parser.close()
                             # return (
@@ -2271,7 +2267,7 @@ class Reader:
                                 reading_state, row=pgend(totlines, rows)
                             )
                     elif k in K["TableOfContents"]:
-                        if ebook.toc_entries == [[], [], []]:
+                        if self.ebook.toc_entries == [[], [], []]:
                             k = self.errmsg(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
@@ -2307,7 +2303,7 @@ class Reader:
                                     section=toc_sect[fllwd],
                                 )
                     elif k in K["Metadata"]:
-                        k = self.meta(ebook)
+                        k = self.meta(self.ebook)
                         if k in WINKEYS:
                             continue
                     elif k in K["Help"]:
@@ -2449,9 +2445,9 @@ class Reader:
 
                         if impath != "":
                             try:
-                                if ebook.__class__.__name__ in {"Epub", "Azw3"}:
+                                if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
                                     impath = dots_path(chpath, impath)
-                                imgnm, imgbstr = ebook.get_img_bytestr(impath)
+                                imgnm, imgbstr = self.ebook.get_img_bytestr(impath)
                                 k = self.open_image(pad, imgnm, imgbstr)
                                 continue
                             except Exception as e:
@@ -2479,7 +2475,7 @@ class Reader:
                     elif k in K["AddBookmark"]:
                         defbmname_suffix = 1
                         defbmname = "Bookmark " + str(defbmname_suffix)
-                        occupiedbmnames = [i[0] for i in STATE["States"][ebook.path]["bmarks"]]
+                        occupiedbmnames = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
                         while defbmname in occupiedbmnames:
                             defbmname_suffix += 1
                             defbmname = "Bookmark " + str(defbmname_suffix)
@@ -2487,7 +2483,7 @@ class Reader:
                         if bmname is not None:
                             if bmname.strip() == "":
                                 bmname = defbmname
-                            STATE["States"][ebook.path]["bmarks"].append(
+                            STATE["States"][self.ebook.path]["bmarks"].append(
                                 [
                                     bmname,
                                     reading_state.content_index,
@@ -2496,7 +2492,7 @@ class Reader:
                                 ]
                             )
                     elif k in K["ShowBookmarks"]:
-                        if STATE["States"][ebook.path]["bmarks"] == []:
+                        if STATE["States"][self.ebook.path]["bmarks"] == []:
                             k = self.errmsg(
                                 "Bookmarks",
                                 "N/A: Bookmarks are not found in this book.",
@@ -2504,12 +2500,12 @@ class Reader:
                             )
                             continue
                         else:
-                            retk, idxchoice = self.bookmarks(ebook.path)
+                            retk, idxchoice = self.bookmarks(self.ebook.path)
                             if retk is not None:
                                 k = retk
                                 continue
                             elif idxchoice is not None:
-                                bmtojump = STATE["States"][ebook.path]["bmarks"][idxchoice]
+                                bmtojump = STATE["States"][self.ebook.path]["bmarks"][idxchoice]
                                 # return bmtojump[1] - index, width, bmtojump[2], bmtojump[3], ""
                                 return ReadingState(
                                     content_index=bmtojump[1],
@@ -2563,7 +2559,7 @@ class Reader:
                         SHOWPROGRESS = not SHOWPROGRESS
                     elif k == curses.KEY_RESIZE:
                         savestate(
-                            ebook.path,
+                            self.ebook.path,
                             reading_state.content_index,
                             reading_state.textwidth,
                             reading_state.row,
@@ -2727,7 +2723,7 @@ class Reader:
                     svline = "dontsave"
         except KeyboardInterrupt:
             savestate(
-                ebook.path,
+                self.ebook.path,
                 reading_state.content_index,
                 reading_state.textwidth,
                 reading_state.row,
@@ -2756,10 +2752,10 @@ def preread(stdscr, filepath: str):
         SHOWPROGRESS = CFG["ShowProgressIndicator"]
         SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
         # count_max_reading_pg(ebook)
-        reader.run_counting_letters(ebook)
+        reader.run_counting_letters()
 
         while True:
-            reading_state = reader.read(ebook, reading_state)
+            reading_state = reader.read(reading_state)
             reader.show_loader()
     finally:
         reader.cleanup()
