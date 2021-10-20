@@ -56,7 +56,6 @@ if shutil.which("pico2wave") is None or shutil.which("play") is None:
     TTSSUPPORT = False
 else:
     TTSSUPPORT = True
-SPEAKING = False
 
 # -1 is default terminal fg/bg colors
 CFG = {
@@ -119,12 +118,8 @@ K = {
 WINKEYS = set()
 CFGFILE = ""
 STATEFILE = ""
-SCREEN = None
 JUMPLIST = {}
 SHOWPROGRESS = CFG["ShowProgressIndicator"]
-ALLPREVLETTERS = []
-SUMALLLETTERS = 0
-PROC_COUNTLETTERS = None
 ANIMATE = None
 SPREAD = 1
 
@@ -1068,57 +1063,6 @@ def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_co
     child_conn.close()
 
 
-def speaking(text):
-    global SPEAKING
-
-    SPEAKING = True
-    rows, _ = SCREEN.getmaxyx()
-    SCREEN.addstr(rows - 1, 0, " Speaking! ", curses.A_REVERSE)
-    SCREEN.refresh()
-    SCREEN.timeout(1)
-    try:
-        _, path = tempfile.mkstemp(suffix=".wav")
-        subprocess.call(
-            ["pico2wave", "-w", path, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        SPEAKER = subprocess.Popen(
-            ["play", path, "tempo", str(CFG["TTSSpeed"])],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        while True:
-            if SPEAKER.poll() is not None:
-                k = ord("l")
-                break
-            k = SCREEN.getch()
-            if k == curses.KEY_MOUSE:
-                mouse_event = curses.getmouse()
-                if mouse_event[4] == curses.BUTTON2_CLICKED:
-                    k = list(K["Quit"])[0]
-                elif mouse_event[4] == curses.BUTTON1_CLICKED:
-                    if mouse_event[1] < SCREEN.getmaxyx()[1] // 2:
-                        k = list(K["PageUp"])[0]
-                    else:
-                        k = list(K["PageDown"])[0]
-                elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                    k = list(K["ScrollUp"])[0]
-                elif mouse_event[4] == 2097152:
-                    k = list(K["ScrollDown"])[0]
-            # if k != -1:
-            if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K["ScrollDown"] | {
-                curses.KEY_RESIZE
-            }:
-                SPEAKER.terminate()
-                # SPEAKER.kill()
-                break
-    finally:
-        SCREEN.timeout(-1)
-        os.remove(path)
-
-    if k in K["Quit"]:
-        SPEAKING = False
-        k = None
-    return k
 
 
 class Reader:
@@ -1160,6 +1104,9 @@ class Reader:
         # search storage
         # self.search_pattern: Optional[str] = None
         self.search_data: Optional[SearchData] = None
+
+        # if currrently speaking using TTS
+        self.is_speaking: bool = False
 
         # multi process & progress percentage
         self._multiprocess_support: bool = False if multiprocessing.cpu_count() == 1 else True
@@ -1917,6 +1864,55 @@ class Reader:
                     )
             s = pad.getch()
 
+    def speaking(self, text):
+        self.is_speaking = True
+        self.screen.addstr(self.screen_rows - 1, 0, " Speaking! ", curses.A_REVERSE)
+        self.screen.refresh()
+        self.screen.timeout(1)
+        try:
+            _, path = tempfile.mkstemp(suffix=".wav")
+            subprocess.call(
+                ["pico2wave", "-w", path, text], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            speaker = subprocess.Popen(
+                ["play", path, "tempo", str(CFG["TTSSpeed"])],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            while True:
+                if speaker.poll() is not None:
+                    k = ord("l")
+                    break
+                k = self.screen.getch()
+                if k == curses.KEY_MOUSE:
+                    mouse_event = curses.getmouse()
+                    if mouse_event[4] == curses.BUTTON2_CLICKED:
+                        k = list(K["Quit"])[0]
+                    elif mouse_event[4] == curses.BUTTON1_CLICKED:
+                        if mouse_event[1] < self.screen_cols // 2:
+                            k = list(K["PageUp"])[0]
+                        else:
+                            k = list(K["PageDown"])[0]
+                    elif mouse_event[4] == curses.BUTTON4_PRESSED:
+                        k = list(K["ScrollUp"])[0]
+                    elif mouse_event[4] == 2097152:
+                        k = list(K["ScrollDown"])[0]
+                # if k != -1:
+                if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K["ScrollDown"] | {
+                    curses.KEY_RESIZE
+                }:
+                    speaker.terminate()
+                    # speaker.kill()
+                    break
+        finally:
+            self.screen.timeout(-1)
+            os.remove(path)
+
+        if k in K["Quit"]:
+            self.is_speaking = False
+            k = None
+        return k
+
     def cleanup(self):
         self.ebook.cleanup()
 
@@ -1931,7 +1927,7 @@ class Reader:
 
     # def read(ebook, index, width, y, pctg, sect):
     def read(self, reading_state: ReadingState) -> ReadingState:
-        global SHOWPROGRESS, SPEAKING, ANIMATE, SPREAD
+        global SHOWPROGRESS, ANIMATE, SPREAD
 
         # TODO: change ord("/") to read from cfg
         # k = 0 if self.search_pattern is None else ord("/")
@@ -2041,12 +2037,12 @@ class Reader:
                                 tospeak += "\n. \n"
                             else:
                                 tospeak += re.sub(r"\[IMG:[0-9]+\]", "Image", i) + " "
-                        k = speaking(tospeak)
+                        k = self.speaking(tospeak)
                         if (
                             totlines - reading_state.row <= rows
                             and reading_state.content_index == len(contents) - 1
                         ):
-                            SPEAKING = False
+                            self.is_speaking = False
                         continue
                     elif k in K["DoubleSpreadToggle"]:
                         if cols < mincols_doublespr:
@@ -2696,7 +2692,7 @@ class Reader:
                     self.screen.refresh()
                 except curses.error:
                     pass
-                if SPEAKING:
+                if self.is_speaking:
                     k = list(K["TTSToggle"])[0]
                     continue
                 k = pad.getch()
@@ -2737,7 +2733,7 @@ class Reader:
 
 
 def preread(stdscr, filepath: str):
-    global SHOWPROGRESS, SCREEN, SPREAD
+    global SHOWPROGRESS, SPREAD
 
     ebook = get_ebook_obj(filepath)
     state = State()
