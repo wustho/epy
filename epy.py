@@ -2442,6 +2442,7 @@ class Reader:
                             defbmname_suffix += 1
                             defbmname = "Bookmark " + str(defbmname_suffix)
                         bmname = self.input_prompt(" Add bookmark ({}):".format(defbmname))
+                        # TODO: support default Bookmark 1, Bookmark 2 so on
                         if isinstance(bmname, str) and bmname:
                             if bmname.strip() == "":
                                 bmname = defbmname
