@@ -36,7 +36,7 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, Tuple, List, Mapping
 from dataclasses import dataclass
 from difflib import SequenceMatcher as SM
 from enum import Enum
@@ -54,67 +54,66 @@ except ModuleNotFoundError:
 
 
 # -1 is default terminal fg/bg colors
-CFG = {
-    "DefaultViewer": "auto",
-    "DictionaryClient": "auto",
-    "ShowProgressIndicator": True,
-    "PageScrollAnimation": True,
-    "MouseSupport": False,
-    "StartWithDoubleSpread": False,
-    "TTSSpeed": 1,
-    "DarkColorFG": 252,
-    "DarkColorBG": 235,
-    "LightColorFG": 238,
-    "LightColorBG": 253,
-    "Keys": {
-        "ScrollUp": "k",
-        "ScrollDown": "j",
-        "PageUp": "h",
-        "PageDown": "l",
-        "HalfScreenUp": "^u",
-        "HalfScreenDown": "C-d",
-        "NextChapter": "n",
-        "PrevChapter": "p",
-        "BeginningOfCh": "g",
-        "EndOfCh": "G",
-        "Shrink": "-",
-        "Enlarge": "+",
-        "SetWidth": "=",
-        "Metadata": "M",
-        "DefineWord": "d",
-        "TableOfContents": "t",
-        "Follow": "f",
-        "OpenImage": "o",
-        "RegexSearch": "/",
-        "ShowHideProgress": "s",
-        "MarkPosition": "m",
-        "JumpToPosition": "`",
-        "AddBookmark": "b",
-        "ShowBookmarks": "B",
-        "Quit": "q",
-        "Help": "?",
-        "SwitchColor": "c",
-        "TTSToggle": "!",
-        "DoubleSpreadToggle": "D",
-    },
-}
+# CFG = {
+#     "DefaultViewer": "auto",
+#     "DictionaryClient": "auto",
+#     "ShowProgressIndicator": True,
+#     "PageScrollAnimation": True,
+#     "MouseSupport": False,
+#     "StartWithDoubleSpread": False,
+#     "TTSSpeed": 1,
+#     "DarkColorFG": 252,
+#     "DarkColorBG": 235,
+#     "LightColorFG": 238,
+#     "LightColorBG": 253,
+#     "Keys": {
+#         "ScrollUp": "k",
+#         "ScrollDown": "j",
+#         "PageUp": "h",
+#         "PageDown": "l",
+#         "HalfScreenUp": "^u",
+#         "HalfScreenDown": "C-d",
+#         "NextChapter": "n",
+#         "PrevChapter": "p",
+#         "BeginningOfCh": "g",
+#         "EndOfCh": "G",
+#         "Shrink": "-",
+#         "Enlarge": "+",
+#         "SetWidth": "=",
+#         "Metadata": "M",
+#         "DefineWord": "d",
+#         "TableOfContents": "t",
+#         "Follow": "f",
+#         "OpenImage": "o",
+#         "RegexSearch": "/",
+#         "ShowHideProgress": "s",
+#         "MarkPosition": "m",
+#         "JumpToPosition": "`",
+#         "AddBookmark": "b",
+#         "ShowBookmarks": "B",
+#         "Quit": "q",
+#         "Help": "?",
+#         "SwitchColor": "c",
+#         "TTSToggle": "!",
+#         "DoubleSpreadToggle": "D",
+#     },
+# }
 STATE = {"LastRead": "", "States": {}}
 # default keys
-K = {
-    "ScrollUp": {curses.KEY_UP},
-    "ScrollDown": {curses.KEY_DOWN},
-    "PageUp": {curses.KEY_PPAGE, curses.KEY_LEFT},
-    "PageDown": {curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT},
-    "BeginningOfCh": {curses.KEY_HOME},
-    "EndOfCh": {curses.KEY_END},
-    "TableOfContents": {9, ord("\t")},
-    "Follow": {10},
-    "Quit": {3, 27, 304},
-}
-WINKEYS = set()
-CFGFILE = ""
+# K = {
+#     "ScrollUp": {curses.KEY_UP},
+#     "ScrollDown": {curses.KEY_DOWN},
+#     "PageUp": {curses.KEY_PPAGE, curses.KEY_LEFT},
+#     "PageDown": {curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT},
+#     "BeginningOfCh": {curses.KEY_HOME},
+#     "EndOfCh": {curses.KEY_END},
+#     "TableOfContents": {9, ord("\t")},
+#     "Follow": {10},
+#     "Quit": {3, 27, 304},
+# }
+# WINKEYS = set()
 STATEFILE = ""
-SHOWPROGRESS = CFG["ShowProgressIndicator"]
+# SHOWPROGRESS = CFG["ShowProgressIndicator"]
 SPREAD = 1
 
 
@@ -165,17 +164,11 @@ class LettersCount:
 #     def from_char(cls, char: str) -> "Key":
 #         return cls(ord(char))
 class Key:
-    def __init__(self, char_or_int: Optional[Union[str, int]]):
-        self.value: Optional[int] = (
-            (char_or_int if isinstance(char_or_int, int) else ord(char_or_int))
-            if char_or_int
-            else None
-        )
-        self.char: Optional[str] = (
-            (char_or_int if isinstance(char_or_int, str) else chr(char_or_int))
-            if char_or_int
-            else None
-        )
+    """Because ord("k") chr(34) are confusing"""
+
+    def __init__(self, char_or_int: Union[str, int]):
+        self.value: int = char_or_int if isinstance(char_or_int, int) else ord(char_or_int)
+        self.char: str = char_or_int if isinstance(char_or_int, str) else chr(char_or_int)
 
     # def __setattr__(self, *args):
     #     raise TypeError
@@ -187,6 +180,108 @@ class Key:
 
     def __ne__(self, other):
         return self.__eq__(other)
+
+    def __hash__(self):
+        return hash(self.value)
+
+
+@dataclass(frozen=True)
+class NoUpdate:
+    pass
+
+
+@dataclass(frozen=True)
+class Settings:
+    DefaultViewer: str = "auto"
+    DictionaryClient: str = "auto"
+    ShowProgressIndicator: bool = True
+    PageScrollAnimation: bool = True
+    MouseSupport: bool = False
+    StartWithDoubleSpread: bool = False
+    TTSSpeed: int = 1
+    DarkColorFG: int = 252
+    DarkColorBG: int = 235
+    LightColorFG: int = 238
+    LightColorBG: int = 253
+
+
+@dataclass(frozen=True)
+class CfgDefaultKeymaps:
+    ScrollUp: str = "k"
+    ScrollDown: str = "j"
+    PageUp: str = "h"
+    PageDown: str = "l"
+    # HalfScreenUp: str = "h"
+    # HalfScreenDown: str
+    NextChapter: str = "n"
+    PrevChapter: str = "p"
+    BeginningOfCh: str = "g"
+    EndOfCh: str = "G"
+    Shrink: str = "-"
+    Enlarge: str = "+"
+    SetWidth: str = "="
+    Metadata: str = "M"
+    DefineWord: str = "d"
+    TableOfContents: str = "t"
+    Follow: str = "f"
+    OpenImage: str = "o"
+    RegexSearch: str = "/"
+    ShowHideProgress: str = "s"
+    MarkPosition: str = "m"
+    JumpToPosition: str = "`"
+    AddBookmark: str = "b"
+    ShowBookmarks: str = "B"
+    Quit: str = "q"
+    Help: str = "?"
+    SwitchColor: str = "c"
+    TTSToggle: str = "!"
+    DoubleSpreadToggle: str = "D"
+
+
+@dataclass(frozen=True)
+class CfgBuiltinKeymaps:
+    ScrollUp: Tuple[int, ...] = (curses.KEY_UP,)
+    ScrollDown: Tuple[int, ...] = (curses.KEY_DOWN,)
+    PageUp: Tuple[int, ...] = (curses.KEY_PPAGE, curses.KEY_LEFT)
+    PageDown: Tuple[int, ...] = (curses.KEY_NPAGE, ord(" "), curses.KEY_RIGHT)
+    BeginningOfCh: Tuple[int, ...] = (curses.KEY_HOME,)
+    EndOfCh: Tuple[int, ...] = (curses.KEY_END,)
+    TableOfContents: Tuple[int, ...] = (9, ord("\t"))
+    Follow: Tuple[int, ...] = (10,)
+    Quit: Tuple[int, ...] = (3, 27, 304)
+
+
+@dataclass(frozen=True)
+class Keymap:
+    # HalfScreenDown: Tuple[Key, ...]
+    # HalfScreenUp: Tuple[Key, ...]
+    AddBookmark: Tuple[Key, ...]
+    BeginningOfCh: Tuple[Key, ...]
+    DefineWord: Tuple[Key, ...]
+    DoubleSpreadToggle: Tuple[Key, ...]
+    EndOfCh: Tuple[Key, ...]
+    Enlarge: Tuple[Key, ...]
+    Follow: Tuple[Key, ...]
+    Help: Tuple[Key, ...]
+    JumpToPosition: Tuple[Key, ...]
+    MarkPosition: Tuple[Key, ...]
+    Metadata: Tuple[Key, ...]
+    NextChapter: Tuple[Key, ...]
+    OpenImage: Tuple[Key, ...]
+    PageDown: Tuple[Key, ...]
+    PageUp: Tuple[Key, ...]
+    PrevChapter: Tuple[Key, ...]
+    Quit: Tuple[Key, ...]
+    RegexSearch: Tuple[Key, ...]
+    ScrollDown: Tuple[Key, ...]
+    ScrollUp: Tuple[Key, ...]
+    SetWidth: Tuple[Key, ...]
+    ShowBookmarks: Tuple[Key, ...]
+    ShowHideProgress: Tuple[Key, ...]
+    Shrink: Tuple[Key, ...]
+    SwitchColor: Tuple[Key, ...]
+    TTSToggle: Tuple[Key, ...]
+    TableOfContents: Tuple[Key, ...]
 
 
 class Epub:
@@ -766,8 +861,9 @@ class Board:
             except:
                 pass
 
-    def getch(self):
-        return self.pad.getch()
+    def getch(self) -> Key:
+        # return self.pad.getch()
+        return Key(self.pad.getch())
 
     # TODO: bg unnecessary
     def bkgd(self, bg):
@@ -805,6 +901,7 @@ class Board:
         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
         end_chunk = self.chunks[chunkidx]
         if y in range(start_chunk, end_chunk + 1):
+            # TODO: error when searching for |c
             self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
 
     def getbkgd(self):
@@ -822,7 +919,7 @@ class Board:
 
 
 def loadstate():
-    global CFG, STATE, CFGFILE, STATEFILE
+    global STATE, STATEFILE
     prefix = ""
     if os.getenv("HOME") is not None:
         homedir = os.getenv("HOME")
@@ -833,51 +930,110 @@ def loadstate():
     elif os.getenv("USERPROFILE") is not None:
         prefix = os.path.join(os.getenv("USERPROFILE"), ".epy")
     else:
-        CFGFILE = os.devnull
         STATEFILE = os.devnull
     os.makedirs(prefix, exist_ok=True)
-    CFGFILE = os.path.join(prefix, "config.json")
     STATEFILE = os.path.join(prefix, "state.json")
 
     try:
-        cfg_tmp = CFG
-        with open(CFGFILE) as f:
-            cfg = json.load(f)
-        for i in cfg_tmp:
-            if i != "Keys" and i in cfg:
-                cfg_tmp[i] = cfg[i]
-        cfg_tmp["Keys"].update(cfg["Keys"])
-        CFG = cfg_tmp
         with open(STATEFILE) as f:
             STATE = json.load(f)
     except FileNotFoundError:
         pass
 
-    if sys.platform == "win32":
-        CFG["PageScrollAnimation"] = False
+    # if sys.platform == "win32":
+    #     CFG["PageScrollAnimation"] = False
 
 
 class AppData:
     @property
-    def prefix_dir(self) -> Optional[str]:
+    def prefix(self) -> Optional[str]:
+        """Return None if there exists no homedir | userdir"""
         prefix: Optional[str] = None
+
         # UNIX filesystem
         homedir = os.getenv("HOME")
         # WIN filesystem
         userdir = os.getenv("USERPROFILE")
 
-        if homedir is not None:
+        if homedir:
             if os.path.isdir(os.path.join(homedir, ".config")):
                 prefix = os.path.join(homedir, ".config", "epy")
             else:
                 prefix = os.path.join(homedir, ".epy")
-        elif userdir is not None:
+        elif userdir:
             prefix = os.path.join(userdir, ".epy")
 
         if prefix:
             os.makedirs(prefix, exist_ok=True)
 
         return prefix
+
+
+class Config(AppData):
+    def __init__(self):
+        setting_dict = dataclasses.asdict(Settings())
+        keymap_dict = dataclasses.asdict(CfgDefaultKeymaps())
+        keymap_builtin_dict = dataclasses.asdict(CfgBuiltinKeymaps())
+
+        if os.path.isfile(self.filepath):
+            with open(self.filepath) as f:
+                cfg_user = json.load(f)
+            setting_dict = Config.update_dict(setting_dict, cfg_user["Setting"])
+            keymap_dict = Config.update_dict(keymap_dict, cfg_user["Keymap"])
+        else:
+            self.save({"Setting": setting_dict, "Keymap": keymap_dict})
+
+        keymap_dict_tuple = {k: tuple(v) for k, v in keymap_dict.items()}
+        keymap_updated = {
+            k: tuple([Key(i) for i in v])
+            for k, v in Config.update_keys_tuple(keymap_dict_tuple, keymap_builtin_dict).items()
+        }
+
+        self.setting = Settings(**setting_dict)
+        self.keymap = Keymap(**keymap_updated)
+
+    @property
+    def filepath(self) -> str:
+        return os.path.join(self.prefix, "configuration.json") if self.prefix else os.devnull
+
+    def save(self, cfg_dict):
+        with open(self.filepath, "w") as file:
+            json.dump(cfg_dict, file, indent=2)
+
+    @staticmethod
+    def update_dict(
+        old_dict: Mapping[str, Union[str, int, bool]],
+        new_dict: Mapping[str, Union[str, int, bool]],
+        place_new=False,
+    ) -> Mapping[str, Union[str, int, bool]]:
+        """Returns a copy of `old_dict` after updating it with `new_dict`"""
+
+        result = {**old_dict}
+        for k, v in new_dict.items():
+            if k in result:
+                result[k] = new_dict[k]
+            elif place_new:
+                result[k] = new_dict[k]
+
+        return result
+
+    @staticmethod
+    def update_keys_tuple(
+        old_keys: Mapping[str, Tuple[str, ...]],
+        new_keys: Mapping[str, Tuple[str, ...]],
+        place_new: bool = False,
+    ) -> Mapping[str, Tuple[str, ...]]:
+        """Returns a copy of `old_keys` after updating it with `new_keys`
+        by appending the tuple value and removes duplicate"""
+
+        result = {**old_keys}
+        for k, v in new_keys.items():
+            if k in result:
+                result[k] = tuple(set(result[k] + new_keys[k]))
+            elif place_new:
+                result[k] = tuple(set(new_keys[k]))
+
+        return result
 
 
 class State(AppData):
@@ -887,8 +1043,8 @@ class State(AppData):
 
     @property
     def path(self) -> str:
-        if self.prefix_dir:
-            state_file = os.path.join(self.prefix_dir, "state.json")
+        if self.prefix:
+            state_file = os.path.join(self.prefix, "state.json")
             if os.path.isfile(state_file):
                 return state_file
         return os.devnull
@@ -924,29 +1080,29 @@ $ pip install mobi"""
         sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
 
 
-def parse_keys():
-    global WINKEYS
-    for i in CFG["Keys"].keys():
-        parsedk = CFG["Keys"][i]
-        if len(parsedk) == 1:
-            parsedk = ord(parsedk)
-        elif parsedk[:-1] in {"^", "C-"}:
-            parsedk = ord(parsedk[-1]) - 96  # Reference: ASCII chars
-        else:
-            sys.exit("ERROR: Keybindings {}".format(i))
-
-        try:
-            K[i].add(parsedk)
-        except KeyError:
-            K[i] = {parsedk}
-    WINKEYS = (
-        {curses.KEY_RESIZE} | K["Metadata"] | K["Help"] | K["TableOfContents"] | K["ShowBookmarks"]
-    )
+# def parse_keys():
+#     global WINKEYS
+#     for i in CFG["Keys"].keys():
+#         parsedk = CFG["Keys"][i]
+#         if len(parsedk) == 1:
+#             parsedk = ord(parsedk)
+#         elif parsedk[:-1] in {"^", "C-"}:
+#             parsedk = ord(parsedk[-1]) - 96  # Reference: ASCII chars
+#         else:
+#             sys.exit("ERROR: Keybindings {}".format(i))
+#
+#         try:
+#             K[i].add(parsedk)
+#         except KeyError:
+#             K[i] = {parsedk}
+#     WINKEYS = (
+#         {curses.KEY_RESIZE} | K["Metadata"] | K["Help"] | K["TableOfContents"] | K["ShowBookmarks"]
+#     )
 
 
 def savestate(file, index, width, pos, pctg):
-    with open(CFGFILE, "w") as f:
-        json.dump(CFG, f, indent=2)
+    # with open(CFGFILE, "w") as f:
+    #     json.dump(CFG, f, indent=2)
     STATE["LastRead"] = file
     STATE["States"][file]["index"] = index
     STATE["States"][file]["width"] = width
@@ -963,6 +1119,12 @@ def savestate(file, index, width, pos, pctg):
     #         PROC_COUNTLETTERS.kill()
     #     except AttributeError:
     #         PROC_COUNTLETTERS.terminate()
+
+
+def tuple_subtract(tuple_one, tuple_two):
+    """Returns tuple with members in tuple_one
+    but not in tuple_two"""
+    return (i for i in tuple_one if i not in tuple_two)
 
 
 def pgup(pos, winhi, preservedline=0, c=1):
@@ -1057,14 +1219,288 @@ def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_co
     child_conn.close()
 
 
+def choice_win(allowdel=False):
+    def inner_f(listgen):
+        @wraps(listgen)
+        def wrapper(self, *args, **kwargs):
+            rows, cols = self.screen.getmaxyx()
+            hi, wi = rows - 4, cols - 4
+            Y, X = 2, 2
+            chwin = curses.newwin(hi, wi, Y, X)
+            if self.is_color_supported:
+                chwin.bkgd(self.screen.getbkgd())
+
+            title, ch_list, index, key = listgen(self, *args, **kwargs)
+
+            if len(title) > cols - 8:
+                title = title[: cols - 8]
+
+            chwin.box()
+            chwin.keypad(True)
+            chwin.addstr(1, 2, title)
+            chwin.addstr(2, 2, "-" * len(title))
+            if allowdel:
+                chwin.addstr(3, 2, "HINT: Press 'd' to delete.")
+            key_chwin = 0
+
+            totlines = len(ch_list)
+            chwin.refresh()
+            pad = curses.newpad(totlines, wi - 2)
+            if self.is_color_supported:
+                pad.bkgd(self.screen.getbkgd())
+
+            pad.keypad(True)
+
+            padhi = rows - 5 - Y - 4 + 1 - (1 if allowdel else 0)
+            # padhi = rows - 5 - Y - 4 + 1 - 1
+            y = 0
+            if index in range(padhi // 2, totlines - padhi // 2):
+                y = index - padhi // 2 + 1
+            span = []
+
+            for n, i in enumerate(ch_list):
+                # strs = "  " + str(n+1).rjust(d) + " " + i[0]
+                strs = "  " + i
+                strs = strs[0 : wi - 3]
+                pad.addstr(n, 0, strs)
+                span.append(len(strs))
+
+            countstring = ""
+            # while key_chwin not in K["Quit"] | key:
+            while key_chwin not in self.config.keymap.Quit + key:
+                if countstring == "":
+                    count = 1
+                else:
+                    count = int(countstring)
+                if key_chwin in range(48, 58):  # i.e., k is a numeral
+                    countstring = countstring + chr(key_chwin)
+                else:
+                    # if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
+                    if key_chwin in self.config.keymap.ScrollUp + self.config.keymap.PageUp:
+                        index -= count
+                        if index < 0:
+                            index = 0
+                    # elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
+                    elif (
+                        key_chwin in self.config.keymap.ScrollDown
+                        or key_chwin in self.config.keymap.PageDown
+                    ):
+                        index += count
+                        if index + 1 >= totlines:
+                            index = totlines - 1
+                    # elif key_chwin in K["Follow"]:
+                    elif key_chwin in self.config.keymap.Follow:
+                        chwin.clear()
+                        chwin.refresh()
+                        return None, index, None
+                    # elif key_chwin in K["PageUp"]:
+                    #     index -= 3
+                    #     if index < 0:
+                    #         index = 0
+                    # elif key_chwin in K["PageDown"]:
+                    #     index += 3
+                    #     if index >= totlines:
+                    #         index = totlines - 1
+                    # elif key_chwin in K["BeginningOfCh"]:
+                    elif key_chwin in self.config.keymap.BeginningOfCh:
+                        index = 0
+                    # elif key_chwin in K["EndOfCh"]:
+                    elif key_chwin in self.config.keymap.EndOfCh:
+                        index = totlines - 1
+                    elif key_chwin == Key("D") and allowdel:
+                        return None, (0 if index == 0 else index - 1), index
+                        # chwin.redrawwin()
+                        # chwin.refresh()
+                    elif key_chwin == Key("d") and allowdel:
+                        # resk, resp, _ = choice_win()(
+                        #     lambda: ( "Delete '{}'?".format(ch_list[index]), ["(Y)es", "(N)o"], 0, {ord("n")},)
+                        # )()
+                        resk, resp, _ = self.show_win_options(
+                            "Delete '{}'?".format(ch_list[index]),
+                            ["(Y)es", "(N)o"],
+                            0,
+                            # {ord("n")},
+                            (Key("n"),),
+                        )
+                        if resk is not None:
+                            key_chwin = resk
+                            continue
+                        elif resp == 0:
+                            return None, (0 if index == 0 else index - 1), index
+                        chwin.redrawwin()
+                        chwin.refresh()
+                    elif key_chwin in {Key(i) for i in ["Y", "y", "N", "n"]} and ch_list == [
+                        "(Y)es",
+                        "(N)o",
+                    ]:
+                        if key_chwin in {Key("Y"), Key("y")}:
+                            return None, 0, None
+                        else:
+                            return None, 1, None
+                    # elif key_chwin in WINKEYS - key:
+                    elif key_chwin in tuple_subtract(self._win_keys, key):
+                        chwin.clear()
+                        chwin.refresh()
+                        return key_chwin, index, None
+                    countstring = ""
+
+                while index not in range(y, y + padhi):
+                    if index < y:
+                        y -= 1
+                    else:
+                        y += 1
+
+                for n in range(totlines):
+                    att = curses.A_REVERSE if index == n else curses.A_NORMAL
+                    pre = ">>" if index == n else "  "
+                    pad.addstr(n, 0, pre)
+                    pad.chgat(n, 0, span[n], pad.getbkgd() | att)
+
+                pad.refresh(y, 0, Y + 4 + (1 if allowdel else 0), X + 4, rows - 5, cols - 6)
+                # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
+                # key_chwin = chwin.getch()
+                key_chwin = Key(chwin.getch())
+                if key_chwin == Key(curses.KEY_MOUSE):
+                    mouse_event = curses.getmouse()
+                    if mouse_event[4] == curses.BUTTON4_PRESSED:
+                        # key_chwin = list(K["ScrollUp"])[0]
+                        key_chwin = list(self.config.keymap.ScrollUp)[0]
+                    elif mouse_event[4] == 2097152:
+                        # key_chwin = list(K["ScrollDown"])[0]
+                        key_chwin = list(self.config.keymap.ScrollDown)[0]
+                    elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
+                        if (
+                            mouse_event[2] >= 6
+                            and mouse_event[2] < rows - 4
+                            and mouse_event[2] < 6 + totlines
+                        ):
+                            index = mouse_event[2] - 6 + y
+                        # key_chwin = list(K["Follow"])[0]
+                        key_chwin = list(self.config.keymap.Follow)[0]
+                    elif (
+                        mouse_event[4] == curses.BUTTON1_CLICKED
+                        and mouse_event[2] >= 6
+                        and mouse_event[2] < rows - 4
+                        and mouse_event[2] < 6 + totlines
+                    ):
+                        if index == mouse_event[2] - 6 + y:
+                            # key_chwin = list(K["Follow"])[0]
+                            key_chwin = list(self.config.keymap.Follow)[0]
+                            continue
+                        index = mouse_event[2] - 6 + y
+                    elif mouse_event[4] == curses.BUTTON3_CLICKED:
+                        # key_chwin = list(K["Quit"])[0]
+                        key_chwin = list(self.config.keymap.Quit)[0]
+
+            chwin.clear()
+            chwin.refresh()
+            return None, None, None
+
+        return wrapper
+
+    return inner_f
+
+
+def text_win(textfunc):
+    @wraps(textfunc)
+    def wrapper(self, *args, **kwargs) -> Union[NoUpdate, Key]:
+        rows, cols = self.screen.getmaxyx()
+        hi, wi = rows - 4, cols - 4
+        Y, X = 2, 2
+        textw = curses.newwin(hi, wi, Y, X)
+        if self.is_color_supported:
+            textw.bkgd(self.screen.getbkgd())
+
+        title, raw_texts, key = textfunc(self, *args, **kwargs)
+
+        if len(title) > cols - 8:
+            title = title[: cols - 8]
+
+        texts = []
+        for i in raw_texts.splitlines():
+            texts += textwrap.wrap(i, wi - 6, drop_whitespace=False)
+
+        textw.box()
+        textw.keypad(True)
+        textw.addstr(1, 2, title)
+        textw.addstr(2, 2, "-" * len(title))
+        key_textw = 0
+
+        totlines = len(texts)
+
+        pad = curses.newpad(totlines, wi - 2)
+        if self.is_color_supported:
+            pad.bkgd(self.screen.getbkgd())
+
+        pad.keypad(True)
+        for n, i in enumerate(texts):
+            pad.addstr(n, 0, i)
+        y = 0
+        textw.refresh()
+        pad.refresh(y, 0, Y + 4, X + 4, rows - 5, cols - 6)
+        padhi = rows - 8 - Y
+
+        # while key_textw not in K["Quit"] | key:
+        while key_textw not in self.config.keymap.Quit + key:
+            # if key_textw in K["ScrollUp"] and y > 0:
+            if key_textw in self.config.keymap.ScrollUp and y > 0:
+                y -= 1
+            # elif key_textw in K["ScrollDown"] and y < totlines - hi + 6:
+            elif key_textw in self.config.keymap.ScrollDown and y < totlines - hi + 6:
+                y += 1
+            # elif key_textw in K["PageUp"]:
+            elif key_textw in self.config.keymap.PageUp:
+                y = pgup(y, padhi)
+            # elif key_textw in K["PageDown"]:
+            elif key_textw in self.config.keymap.PageDown:
+                y = pgdn(y, totlines, padhi)
+            # elif key_textw in K["BeginningOfCh"]:
+            elif key_textw in self.config.keymap.BeginningOfCh:
+                y = 0
+            # elif key_textw in K["EndOfCh"]:
+            elif key_textw in self.config.keymap.EndOfCh:
+                y = pgend(totlines, padhi)
+            # elif key_textw in WINKEYS - key:
+            elif key_textw in tuple_subtract(self._win_keys, key):
+                textw.clear()
+                textw.refresh()
+                return key_textw
+            pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
+            # key_textw = textw.getch()
+            key_textw = Key(textw.getch())
+
+        textw.clear()
+        textw.refresh()
+        # TODO: do not return None
+        return NoUpdate()
+
+    return wrapper
+
+
 class Reader:
-    def __init__(self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], state: State):
+    def __init__(
+        self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], config: Config, state: State
+    ):
+
+        self.config = config
+
+        # keys that will make
+        # windows exit and return the said key
+        self._win_keys = (
+            # curses.KEY_RESIZE is a must
+            (Key(curses.KEY_RESIZE),)
+            + self.config.keymap.TableOfContents
+            + self.config.keymap.Metadata
+            + self.config.keymap.Help
+        )
 
         # screen initialization
         self.screen = screen
         self.screen.keypad(True)
         safe_curs_set(0)
-        if CFG["MouseSupport"]:
+        # if CFG["MouseSupport"]:
+        #     curses.mousemask(-1)
+        if self.config.setting.MouseSupport:
             curses.mousemask(-1)
         # curses.mouseinterval(0)
         self.screen.clear()
@@ -1074,8 +1510,10 @@ class Reader:
         try:
             curses.use_default_colors()
             curses.init_pair(1, -1, -1)
-            curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
-            curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
+            # curses.init_pair(2, CFG["DarkColorFG"], CFG["DarkColorBG"])
+            # curses.init_pair(3, CFG["LightColorFG"], CFG["LightColorBG"])
+            curses.init_pair(2, self.config.setting.DarkColorFG, self.config.setting.DarkColorBG)
+            curses.init_pair(3, self.config.setting.LightColorFG, self.config.setting.LightColorBG)
             self.is_color_supported = True
         except:
             self.is_color_supported = False
@@ -1142,8 +1580,10 @@ class Reader:
         self._ext_dict_app: Optional[str] = None
         dict_app_preset_list = ["sdcv", "dict"]
 
-        if shutil.which(CFG["DictionaryClient"].split()[0]) is not None:
-            self._ext_dict_app = CFG["DictionaryClient"]
+        # if shutil.which(CFG["DictionaryClient"].split()[0]) is not None:
+        if shutil.which(self.config.setting.DictionaryClient.split()[0]):
+            # self._ext_dict_app = CFG["DictionaryClient"]
+            self._ext_dict_app = self.config.setting.DictionaryClient
         else:
             for i in dict_app_preset_list:
                 if shutil.which(i) is not None:
@@ -1167,8 +1607,10 @@ class Reader:
             "firefox",
         ]
 
-        if shutil.which(CFG["DefaultViewer"].split()[0]) is not None:
-            self._image_viewer = CFG["DefaultViewer"]
+        # if shutil.which(CFG["DefaultViewer"].split()[0]) is not None:
+        if shutil.which(self.config.setting.DefaultViewer.split()[0]) is not None:
+            # self._image_viewer = CFG["DefaultViewer"]
+            self._image_viewer = self.config.setting.DefaultViewer
         elif sys.platform == "win32":
             self._image_viewer = "start"
         elif sys.platform == "darwin":
@@ -1210,243 +1652,14 @@ class Reader:
         # self.screen.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
         self.screen.refresh()
 
-    def choice_win(allowdel=False):
-        def inner_f(listgen):
-            @wraps(listgen)
-            def wrapper(self, *args, **kwargs):
-                rows, cols = self.screen.getmaxyx()
-                hi, wi = rows - 4, cols - 4
-                Y, X = 2, 2
-                chwin = curses.newwin(hi, wi, Y, X)
-                if self.is_color_supported:
-                    chwin.bkgd(self.screen.getbkgd())
-
-                title, ch_list, index, key = listgen(self, *args, **kwargs)
-
-                if len(title) > cols - 8:
-                    title = title[: cols - 8]
-
-                chwin.box()
-                chwin.keypad(True)
-                chwin.addstr(1, 2, title)
-                chwin.addstr(2, 2, "-" * len(title))
-                if allowdel:
-                    chwin.addstr(3, 2, "HINT: Press 'd' to delete.")
-                key_chwin = 0
-
-                totlines = len(ch_list)
-                chwin.refresh()
-                pad = curses.newpad(totlines, wi - 2)
-                if self.is_color_supported:
-                    pad.bkgd(self.screen.getbkgd())
-
-                pad.keypad(True)
-
-                padhi = rows - 5 - Y - 4 + 1 - (1 if allowdel else 0)
-                # padhi = rows - 5 - Y - 4 + 1 - 1
-                y = 0
-                if index in range(padhi // 2, totlines - padhi // 2):
-                    y = index - padhi // 2 + 1
-                span = []
-
-                for n, i in enumerate(ch_list):
-                    # strs = "  " + str(n+1).rjust(d) + " " + i[0]
-                    strs = "  " + i
-                    strs = strs[0 : wi - 3]
-                    pad.addstr(n, 0, strs)
-                    span.append(len(strs))
-
-                countstring = ""
-                while key_chwin not in K["Quit"] | key:
-                    if countstring == "":
-                        count = 1
-                    else:
-                        count = int(countstring)
-                    if key_chwin in range(48, 58):  # i.e., k is a numeral
-                        countstring = countstring + chr(key_chwin)
-                    else:
-                        if key_chwin in K["ScrollUp"] or key_chwin in K["PageUp"]:
-                            index -= count
-                            if index < 0:
-                                index = 0
-                        elif key_chwin in K["ScrollDown"] or key_chwin in K["PageDown"]:
-                            index += count
-                            if index + 1 >= totlines:
-                                index = totlines - 1
-                        elif key_chwin in K["Follow"]:
-                            chwin.clear()
-                            chwin.refresh()
-                            return None, index, None
-                        # elif key_chwin in K["PageUp"]:
-                        #     index -= 3
-                        #     if index < 0:
-                        #         index = 0
-                        # elif key_chwin in K["PageDown"]:
-                        #     index += 3
-                        #     if index >= totlines:
-                        #         index = totlines - 1
-                        elif key_chwin in K["BeginningOfCh"]:
-                            index = 0
-                        elif key_chwin in K["EndOfCh"]:
-                            index = totlines - 1
-                        elif key_chwin == ord("D") and allowdel:
-                            return None, (0 if index == 0 else index - 1), index
-                            # chwin.redrawwin()
-                            # chwin.refresh()
-                        elif key_chwin == ord("d") and allowdel:
-                            # resk, resp, _ = Reader.choice_win()(
-                            #     lambda: ( "Delete '{}'?".format(ch_list[index]), ["(Y)es", "(N)o"], 0, {ord("n")},)
-                            # )()
-                            resk, resp, _ = self.show_win_options(
-                                "Delete '{}'?".format(ch_list[index]),
-                                ["(Y)es", "(N)o"],
-                                0,
-                                {ord("n")},
-                            )
-                            if resk is not None:
-                                key_chwin = resk
-                                continue
-                            elif resp == 0:
-                                return None, (0 if index == 0 else index - 1), index
-                            chwin.redrawwin()
-                            chwin.refresh()
-                        elif key_chwin in {ord(i) for i in ["Y", "y", "N", "n"]} and ch_list == [
-                            "(Y)es",
-                            "(N)o",
-                        ]:
-                            if key_chwin in {ord("Y"), ord("y")}:
-                                return None, 0, None
-                            else:
-                                return None, 1, None
-                        elif key_chwin in WINKEYS - key:
-                            chwin.clear()
-                            chwin.refresh()
-                            return key_chwin, index, None
-                        countstring = ""
-
-                    while index not in range(y, y + padhi):
-                        if index < y:
-                            y -= 1
-                        else:
-                            y += 1
-
-                    for n in range(totlines):
-                        att = curses.A_REVERSE if index == n else curses.A_NORMAL
-                        pre = ">>" if index == n else "  "
-                        pad.addstr(n, 0, pre)
-                        pad.chgat(n, 0, span[n], pad.getbkgd() | att)
-
-                    pad.refresh(y, 0, Y + 4 + (1 if allowdel else 0), X + 4, rows - 5, cols - 6)
-                    # pad.refresh(y, 0, Y+5, X+4, rows - 5, cols - 6)
-                    key_chwin = chwin.getch()
-                    if key_chwin == curses.KEY_MOUSE:
-                        mouse_event = curses.getmouse()
-                        if mouse_event[4] == curses.BUTTON4_PRESSED:
-                            key_chwin = list(K["ScrollUp"])[0]
-                        elif mouse_event[4] == 2097152:
-                            key_chwin = list(K["ScrollDown"])[0]
-                        elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
-                            if (
-                                mouse_event[2] >= 6
-                                and mouse_event[2] < rows - 4
-                                and mouse_event[2] < 6 + totlines
-                            ):
-                                index = mouse_event[2] - 6 + y
-                            key_chwin = list(K["Follow"])[0]
-                        elif (
-                            mouse_event[4] == curses.BUTTON1_CLICKED
-                            and mouse_event[2] >= 6
-                            and mouse_event[2] < rows - 4
-                            and mouse_event[2] < 6 + totlines
-                        ):
-                            if index == mouse_event[2] - 6 + y:
-                                key_chwin = list(K["Follow"])[0]
-                                continue
-                            index = mouse_event[2] - 6 + y
-                        elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                            key_chwin = list(K["Quit"])[0]
-
-                chwin.clear()
-                chwin.refresh()
-                return None, None, None
-
-            return wrapper
-
-        return inner_f
-
-    def text_win(textfunc):
-        @wraps(textfunc)
-        def wrapper(self, *args, **kwargs):
-            rows, cols = self.screen.getmaxyx()
-            hi, wi = rows - 4, cols - 4
-            Y, X = 2, 2
-            textw = curses.newwin(hi, wi, Y, X)
-            if self.is_color_supported:
-                textw.bkgd(self.screen.getbkgd())
-
-            title, raw_texts, key = textfunc(self, *args, **kwargs)
-
-            if len(title) > cols - 8:
-                title = title[: cols - 8]
-
-            texts = []
-            for i in raw_texts.splitlines():
-                texts += textwrap.wrap(i, wi - 6, drop_whitespace=False)
-
-            textw.box()
-            textw.keypad(True)
-            textw.addstr(1, 2, title)
-            textw.addstr(2, 2, "-" * len(title))
-            key_textw = 0
-
-            totlines = len(texts)
-
-            pad = curses.newpad(totlines, wi - 2)
-            if self.is_color_supported:
-                pad.bkgd(self.screen.getbkgd())
-
-            pad.keypad(True)
-            for n, i in enumerate(texts):
-                pad.addstr(n, 0, i)
-            y = 0
-            textw.refresh()
-            pad.refresh(y, 0, Y + 4, X + 4, rows - 5, cols - 6)
-            padhi = rows - 8 - Y
-
-            while key_textw not in K["Quit"] | key:
-                if key_textw in K["ScrollUp"] and y > 0:
-                    y -= 1
-                elif key_textw in K["ScrollDown"] and y < totlines - hi + 6:
-                    y += 1
-                elif key_textw in K["PageUp"]:
-                    y = pgup(y, padhi)
-                elif key_textw in K["PageDown"]:
-                    y = pgdn(y, totlines, padhi)
-                elif key_textw in K["BeginningOfCh"]:
-                    y = 0
-                elif key_textw in K["EndOfCh"]:
-                    y = pgend(totlines, padhi)
-                elif key_textw in WINKEYS - key:
-                    textw.clear()
-                    textw.refresh()
-                    return key_textw
-                pad.refresh(y, 0, 6, 5, rows - 5, cols - 5)
-                key_textw = textw.getch()
-
-            textw.clear()
-            textw.refresh()
-            # TODO: do not return None
-            return
-
-        return wrapper
-
     @choice_win(True)
     def show_win_options(self, title, options, active_index, key_set):
         return title, options, active_index, key_set
 
     @choice_win()
     def toc(self, src, index):
-        return "Table of Contents", src, index, K["TableOfContents"]
+        # return "Table of Contents", src, index, K["TableOfContents"]
+        return "Table of Contents", src, index, self.config.keymap.TableOfContents
 
     @text_win
     def show_win_metadata(self):
@@ -1458,17 +1671,20 @@ class Reader:
             mdata += i[0].upper() + ": " + data + "\n"
             data = re.sub("\t", "", data)
             # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
-        return "Metadata", mdata, K["Metadata"]
+        # return "Metadata", mdata, K["Metadata"]
+        return "Metadata", mdata, self.config.keymap.Metadata
 
     @text_win
     def show_win_help(self):
         src = "Key Bindings:\n"
-        dig = max([len(i) for i in CFG["Keys"].values()]) + 2
-        for i in CFG["Keys"].keys():
-            src += "{}  {}\n".format(
-                CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
-            )
-        return "Help", src, K["Help"]
+        # TODO
+        # dig = max([len(i) for i in CFG["Keys"].values()]) + 2
+        # for i in CFG["Keys"].keys():
+        #     src += "{}  {}\n".format(
+        #         CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
+        #     )
+        # return "Help", src, K["Help"]
+        return "Help", src, self.config.keymap.Help
 
     @text_win
     def show_win_error(self, title, msg, key):
@@ -1498,23 +1714,27 @@ class Reader:
         dictwin.refresh()
 
         if err == b"":
-            return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
+            # return "Definition: " + word.upper(), out.decode(), K["DefineWord"]
+            return "Definition: " + word.upper(), out.decode(), self.config.keymap.DefineWord
         else:
-            return "Error: " + self.ext_dict_app, err.decode(), K["DefineWord"]
+            # return "Error: " + self.ext_dict_app, err.decode(), K["DefineWord"]
+            return "Error: " + self.ext_dict_app, err.decode(), self.config.keymap.DefineWord
 
     def show_win_choices_bookmarks(self):
         idx = 0
         while True:
             bmarkslist = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
             if bmarkslist == []:
-                return list(K["ShowBookmarks"])[0], None
-            retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, {ord("B")})
+                # return list(K["ShowBookmarks"])[0], None
+                return list(self.config.keymap.ShowBookmarks)[0], None
+            # retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, {ord("B")})
+            retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, (Key("B"),))
             if todel is not None:
                 del STATE["States"][self.ebook.path]["bmarks"][todel]
             else:
                 return retk, idx
 
-    def input_prompt(self, prompt):
+    def input_prompt(self, prompt: str) -> Union[NoUpdate, Key, str]:
         # prevent pad hole when prompting for input while
         # other window is active
         # pad.refresh(y, 0, 0, x, rows-2, x+width)
@@ -1537,35 +1757,39 @@ class Reader:
                 # NOTE: getch() only handles ascii
                 # to handle wide char like: é, use get_wch()
                 # ipt = stat.getch()
-                ipt = stat.get_wch()
+                ipt = Key(stat.get_wch())
                 # get_wch() return ambiguous type
                 # str for string input but int for function or special keys
-                if type(ipt) == str:
-                    ipt = ord(ipt)
+                # if type(ipt) == str:
+                #     ipt = ord(ipt)
 
-                if ipt == 27:
+                if ipt == Key(27):
                     stat.clear()
                     stat.refresh()
                     curses.echo(0)
                     safe_curs_set(0)
-                    return
-                elif ipt == 10:
+                    # return
+                    return NoUpdate()
+                elif ipt == Key(10):
                     stat.clear()
                     stat.refresh()
                     curses.echo(0)
                     safe_curs_set(0)
                     return init_text
-                elif ipt in {8, 127, curses.KEY_BACKSPACE}:
+                # elif ipt in {8, 127, curses.KEY_BACKSPACE}:
+                elif ipt in (Key(8), Key(127), Key(curses.KEY_BACKSPACE)):
                     init_text = init_text[:-1]
-                elif ipt == curses.KEY_RESIZE:
+                elif ipt == Key(curses.KEY_RESIZE):
                     stat.clear()
                     stat.refresh()
                     curses.echo(0)
                     safe_curs_set(0)
-                    return curses.KEY_RESIZE
+                    # return curses.KEY_RESIZE
+                    return Key(curses.KEY_RESIZE)
                 # elif len(init_text) <= maxlen:
                 else:
-                    init_text += chr(ipt)
+                    # init_text += chr(ipt)
+                    init_text += ipt.char
 
                 stat.clear()
                 stat.addstr(0, 0, prompt, curses.A_REVERSE)
@@ -1582,10 +1806,14 @@ class Reader:
             stat.refresh()
             curses.echo(0)
             safe_curs_set(0)
-            return
+            # return
+            return NoUpdate()
 
     # def searching(self, pad, src, width, y, ch, tot):
-    def searching(self, pad, src, reading_state: ReadingState, tot) -> Union[ReadingState, Key]:
+    def searching(
+        self, pad, src, reading_state: ReadingState, tot
+    ) -> Union[NoUpdate, ReadingState, Key]:
+
         rows, cols = self.screen.getmaxyx()
         if SPREAD == 2:
             # TODO: maybe dont change textwidth but make a copy?
@@ -1601,17 +1829,22 @@ class Reader:
         # if self.search_pattern is None:
         if not self.search_data:
             candidate_text = self.input_prompt(" Regex:")
-            # if candidate_text is None:
-            if not candidate_text:
-                # self.search_data=None
-                return reading_state
-            elif isinstance(candidate_text, str):
+            if isinstance(candidate_text, str) and candidate_text:
                 # self.search_pattern = "/" + candidate_text
                 # self.search_data = SearchData(active=True, value=candidate_text)
                 self.search_data = SearchData(value=candidate_text)
-            elif candidate_text == curses.KEY_RESIZE:
-                # return candidate_text
-                return Key(candidate_text)
+            else:
+                return candidate_text
+            # if not candidate_text:
+            #     # self.search_data=None
+            #     return reading_state
+            # elif isinstance(candidate_text, str):
+            #     # self.search_pattern = "/" + candidate_text
+            #     # self.search_data = SearchData(active=True, value=candidate_text)
+            #     self.search_data = SearchData(value=candidate_text)
+            # elif candidate_text == Key(curses.KEY_RESIZE):
+            #     # return candidate_text
+            #     return Key(curses.KEY_RESIZE)
 
         # if self.search_pattern in {"?", "/"}:
         #     self.search_pattern = None
@@ -1630,10 +1863,10 @@ class Reader:
             # self.search_pattern = None
             # self.search_data = SearchData()
             self.search_data = None
-            tmpk = self.show_win_error("!Regex Error", str(reerrmsg), set())
-            # return tmpk
+            tmpk = self.show_win_error("!Regex Error", str(reerrmsg), tuple())
+            return tmpk
             # TODO: catch for None
-            return Key(tmpk)
+            # return Key(tmpk)
 
         for n, i in enumerate(src):
             for j in pattern.finditer(i):
@@ -1663,7 +1896,8 @@ class Reader:
             else:
                 s = 0
                 while True:
-                    if s in K["Quit"]:
+                    # if s in K["Quit"]:
+                    if s in self.config.keymap.Quit:
                         # self.search_pattern = None
                         # self.search_data = SearchData()
                         self.search_data = None
@@ -1672,7 +1906,7 @@ class Reader:
                         # return y
                         return reading_state
                     # TODO: maybe >= 0?
-                    elif s == ord("n") and reading_state.content_index == 0:
+                    elif s == Key("n") and reading_state.content_index == 0:
                         # self.search_pattern = "/" + self.search_pattern[1:]
                         self.search_data = dataclasses.replace(
                             self.search_data, direction=Direction.FORWARD
@@ -1684,7 +1918,7 @@ class Reader:
                             content_index=reading_state.content_index + 1,
                             textwidth=reading_state.textwidth,
                         )
-                    elif s == ord("N") and reading_state.content_index + 1 == tot:
+                    elif s == Key("N") and reading_state.content_index + 1 == tot:
                         # self.search_pattern = "?" + self.search_pattern[1:]
                         self.search_data = dataclasses.replace(
                             self.search_data, direction=Direction.BACKWARD
@@ -1744,7 +1978,8 @@ class Reader:
             )
         )
         while True:
-            if s in K["Quit"]:
+            # if s in K["Quit"]:
+            if s in self.config.keymap.Quit:
                 # self.search_pattern = None
                 # self.search_data = SearchData()
                 self.search_data = None
@@ -1755,7 +1990,8 @@ class Reader:
                 self.screen.refresh()
                 # return y
                 return reading_state
-            elif s == ord("n"):
+            # elif s == ord("n"):
+            elif s == Key("n"):
                 # self.search_pattern = "/" + self.search_pattern[1:]
                 self.search_data = dataclasses.replace(
                     self.search_data, direction=Direction.FORWARD
@@ -1784,7 +2020,8 @@ class Reader:
                             sidx + 1, len(found), reading_state.content_index + 1, tot
                         )
                     )
-            elif s == ord("N"):
+            # elif s == ord("N"):
+            elif s == Key("N"):
                 # self.search_pattern = "?" + self.search_pattern[1:]
                 self.search_data = dataclasses.replace(
                     self.search_data, direction=Direction.BACKWARD
@@ -1813,9 +2050,9 @@ class Reader:
                             sidx + 1, len(found), reading_state.content_index + 1, tot
                         )
                     )
-            elif s == curses.KEY_RESIZE:
+            elif s == Key(curses.KEY_RESIZE):
                 # return s
-                return Key(s)
+                return Key(curses.KEY_RESIZE)
 
             # TODO
             if reading_state.row + rows - 1 > pad.chunks[pad.find_chunkidx(reading_state.row)]:
@@ -1876,7 +2113,8 @@ class Reader:
                 stderr=subprocess.DEVNULL,
             )
             speaker = subprocess.Popen(
-                ["play", path, "tempo", str(CFG["TTSSpeed"])],
+                # ["play", path, "tempo", str(CFG["TTSSpeed"])],
+                ["play", path, "tempo", str(self.config.setting.TTSSpeed)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -1888,20 +2126,34 @@ class Reader:
                 if k == curses.KEY_MOUSE:
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(K["Quit"])[0]
+                        # k = list(K["Quit"])[0]
+                        k = list(self.config.keymap.Quit)[0]
                     elif mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < self.screen_cols // 2:
-                            k = list(K["PageUp"])[0]
+                            # k = list(K["PageUp"])[0]
+                            k = list(self.config.keymap.PageUp)[0]
                         else:
-                            k = list(K["PageDown"])[0]
+                            # k = list(K["PageDown"])[0]
+                            k = list(self.config.keymap.PageDown)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(K["ScrollUp"])[0]
+                        # k = list(K["ScrollUp"])[0]
+                        k = list(self.config.keymap.ScrollUp)[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(K["ScrollDown"])[0]
+                        # k = list(K["ScrollDown"])[0]
+                        k = list(self.config.keymap.ScrollDown)[0]
                 # if k != -1:
-                if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K[
-                    "ScrollDown"
-                ] | {curses.KEY_RESIZE}:
+                # if k in K["Quit"] | K["PageUp"] | K["PageDown"] | K["ScrollUp"] | K[
+                #     "ScrollDown"
+                # ] | {curses.KEY_RESIZE}:
+                if (
+                    k
+                    in self.config.keymap.Quit
+                    + self.config.keymap.PageUp
+                    + self.config.keymap.PageDown
+                    + self.config.keymap.ScrollUp
+                    + self.config.keymap.ScrollDown
+                    + (curses.KEY_RESIZE,)
+                ):
                     speaker.terminate()
                     # speaker.kill()
                     break
@@ -1909,7 +2161,8 @@ class Reader:
             self.screen.timeout(-1)
             os.remove(path)
 
-        if k in K["Quit"]:
+        # if k in K["Quit"]:
+        if k in self.config.keymap.Quit:
             self.is_speaking = False
             k = None
         return k
@@ -1932,7 +2185,8 @@ class Reader:
 
         # TODO: change ord("/") to read from cfg
         # k = 0 if self.search_pattern is None else ord("/")
-        k = ord("/") if self.search_data else 0
+        # k = ord("/") if self.search_data else 0
+        k = self.config.keymap.RegexSearch[0] if self.search_data else 0
         rows, cols = self.screen.getmaxyx()
 
         mincols_doublespr = 2 + 22 + 3 + 22 + 2
@@ -2017,7 +2271,8 @@ class Reader:
                 if k in range(48, 58):  # i.e., k is a numeral
                     countstring = countstring + chr(k)
                 else:
-                    if k in K["Quit"]:
+                    # if k in K["Quit"]:
+                    if k in self.config.keymap.Quit:
                         if k == 27 and countstring != "":
                             countstring = ""
                         else:
@@ -2030,7 +2285,8 @@ class Reader:
                                 reading_state.row / totlines,
                             )
                             sys.exit()
-                    elif k in K["TTSToggle"] and self._tts_support:
+                    # elif k in K["TTSToggle"] and self._tts_support:
+                    elif k in self.config.keymap.TTSToggle and self._tts_support:
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
                         for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
@@ -2045,12 +2301,14 @@ class Reader:
                         ):
                             self.is_speaking = False
                         continue
-                    elif k in K["DoubleSpreadToggle"]:
+                    # elif k in K["DoubleSpreadToggle"]:
+                    elif k in self.config.keymap.DoubleSpreadToggle:
                         if cols < mincols_doublespr:
                             k = self.show_win_error(
                                 "Screen is too small",
                                 "Min: {} cols x {} rows".format(mincols_doublespr, 12),
-                                {ord("D")},
+                                # {ord("D")},
+                                (Key("D"),),
                             )
                         SPREAD = (SPREAD % 2) + 1
                         # return 0, width, 0, y / totlines, ""
@@ -2062,9 +2320,11 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif k in K["ScrollUp"]:
+                    # elif k in K["ScrollUp"]:
+                    elif k in self.config.keymap.ScrollUp:
                         if SPREAD == 2:
-                            k = list(K["PageUp"])[0]
+                            # k = list(K["PageUp"])[0]
+                            k = list(self.config.keymap.PageUp)[0]
                             continue
                         if count > 1:
                             svline = reading_state.row - 1
@@ -2091,7 +2351,8 @@ class Reader:
                         else:
                             # y = 0
                             reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in K["PageUp"]:
+                    # elif k in K["PageUp"]:
+                    elif k in self.config.keymap.PageUp:
                         if reading_state.row == 0 and reading_state.content_index != 0:
                             self.page_animation = Direction.BACKWARD
                             tmp_parser = HTMLtoLines()
@@ -2128,9 +2389,11 @@ class Reader:
                             else:
                                 # y = 0
                                 reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in K["ScrollDown"]:
+                    # elif k in K["ScrollDown"]:
+                    elif k in self.config.keymap.ScrollDown:
                         if SPREAD == 2:
-                            k = list(K["PageDown"])[0]
+                            # k = list(K["PageDown"])[0]
+                            k = list(self.config.keymap.PageDown)[0]
                             continue
                         if count > 1:
                             svline = reading_state.row + rows - 1
@@ -2152,7 +2415,8 @@ class Reader:
                         else:
                             # y = totlines - rows
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
-                    elif k in K["PageDown"]:
+                    # elif k in K["PageDown"]:
+                    elif k in self.config.keymap.PageDown:
                         if totlines - reading_state.row > rows * SPREAD:
                             self.page_animation = Direction.FORWARD
                             if (
@@ -2178,11 +2442,12 @@ class Reader:
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
                             )
-                    elif k in K["HalfScreenUp"] | K["HalfScreenDown"]:
-                        countstring = str(rows // 2)
-                        k = list(K["ScrollUp" if k in K["HalfScreenUp"] else "ScrollDown"])[0]
-                        continue
-                    elif k in K["NextChapter"]:
+                    # elif k in K["HalfScreenUp"] | K["HalfScreenDown"]:
+                    #     countstring = str(rows // 2)
+                    #     k = list(K["ScrollUp" if k in K["HalfScreenUp"] else "ScrollDown"])[0]
+                    #     continue
+                    # elif k in K["NextChapter"]:
+                    elif k in self.config.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2206,7 +2471,8 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc + 1],
                                 )
-                    elif k in K["PrevChapter"]:
+                    # elif k in K["PrevChapter"]:
+                    elif k in self.config.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2227,7 +2493,8 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc - 1],
                                 )
-                    elif k in K["BeginningOfCh"]:
+                    # elif k in K["BeginningOfCh"]:
+                    elif k in self.config.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2243,7 +2510,8 @@ class Reader:
                         except (KeyError, IndexError):
                             # y = 0
                             reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in K["EndOfCh"]:
+                    # elif k in K["EndOfCh"]:
+                    elif k in self.config.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2267,12 +2535,14 @@ class Reader:
                             reading_state = dataclasses.replace(
                                 reading_state, row=pgend(totlines, rows)
                             )
-                    elif k in K["TableOfContents"]:
+                    # elif k in K["TableOfContents"]:
+                    elif k in self.config.keymap.TableOfContents:
                         if self.ebook.toc_entries == [[], [], []]:
                             k = self.show_win_error(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
-                                K["TableOfContents"],
+                                # K["TableOfContents"],
+                                self.config.keymap.TableOfContents,
                             )
                             continue
                         ntoc = find_curr_toc_id(
@@ -2303,16 +2573,21 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[fllwd],
                                 )
-                    elif k in K["Metadata"]:
-                        k = self.show_win_metadata(self.ebook)
-                        if k in WINKEYS:
+                    # elif k in K["Metadata"]:
+                    elif k in self.config.keymap.Metadata:
+                        k = self.show_win_metadata()
+                        # if k in WINKEYS:
+                        if k in self._win_keys:
                             continue
-                    elif k in K["Help"]:
+                    # elif k in K["Help"]:
+                    elif k in self.config.keymap.Help:
                         k = self.show_win_help()
-                        if k in WINKEYS:
+                        # if k in WINKEYS:
+                        if k in self._win_keys:
                             continue
                     elif (
-                        k in K["Enlarge"]
+                        # k in K["Enlarge"]
+                        k in self.config.keymap.Enlarge
                         and (reading_state.textwidth + count) < cols - 4
                         and SPREAD == 1
                     ):
@@ -2326,7 +2601,12 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif k in K["Shrink"] and reading_state.textwidth >= 22 and SPREAD == 1:
+                    # elif k in K["Shrink"] and reading_state.textwidth >= 22 and SPREAD == 1:
+                    elif (
+                        k in self.config.keymap.Shrink
+                        and reading_state.textwidth >= 22
+                        and SPREAD == 1
+                    ):
                         # width -= count
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth - count
@@ -2337,7 +2617,8 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif k in K["SetWidth"] and SPREAD == 1:
+                    # elif k in K["SetWidth"] and SPREAD == 1:
+                    elif k in self.config.keymap.SetWidth and SPREAD == 1:
                         if countstring == "":
                             # if called without a count, toggle between 80 cols and full width
                             if reading_state.textwidth != 80 and cols - 4 >= 80:
@@ -2373,7 +2654,8 @@ class Reader:
                     #         return 0, 80, 0, y/totlines, ""
                     #     else:
                     #         return 0, cols - 2, 0, y/totlines, ""
-                    elif k in K["RegexSearch"]:
+                    # elif k in K["RegexSearch"]:
+                    elif k in self.config.keymap.RegexSearch:
                         ret_object = self.searching(
                             pad,
                             src_lines,
@@ -2387,9 +2669,9 @@ class Reader:
                         # TODO: handle ret_object is None
                         # like conjuring toc win
                         # if ret_object in WINKEYS or ret_object is None:
-                        if isinstance(ret_object, Key):
-                            # k = ret_object
-                            k = ret_object.value
+                        if isinstance(ret_object, Key) or isinstance(ret_object, NoUpdate):
+                            k = ret_object
+                            # k = ret_object.value
                             continue
                         # elif self.search_pattern is not None:
                         elif isinstance(ret_object, ReadingState) and self.search_data:
@@ -2404,7 +2686,8 @@ class Reader:
                             # y = ret_object
                             reading_state = ret_object
                             # reading_state = dataclasses.replace(reading_state, row=ret_object)
-                    elif k in K["OpenImage"] and self.image_viewer is not None:
+                    # elif k in K["OpenImage"] and self.image_viewer is not None:
+                    elif k in self.config.keymap.OpenImage and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
                             src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]
@@ -2419,7 +2702,11 @@ class Reader:
                             impath = imgs[int(gambar[0])]
                         elif len(gambar) > 1:
                             p, i = 0, 0
-                            while p not in K["Quit"] and p not in K["Follow"]:
+                            # while p not in K["Quit"] and p not in K["Follow"]:
+                            while (
+                                p not in self.config.keymap.Quit
+                                and p not in self.config.keymap.Follow
+                            ):
                                 self.screen.move(
                                     idx[i] % rows,
                                     (
@@ -2434,14 +2721,17 @@ class Reader:
                                 self.screen.refresh()
                                 safe_curs_set(1)
                                 p = pad.getch()
-                                if p in K["ScrollDown"]:
+                                # if p in K["ScrollDown"]:
+                                if p in self.config.keymap.ScrollDown:
                                     i += 1
-                                elif p in K["ScrollUp"]:
+                                # elif p in K["ScrollUp"]:
+                                elif p in self.config.keymap.ScrollUp:
                                     i -= 1
                                 i = i % len(gambar)
 
                             safe_curs_set(0)
-                            if p in K["Follow"]:
+                            # if p in K["Follow"]:
+                            if p in self.config.keymap.Follow:
                                 impath = imgs[int(gambar[i])]
 
                         if impath != "":
@@ -2452,9 +2742,10 @@ class Reader:
                                 k = self.open_image(pad, imgnm, imgbstr)
                                 continue
                             except Exception as e:
-                                self.show_win_error("Error Opening Image", str(e), set())
+                                self.show_win_error("Error Opening Image", str(e), tuple())
                     elif (
-                        k in K["SwitchColor"]
+                        # k in K["SwitchColor"]
+                        k in self.config.keymap.SwitchColor
                         and self.is_color_supported
                         and countstring in {"", "0", "1", "2"}
                     ):
@@ -2473,7 +2764,8 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             row=reading_state.row,
                         )
-                    elif k in K["AddBookmark"]:
+                    # elif k in K["AddBookmark"]:
+                    elif k in self.config.keymap.AddBookmark:
                         defbmname_suffix = 1
                         defbmname = "Bookmark " + str(defbmname_suffix)
                         occupiedbmnames = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
@@ -2481,7 +2773,8 @@ class Reader:
                             defbmname_suffix += 1
                             defbmname = "Bookmark " + str(defbmname_suffix)
                         bmname = self.input_prompt(" Add bookmark ({}):".format(defbmname))
-                        if bmname is not None:
+                        # if bmname is not None:
+                        if isinstance(bmname, str) and bmname:
                             if bmname.strip() == "":
                                 bmname = defbmname
                             STATE["States"][self.ebook.path]["bmarks"].append(
@@ -2492,12 +2785,17 @@ class Reader:
                                     reading_state.row / totlines,
                                 ]
                             )
-                    elif k in K["ShowBookmarks"]:
+                        else:
+                            k = bmname
+                            continue
+                    # elif k in K["ShowBookmarks"]:
+                    elif k in self.config.keymap.ShowBookmarks:
                         if STATE["States"][self.ebook.path]["bmarks"] == []:
                             k = self.show_win_error(
                                 "Bookmarks",
                                 "N/A: Bookmarks are not found in this book.",
-                                {ord("B")},
+                                # {ord("B")},
+                                (Key("B"),),
                             )
                             continue
                         else:
@@ -2514,24 +2812,28 @@ class Reader:
                                     row=bmtojump[2],
                                     rel_pctg=bmtojump[3],
                                 )
-                    elif k in K["DefineWord"] and self.ext_dict_app is not None:
+                    # elif k in K["DefineWord"] and self.ext_dict_app is not None:
+                    elif k in self.config.keymap.DefineWord and self.ext_dict_app is not None:
                         word = self.input_prompt(" Define:")
-                        if word == curses.KEY_RESIZE:
-                            k = word
-                            continue
-                        elif word is not None:
+                        if isinstance(word, str) and word:
                             defin = self.define_word(word)
-                            if defin in WINKEYS:
+                            # if defin in WINKEYS:
+                            if defin in self._win_keys:
                                 k = defin
                                 continue
-                    elif k in K["MarkPosition"]:
+                        else:
+                            k = word
+                            continue
+                    # elif k in K["MarkPosition"]:
+                    elif k in self.config.keymap.MarkPosition:
                         jumnum = pad.getch()
                         if jumnum in range(49, 58):
                             self.jump_list[chr(jumnum)] = reading_state
                         else:
                             k = jumnum
                             continue
-                    elif k in K["JumpToPosition"]:
+                    # elif k in K["JumpToPosition"]:
+                    elif k in self.config.keymap.JumpToPosition:
                         jumnum = pad.getch()
                         if jumnum in range(49, 58) and chr(jumnum) in self.jump_list.keys():
                             marked_reading_state = self.jump_list[chr(jumnum)]
@@ -2547,9 +2849,10 @@ class Reader:
                         else:
                             k = jumnum
                             continue
-                    elif k in K["ShowHideProgress"]:
+                    # elif k in K["ShowHideProgress"]:
+                    elif k in self.config.keymap.ShowHideProgress:
                         SHOWPROGRESS = not SHOWPROGRESS
-                    elif k == curses.KEY_RESIZE:
+                    elif k == Key(curses.KEY_RESIZE):
                         savestate(
                             self.ebook.path,
                             reading_state.content_index,
@@ -2597,7 +2900,9 @@ class Reader:
                     self.screen.clear()
                     self.screen.addstr(0, 0, countstring)
                     self.screen.refresh()
-                    if CFG["PageScrollAnimation"] and self.page_animation is not None:
+                    # if CFG["PageScrollAnimation"] and self.page_animation is not None:
+                    # TODO
+                    if self.config.setting.PageScrollAnimation and self.page_animation:
                         for i in range(reading_state.textwidth + 1):
                             curses.napms(1)
                             # to optimize performance
@@ -2685,28 +2990,37 @@ class Reader:
                 except curses.error:
                     pass
                 if self.is_speaking:
-                    k = list(K["TTSToggle"])[0]
+                    # k = list(K["TTSToggle"])[0]
+                    k = list(self.config.keymap.TTSToggle)[0]
                     continue
                 k = pad.getch()
                 if k == curses.KEY_MOUSE:
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < cols // 2:
-                            k = list(K["PageUp"])[0]
+                            # k = list(K["PageUp"])[0]
+                            k = list(self.config.keymap.PageUp)[0]
                         else:
-                            k = list(K["PageDown"])[0]
+                            # k = list(K["PageDown"])[0]
+                            k = list(self.config.keymap.PageDown)[0]
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        k = list(K["TableOfContents"])[0]
+                        # k = list(K["TableOfContents"])[0]
+                        k = list(self.config.keymap.TableOfContents)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(K["ScrollUp"])[0]
+                        # k = list(K["ScrollUp"])[0]
+                        k = list(self.config.keymap.ScrollUp)[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(K["ScrollDown"])[0]
+                        # k = list(K["ScrollDown"])[0]
+                        k = list(self.config.keymap.ScrollDown)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED + curses.BUTTON_CTRL:
-                        k = list(K["Enlarge"])[0]
+                        # k = list(K["Enlarge"])[0]
+                        k = list(self.config.keymap.Enlarge)[0]
                     elif mouse_event[4] == 2097152 + curses.BUTTON_CTRL:
-                        k = list(K["Shrink"])[0]
+                        # k = list(K["Shrink"])[0]
+                        k = list(self.config.keymap.Shrink)[0]
                     elif mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(K["TTSToggle"])[0]
+                        # k = list(K["TTSToggle"])[0]
+                        k = list(self.config.keymap.TTSToggle)[0]
 
                 if svline != "dontsave":
                     pad.chgat(
@@ -2729,8 +3043,9 @@ def preread(stdscr, filepath: str):
 
     ebook = get_ebook_obj(filepath)
     state = State()
+    config = Config()
 
-    reader = Reader(screen=stdscr, ebook=ebook, state=state)
+    reader = Reader(screen=stdscr, ebook=ebook, config=config, state=state)
 
     try:
         reading_state = state.get_last_reading_state(reader.ebook)
@@ -2740,9 +3055,11 @@ def preread(stdscr, filepath: str):
         else:
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
-        parse_keys()
-        SHOWPROGRESS = CFG["ShowProgressIndicator"]
-        SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
+        # parse_keys()
+        # SHOWPROGRESS = CFG["ShowProgressIndicator"]
+        # SPREAD = 2 if CFG["StartWithDoubleSpread"] else 1
+        SHOWPROGRESS = reader.config.setting.ShowProgressIndicator
+        SPREAD = 2 if reader.config.setting.StartWithDoubleSpread else 1
         # count_max_reading_pg(ebook)
         reader.run_counting_letters()
 
