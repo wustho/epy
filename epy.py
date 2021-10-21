@@ -53,7 +53,6 @@ except ModuleNotFoundError:
     MOBISUPPORT = False
 
 
-# -1 is default terminal fg/bg colors
 STATE = {"LastRead": "", "States": {}}
 STATEFILE = ""
 SPREAD = 1
@@ -127,6 +126,7 @@ class Settings:
     MouseSupport: bool = False
     StartWithDoubleSpread: bool = False
     TTSSpeed: int = 1
+    # -1 is default terminal fg/bg colors
     DarkColorFG: int = 252
     DarkColorBG: int = 235
     LightColorFG: int = 238
