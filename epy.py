@@ -1183,7 +1183,7 @@ def choice_win(allowdel=False):
                 span.append(len(strs))
 
             countstring = ""
-            while key_chwin not in self.config.keymap.Quit + key:
+            while key_chwin not in self.keymap.Quit + key:
                 if countstring == "":
                     count = 1
                 else:
@@ -1191,18 +1191,15 @@ def choice_win(allowdel=False):
                 if key_chwin in range(48, 58):  # i.e., k is a numeral
                     countstring = countstring + chr(key_chwin)
                 else:
-                    if key_chwin in self.config.keymap.ScrollUp + self.config.keymap.PageUp:
+                    if key_chwin in self.keymap.ScrollUp + self.keymap.PageUp:
                         index -= count
                         if index < 0:
                             index = 0
-                    elif (
-                        key_chwin in self.config.keymap.ScrollDown
-                        or key_chwin in self.config.keymap.PageDown
-                    ):
+                    elif key_chwin in self.keymap.ScrollDown or key_chwin in self.keymap.PageDown:
                         index += count
                         if index + 1 >= totlines:
                             index = totlines - 1
-                    elif key_chwin in self.config.keymap.Follow:
+                    elif key_chwin in self.keymap.Follow:
                         chwin.clear()
                         chwin.refresh()
                         return None, index, None
@@ -1214,9 +1211,9 @@ def choice_win(allowdel=False):
                     #     index += 3
                     #     if index >= totlines:
                     #         index = totlines - 1
-                    elif key_chwin in self.config.keymap.BeginningOfCh:
+                    elif key_chwin in self.keymap.BeginningOfCh:
                         index = 0
-                    elif key_chwin in self.config.keymap.EndOfCh:
+                    elif key_chwin in self.keymap.EndOfCh:
                         index = totlines - 1
                     elif key_chwin == Key("D") and allowdel:
                         return None, (0 if index == 0 else index - 1), index
@@ -1268,9 +1265,9 @@ def choice_win(allowdel=False):
                 if key_chwin == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON4_PRESSED:
-                        key_chwin = list(self.config.keymap.ScrollUp)[0]
+                        key_chwin = list(self.keymap.ScrollUp)[0]
                     elif mouse_event[4] == 2097152:
-                        key_chwin = list(self.config.keymap.ScrollDown)[0]
+                        key_chwin = list(self.keymap.ScrollDown)[0]
                     elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
                         if (
                             mouse_event[2] >= 6
@@ -1278,7 +1275,7 @@ def choice_win(allowdel=False):
                             and mouse_event[2] < 6 + totlines
                         ):
                             index = mouse_event[2] - 6 + y
-                        key_chwin = list(self.config.keymap.Follow)[0]
+                        key_chwin = list(self.keymap.Follow)[0]
                     elif (
                         mouse_event[4] == curses.BUTTON1_CLICKED
                         and mouse_event[2] >= 6
@@ -1286,11 +1283,11 @@ def choice_win(allowdel=False):
                         and mouse_event[2] < 6 + totlines
                     ):
                         if index == mouse_event[2] - 6 + y:
-                            key_chwin = list(self.config.keymap.Follow)[0]
+                            key_chwin = list(self.keymap.Follow)[0]
                             continue
                         index = mouse_event[2] - 6 + y
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        key_chwin = list(self.config.keymap.Quit)[0]
+                        key_chwin = list(self.keymap.Quit)[0]
 
             chwin.clear()
             chwin.refresh()
@@ -1340,18 +1337,18 @@ def text_win(textfunc):
         pad.refresh(y, 0, Y + 4, X + 4, rows - 5, cols - 6)
         padhi = rows - 8 - Y
 
-        while key_textw not in self.config.keymap.Quit + key:
-            if key_textw in self.config.keymap.ScrollUp and y > 0:
+        while key_textw not in self.keymap.Quit + key:
+            if key_textw in self.keymap.ScrollUp and y > 0:
                 y -= 1
-            elif key_textw in self.config.keymap.ScrollDown and y < totlines - hi + 6:
+            elif key_textw in self.keymap.ScrollDown and y < totlines - hi + 6:
                 y += 1
-            elif key_textw in self.config.keymap.PageUp:
+            elif key_textw in self.keymap.PageUp:
                 y = pgup(y, padhi)
-            elif key_textw in self.config.keymap.PageDown:
+            elif key_textw in self.keymap.PageDown:
                 y = pgdn(y, totlines, padhi)
-            elif key_textw in self.config.keymap.BeginningOfCh:
+            elif key_textw in self.keymap.BeginningOfCh:
                 y = 0
-            elif key_textw in self.config.keymap.EndOfCh:
+            elif key_textw in self.keymap.EndOfCh:
                 y = pgend(totlines, padhi)
             elif key_textw in tuple_subtract(self._win_keys, key):
                 textw.clear()
@@ -1373,23 +1370,24 @@ class Reader:
         self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], config: Config, state: State
     ):
 
-        self.config = config
+        self.setting = config.setting
+        self.keymap = config.keymap
 
         # keys that will make
         # windows exit and return the said key
         self._win_keys = (
             # curses.KEY_RESIZE is a must
             (Key(curses.KEY_RESIZE),)
-            + self.config.keymap.TableOfContents
-            + self.config.keymap.Metadata
-            + self.config.keymap.Help
+            + self.keymap.TableOfContents
+            + self.keymap.Metadata
+            + self.keymap.Help
         )
 
         # screen initialization
         self.screen = screen
         self.screen.keypad(True)
         safe_curs_set(0)
-        if self.config.setting.MouseSupport:
+        if self.setting.MouseSupport:
             curses.mousemask(-1)
         # curses.mouseinterval(0)
         self.screen.clear()
@@ -1399,8 +1397,8 @@ class Reader:
         try:
             curses.use_default_colors()
             curses.init_pair(1, -1, -1)
-            curses.init_pair(2, self.config.setting.DarkColorFG, self.config.setting.DarkColorBG)
-            curses.init_pair(3, self.config.setting.LightColorFG, self.config.setting.LightColorBG)
+            curses.init_pair(2, self.setting.DarkColorFG, self.setting.DarkColorBG)
+            curses.init_pair(3, self.setting.LightColorFG, self.setting.LightColorBG)
             self.is_color_supported = True
         except:
             self.is_color_supported = False
@@ -1466,8 +1464,8 @@ class Reader:
         self._ext_dict_app: Optional[str] = None
         dict_app_preset_list = ["sdcv", "dict"]
 
-        if shutil.which(self.config.setting.DictionaryClient.split()[0]):
-            self._ext_dict_app = self.config.setting.DictionaryClient
+        if shutil.which(self.setting.DictionaryClient.split()[0]):
+            self._ext_dict_app = self.setting.DictionaryClient
         else:
             for i in dict_app_preset_list:
                 if shutil.which(i) is not None:
@@ -1491,8 +1489,8 @@ class Reader:
             "firefox",
         ]
 
-        if shutil.which(self.config.setting.DefaultViewer.split()[0]) is not None:
-            self._image_viewer = self.config.setting.DefaultViewer
+        if shutil.which(self.setting.DefaultViewer.split()[0]) is not None:
+            self._image_viewer = self.setting.DefaultViewer
         elif sys.platform == "win32":
             self._image_viewer = "start"
         elif sys.platform == "darwin":
@@ -1540,7 +1538,7 @@ class Reader:
 
     @choice_win()
     def toc(self, src, index):
-        return "Table of Contents", src, index, self.config.keymap.TableOfContents
+        return "Table of Contents", src, index, self.keymap.TableOfContents
 
     @text_win
     def show_win_metadata(self):
@@ -1552,7 +1550,7 @@ class Reader:
             mdata += i[0].upper() + ": " + data + "\n"
             # data = re.sub("\t", "", data)
             # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
-        return "Metadata", mdata, self.config.keymap.Metadata
+        return "Metadata", mdata, self.keymap.Metadata
 
     @text_win
     def show_win_help(self):
@@ -1563,7 +1561,7 @@ class Reader:
         #     src += "{}  {}\n".format(
         #         CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
         #     )
-        return "Help", src, self.config.keymap.Help
+        return "Help", src, self.keymap.Help
 
     @text_win
     def show_win_error(self, title, msg, key):
@@ -1593,16 +1591,16 @@ class Reader:
         dictwin.refresh()
 
         if err == b"":
-            return "Definition: " + word.upper(), out.decode(), self.config.keymap.DefineWord
+            return "Definition: " + word.upper(), out.decode(), self.keymap.DefineWord
         else:
-            return "Error: " + self.ext_dict_app, err.decode(), self.config.keymap.DefineWord
+            return "Error: " + self.ext_dict_app, err.decode(), self.keymap.DefineWord
 
     def show_win_choices_bookmarks(self):
         idx = 0
         while True:
             bmarkslist = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
             if bmarkslist == []:
-                return list(self.config.keymap.ShowBookmarks)[0], None
+                return list(self.keymap.ShowBookmarks)[0], None
             retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, (Key("B"),))
             if todel is not None:
                 del STATE["States"][self.ebook.path]["bmarks"][todel]
@@ -1730,7 +1728,7 @@ class Reader:
             else:
                 s = 0
                 while True:
-                    if s in self.config.keymap.Quit:
+                    if s in self.keymap.Quit:
                         self.search_data = None
                         self.screen.clear()
                         self.screen.refresh()
@@ -1794,7 +1792,7 @@ class Reader:
             )
         )
         while True:
-            if s in self.config.keymap.Quit:
+            if s in self.keymap.Quit:
                 self.search_data = None
                 for i in found:
                     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
@@ -1905,7 +1903,7 @@ class Reader:
                 stderr=subprocess.DEVNULL,
             )
             speaker = subprocess.Popen(
-                ["play", path, "tempo", str(self.config.setting.TTSSpeed)],
+                ["play", path, "tempo", str(self.setting.TTSSpeed)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -1917,23 +1915,23 @@ class Reader:
                 if k == curses.KEY_MOUSE:
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(self.config.keymap.Quit)[0]
+                        k = list(self.keymap.Quit)[0]
                     elif mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < self.screen_cols // 2:
-                            k = list(self.config.keymap.PageUp)[0]
+                            k = list(self.keymap.PageUp)[0]
                         else:
-                            k = list(self.config.keymap.PageDown)[0]
+                            k = list(self.keymap.PageDown)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(self.config.keymap.ScrollUp)[0]
+                        k = list(self.keymap.ScrollUp)[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(self.config.keymap.ScrollDown)[0]
+                        k = list(self.keymap.ScrollDown)[0]
                 if (
                     k
-                    in self.config.keymap.Quit
-                    + self.config.keymap.PageUp
-                    + self.config.keymap.PageDown
-                    + self.config.keymap.ScrollUp
-                    + self.config.keymap.ScrollDown
+                    in self.keymap.Quit
+                    + self.keymap.PageUp
+                    + self.keymap.PageDown
+                    + self.keymap.ScrollUp
+                    + self.keymap.ScrollDown
                     + (curses.KEY_RESIZE,)
                 ):
                     speaker.terminate()
@@ -1943,7 +1941,7 @@ class Reader:
             self.screen.timeout(-1)
             os.remove(path)
 
-        if k in self.config.keymap.Quit:
+        if k in self.keymap.Quit:
             self.is_speaking = False
             k = None
         return k
@@ -1963,8 +1961,8 @@ class Reader:
     def read(self, reading_state: ReadingState) -> ReadingState:
         global SHOWPROGRESS, SPREAD
 
-        # k = self.config.keymap.RegexSearch[0] if self.search_data else 0
-        k = self.config.keymap.RegexSearch[0] if self.search_data else NoUpdate()
+        # k = self.keymap.RegexSearch[0] if self.search_data else 0
+        k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
 
         mincols_doublespr = 2 + 22 + 3 + 22 + 2
@@ -2047,7 +2045,7 @@ class Reader:
                 if k in range(48, 58):  # i.e., k is a numeral
                     countstring = countstring + chr(k)
                 else:
-                    if k in self.config.keymap.Quit:
+                    if k in self.keymap.Quit:
                         if k == 27 and countstring != "":
                             countstring = ""
                         else:
@@ -2060,7 +2058,7 @@ class Reader:
                                 reading_state.row / totlines,
                             )
                             sys.exit()
-                    elif k in self.config.keymap.TTSToggle and self._tts_support:
+                    elif k in self.keymap.TTSToggle and self._tts_support:
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
                         for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
@@ -2075,7 +2073,7 @@ class Reader:
                         ):
                             self.is_speaking = False
                         continue
-                    elif k in self.config.keymap.DoubleSpreadToggle:
+                    elif k in self.keymap.DoubleSpreadToggle:
                         if cols < mincols_doublespr:
                             k = self.show_win_error(
                                 "Screen is too small",
@@ -2088,9 +2086,9 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif k in self.config.keymap.ScrollUp:
+                    elif k in self.keymap.ScrollUp:
                         if SPREAD == 2:
-                            k = list(self.config.keymap.PageUp)[0]
+                            k = list(self.keymap.PageUp)[0]
                             continue
                         if count > 1:
                             svline = reading_state.row - 1
@@ -2108,7 +2106,7 @@ class Reader:
                             )
                         else:
                             reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in self.config.keymap.PageUp:
+                    elif k in self.keymap.PageUp:
                         if reading_state.row == 0 and reading_state.content_index != 0:
                             self.page_animation = Direction.BACKWARD
                             tmp_parser = HTMLtoLines()
@@ -2134,9 +2132,9 @@ class Reader:
                                 )
                             else:
                                 reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in self.config.keymap.ScrollDown:
+                    elif k in self.keymap.ScrollDown:
                         if SPREAD == 2:
-                            k = list(self.config.keymap.PageDown)[0]
+                            k = list(self.keymap.PageDown)[0]
                             continue
                         if count > 1:
                             svline = reading_state.row + rows - 1
@@ -2155,7 +2153,7 @@ class Reader:
                             )
                         else:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
-                    elif k in self.config.keymap.PageDown:
+                    elif k in self.keymap.PageDown:
                         if totlines - reading_state.row > rows * SPREAD:
                             self.page_animation = Direction.FORWARD
                             if (
@@ -2182,7 +2180,7 @@ class Reader:
                     #     countstring = str(rows // 2)
                     #     k = list(K["ScrollUp" if k in K["HalfScreenUp"] else "ScrollDown"])[0]
                     #     continue
-                    elif k in self.config.keymap.NextChapter:
+                    elif k in self.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2204,7 +2202,7 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc + 1],
                                 )
-                    elif k in self.config.keymap.PrevChapter:
+                    elif k in self.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2223,7 +2221,7 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc - 1],
                                 )
-                    elif k in self.config.keymap.BeginningOfCh:
+                    elif k in self.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2237,7 +2235,7 @@ class Reader:
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
-                    elif k in self.config.keymap.EndOfCh:
+                    elif k in self.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
                             toc_sect,
@@ -2258,12 +2256,12 @@ class Reader:
                             reading_state = dataclasses.replace(
                                 reading_state, row=pgend(totlines, rows)
                             )
-                    elif k in self.config.keymap.TableOfContents:
+                    elif k in self.keymap.TableOfContents:
                         if self.ebook.toc_entries == [[], [], []]:
                             k = self.show_win_error(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
-                                self.config.keymap.TableOfContents,
+                                self.keymap.TableOfContents,
                             )
                             continue
                         ntoc = find_curr_toc_id(
@@ -2291,16 +2289,16 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[fllwd],
                                 )
-                    elif k in self.config.keymap.Metadata:
+                    elif k in self.keymap.Metadata:
                         k = self.show_win_metadata()
                         if k in self._win_keys:
                             continue
-                    elif k in self.config.keymap.Help:
+                    elif k in self.keymap.Help:
                         k = self.show_win_help()
                         if k in self._win_keys:
                             continue
                     elif (
-                        k in self.config.keymap.Enlarge
+                        k in self.keymap.Enlarge
                         and (reading_state.textwidth + count) < cols - 4
                         and SPREAD == 1
                     ):
@@ -2312,11 +2310,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif (
-                        k in self.config.keymap.Shrink
-                        and reading_state.textwidth >= 22
-                        and SPREAD == 1
-                    ):
+                    elif k in self.keymap.Shrink and reading_state.textwidth >= 22 and SPREAD == 1:
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth - count
                         )
@@ -2325,7 +2319,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    elif k in self.config.keymap.SetWidth and SPREAD == 1:
+                    elif k in self.keymap.SetWidth and SPREAD == 1:
                         if countstring == "":
                             # if called without a count, toggle between 80 cols and full width
                             if reading_state.textwidth != 80 and cols - 4 >= 80:
@@ -2355,7 +2349,7 @@ class Reader:
                     #         return 0, 80, 0, y/totlines, ""
                     #     else:
                     #         return 0, cols - 2, 0, y/totlines, ""
-                    elif k in self.config.keymap.RegexSearch:
+                    elif k in self.keymap.RegexSearch:
                         ret_object = self.searching(
                             pad,
                             src_lines,
@@ -2372,7 +2366,7 @@ class Reader:
                         elif isinstance(ret_object, ReadingState):
                             # y = ret_object
                             reading_state = ret_object
-                    elif k in self.config.keymap.OpenImage and self.image_viewer is not None:
+                    elif k in self.keymap.OpenImage and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
                             src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]
@@ -2387,10 +2381,7 @@ class Reader:
                             impath = imgs[int(gambar[0])]
                         elif len(gambar) > 1:
                             p, i = 0, 0
-                            while (
-                                p not in self.config.keymap.Quit
-                                and p not in self.config.keymap.Follow
-                            ):
+                            while p not in self.keymap.Quit and p not in self.keymap.Follow:
                                 self.screen.move(
                                     idx[i] % rows,
                                     (
@@ -2405,14 +2396,14 @@ class Reader:
                                 self.screen.refresh()
                                 safe_curs_set(1)
                                 p = pad.getch()
-                                if p in self.config.keymap.ScrollDown:
+                                if p in self.keymap.ScrollDown:
                                     i += 1
-                                elif p in self.config.keymap.ScrollUp:
+                                elif p in self.keymap.ScrollUp:
                                     i -= 1
                                 i = i % len(gambar)
 
                             safe_curs_set(0)
-                            if p in self.config.keymap.Follow:
+                            if p in self.keymap.Follow:
                                 impath = imgs[int(gambar[i])]
 
                         if impath != "":
@@ -2425,7 +2416,7 @@ class Reader:
                             except Exception as e:
                                 self.show_win_error("Error Opening Image", str(e), tuple())
                     elif (
-                        k in self.config.keymap.SwitchColor
+                        k in self.keymap.SwitchColor
                         and self.is_color_supported
                         and countstring in {"", "0", "1", "2"}
                     ):
@@ -2443,7 +2434,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             row=reading_state.row,
                         )
-                    elif k in self.config.keymap.AddBookmark:
+                    elif k in self.keymap.AddBookmark:
                         defbmname_suffix = 1
                         defbmname = "Bookmark " + str(defbmname_suffix)
                         occupiedbmnames = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
@@ -2465,7 +2456,7 @@ class Reader:
                         else:
                             k = bmname
                             continue
-                    elif k in self.config.keymap.ShowBookmarks:
+                    elif k in self.keymap.ShowBookmarks:
                         if STATE["States"][self.ebook.path]["bmarks"] == []:
                             k = self.show_win_error(
                                 "Bookmarks",
@@ -2487,7 +2478,7 @@ class Reader:
                                     row=bmtojump[2],
                                     rel_pctg=bmtojump[3],
                                 )
-                    elif k in self.config.keymap.DefineWord and self.ext_dict_app is not None:
+                    elif k in self.keymap.DefineWord and self.ext_dict_app is not None:
                         word = self.input_prompt(" Define:")
                         if isinstance(word, str) and word:
                             defin = self.define_word(word)
@@ -2497,14 +2488,14 @@ class Reader:
                         else:
                             k = word
                             continue
-                    elif k in self.config.keymap.MarkPosition:
+                    elif k in self.keymap.MarkPosition:
                         jumnum = pad.getch()
                         if jumnum in range(49, 58):
                             self.jump_list[chr(jumnum)] = reading_state
                         else:
                             k = jumnum
                             continue
-                    elif k in self.config.keymap.JumpToPosition:
+                    elif k in self.keymap.JumpToPosition:
                         jumnum = pad.getch()
                         if jumnum in range(49, 58) and chr(jumnum) in self.jump_list.keys():
                             marked_reading_state = self.jump_list[chr(jumnum)]
@@ -2519,7 +2510,7 @@ class Reader:
                         else:
                             k = jumnum
                             continue
-                    elif k in self.config.keymap.ShowHideProgress:
+                    elif k in self.keymap.ShowHideProgress:
                         SHOWPROGRESS = not SHOWPROGRESS
                     elif k == Key(curses.KEY_RESIZE):
                         savestate(
@@ -2567,7 +2558,7 @@ class Reader:
                     self.screen.clear()
                     self.screen.addstr(0, 0, countstring)
                     self.screen.refresh()
-                    if self.config.setting.PageScrollAnimation and self.page_animation:
+                    if self.setting.PageScrollAnimation and self.page_animation:
                         for i in range(reading_state.textwidth + 1):
                             curses.napms(1)
                             # to optimize performance
@@ -2655,7 +2646,7 @@ class Reader:
                 except curses.error:
                     pass
                 if self.is_speaking:
-                    k = list(self.config.keymap.TTSToggle)[0]
+                    k = list(self.keymap.TTSToggle)[0]
                     continue
                 k = pad.getch()
                 if k == curses.KEY_MOUSE:
@@ -2663,21 +2654,21 @@ class Reader:
                     if mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < cols // 2:
                             # TODO: list() is unnecessary
-                            k = list(self.config.keymap.PageUp)[0]
+                            k = list(self.keymap.PageUp)[0]
                         else:
-                            k = list(self.config.keymap.PageDown)[0]
+                            k = list(self.keymap.PageDown)[0]
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        k = list(self.config.keymap.TableOfContents)[0]
+                        k = list(self.keymap.TableOfContents)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(self.config.keymap.ScrollUp)[0]
+                        k = list(self.keymap.ScrollUp)[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(self.config.keymap.ScrollDown)[0]
+                        k = list(self.keymap.ScrollDown)[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED + curses.BUTTON_CTRL:
-                        k = list(self.config.keymap.Enlarge)[0]
+                        k = list(self.keymap.Enlarge)[0]
                     elif mouse_event[4] == 2097152 + curses.BUTTON_CTRL:
-                        k = list(self.config.keymap.Shrink)[0]
+                        k = list(self.keymap.Shrink)[0]
                     elif mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(self.config.keymap.TTSToggle)[0]
+                        k = list(self.keymap.TTSToggle)[0]
 
                 if svline != "dontsave":
                     pad.chgat(
@@ -2712,8 +2703,8 @@ def preread(stdscr, filepath: str):
         else:
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
-        SHOWPROGRESS = reader.config.setting.ShowProgressIndicator
-        SPREAD = 2 if reader.config.setting.StartWithDoubleSpread else 1
+        SHOWPROGRESS = reader.setting.ShowProgressIndicator
+        SPREAD = 2 if reader.setting.StartWithDoubleSpread else 1
         reader.run_counting_letters()
 
         while True:
