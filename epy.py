@@ -29,6 +29,7 @@ import multiprocessing
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -53,7 +54,6 @@ except ModuleNotFoundError:
     MOBISUPPORT = False
 
 
-STATE = {"LastRead": "", "States": {}}
 STATEFILE = ""
 SPREAD = 1
 
@@ -852,32 +852,6 @@ class Board:
         self.y = y
 
 
-def loadstate():
-    global STATE, STATEFILE
-    prefix = ""
-    if os.getenv("HOME") is not None:
-        homedir = os.getenv("HOME")
-        if os.path.isdir(os.path.join(homedir, ".config")):
-            prefix = os.path.join(homedir, ".config", "epy")
-        else:
-            prefix = os.path.join(homedir, ".epy")
-    elif os.getenv("USERPROFILE") is not None:
-        prefix = os.path.join(os.getenv("USERPROFILE"), ".epy")
-    else:
-        STATEFILE = os.devnull
-    os.makedirs(prefix, exist_ok=True)
-    STATEFILE = os.path.join(prefix, "state.json")
-
-    try:
-        with open(STATEFILE) as f:
-            STATE = json.load(f)
-    except FileNotFoundError:
-        pass
-
-    # if sys.platform == "win32":
-    #     CFG["PageScrollAnimation"] = False
-
-
 class AppData:
     @property
     def prefix(self) -> Optional[str]:
@@ -975,26 +949,94 @@ class Config(AppData):
 
 class State(AppData):
     def __init__(self):
-        with open(self.path) as f:
-            self.data = json.load(f)
+        if not os.path.isfile(self.filepath):
+            self.init_db()
 
     @property
-    def path(self) -> str:
-        if self.prefix:
-            state_file = os.path.join(self.prefix, "state.json")
-            if os.path.isfile(state_file):
-                return state_file
-        return os.devnull
+    def filepath(self) -> str:
+        return os.path.join(self.prefix, "states.db") if self.prefix else os.devnull
 
     def get_last_reading_state(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> ReadingState:
-        if ebook.path in self.data["States"]:
-            return ReadingState(
-                content_index=self.data["States"][ebook.path]["index"],
-                textwidth=self.data["States"][ebook.path]["width"],
-                row=self.data["States"][ebook.path]["pos"],
-                rel_pctg=self.data["States"][ebook.path]["pctg"],
+        try:
+            conn = sqlite3.connect(self.filepath)
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM reading_states WHERE filepath=?", (ebook.path,))
+            res = cur.fetchone()
+            if res:
+                return ReadingState(
+                    content_index=res[1], textwidth=res[2], row=res[3], rel_pctg=res[4]
+                )
+            return ReadingState()
+        finally:
+            conn.close()
+
+    def set_last_reading_state(
+        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], reading_state: ReadingState
+    ) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO reading_states
+                VALUES (:filepath, :content_index, :textwidth, :row, :rel_pctg)
+                """,
+                {"filepath": ebook.path, **dataclasses.asdict(reading_state)},
             )
-        return ReadingState()
+            conn.commit()
+        finally:
+            conn.close()
+
+    def gat_last_read(self) -> Optional[str]:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM last_read WHERE id=0")
+            res = cur.fetchone()
+            if res:
+                return res[1]
+            return None
+        finally:
+            conn.close()
+
+    def set_last_read(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute("INSERT OR REPLACE INTO last_read VALUES (0, ?)", (ebook.path,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def init_db(self) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute("CREATE TABLE last_read (id INTEGER PRIMARY KEY, filepath TEXT)")
+            conn.execute(
+                """
+                CREATE TABLE reading_states (
+                    filepath TEXT PRIMARY KEY,
+                    content_index INTEGER,
+                    textwidth INTEGER,
+                    row INTEGER,
+                    rel_pctg REAL
+                )
+                """
+            )
+            # TODO
+            conn.execute(
+                """
+                CREATE TABLE bookmarks (
+                    filepath TEXT,
+                    name TEXT PRIMARY KEY,
+                    content_index INTEGER,
+                    textwidth INTEGER,
+                    row INTEGER,
+                    rel_pctg REAL
+                )
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
 
 def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
@@ -1015,27 +1057,6 @@ def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
         )
     else:
         sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
-
-
-def savestate(file, index, width, pos, pctg):
-    # with open(CFGFILE, "w") as f:
-    #     json.dump(CFG, f, indent=2)
-    STATE["LastRead"] = file
-    STATE["States"][file]["index"] = index
-    STATE["States"][file]["width"] = width
-    STATE["States"][file]["pos"] = pos
-    STATE["States"][file]["pctg"] = pctg
-    with open(STATEFILE, "w") as f:
-        json.dump(STATE, f, indent=4)
-
-    # if MULTIPROC:
-    #     # PROC_COUNTLETTERS.terminate()
-    #     # PROC_COUNTLETTERS.kill()
-    #     # PROC_COUNTLETTERS.join()
-    #     try:
-    #         PROC_COUNTLETTERS.kill()
-    #     except AttributeError:
-    #         PROC_COUNTLETTERS.terminate()
 
 
 def tuple_subtract(tuple_one, tuple_two):
@@ -1946,7 +1967,11 @@ class Reader:
             k = None
         return k
 
-    def cleanup(self):
+    def savestate(self, reading_state: ReadingState) -> None:
+        self.state.set_last_read(self.ebook)
+        self.state.set_last_reading_state(self.ebook, reading_state)
+
+    def cleanup(self) -> None:
         self.ebook.cleanup()
 
         if isinstance(self._process_counting_letter, multiprocessing.Process):
@@ -2050,12 +2075,17 @@ class Reader:
                             countstring = ""
                         else:
                             # TODO
-                            savestate(
-                                self.ebook.path,
-                                reading_state.content_index,
-                                reading_state.textwidth,
-                                reading_state.row,
-                                reading_state.row / totlines,
+                            # savestate(
+                            #     self.ebook.path,
+                            #     reading_state.content_index,
+                            #     reading_state.textwidth,
+                            #     reading_state.row,
+                            #     reading_state.row / totlines,
+                            # )
+                            self.savestate(
+                                dataclasses.replace(
+                                    reading_state, rel_pctg=reading_state.row / totlines
+                                )
                             )
                             sys.exit()
                     elif k in self.keymap.TTSToggle and self._tts_support:
@@ -2514,13 +2544,18 @@ class Reader:
                     elif k in self.keymap.ShowHideProgress:
                         SHOWPROGRESS = not SHOWPROGRESS
                     elif k == Key(curses.KEY_RESIZE):
-                        savestate(
-                            self.ebook.path,
-                            reading_state.content_index,
-                            reading_state.textwidth,
-                            reading_state.row,
-                            reading_state.row / totlines,
+                        self.savestate(
+                            dataclasses.replace(
+                                reading_state, rel_pctg=reading_state.row / totlines
+                            )
                         )
+                        # savestate(
+                        #     self.ebook.path,
+                        #     reading_state.content_index,
+                        #     reading_state.textwidth,
+                        #     reading_state.row,
+                        #     reading_state.row / totlines,
+                        # )
                         # stated in pypi windows-curses page:
                         # to call resize_term right after KEY_RESIZE
                         if sys.platform == "win32":
@@ -2676,13 +2711,16 @@ class Reader:
                     )
                     svline = "dontsave"
         except KeyboardInterrupt:
-            savestate(
-                self.ebook.path,
-                reading_state.content_index,
-                reading_state.textwidth,
-                reading_state.row,
-                reading_state.row / totlines,
+            self.savestate(
+                dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
             )
+            # savestate(
+            #     self.ebook.path,
+            #     reading_state.content_index,
+            #     reading_state.textwidth,
+            #     reading_state.row,
+            #     reading_state.row / totlines,
+            # )
             sys.exit()
 
 
@@ -2717,6 +2755,9 @@ def preread(stdscr, filepath: str):
 def main():
     termc, termr = shutil.get_terminal_size()
 
+    # TODO: test only
+    curses.wrapper(preread, sys.argv[1])
+
     args = []
     if sys.argv[1:] != []:
         args += sys.argv[1:]
@@ -2725,7 +2766,7 @@ def main():
         print(__doc__.rstrip())
         sys.exit()
 
-    loadstate()
+    # loadstate()
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
         print("Startup file loaded:")
