@@ -1265,9 +1265,9 @@ def choice_win(allowdel=False):
                 if key_chwin == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON4_PRESSED:
-                        key_chwin = list(self.keymap.ScrollUp)[0]
+                        key_chwin = self.keymap.ScrollUp[0]
                     elif mouse_event[4] == 2097152:
-                        key_chwin = list(self.keymap.ScrollDown)[0]
+                        key_chwin = self.keymap.ScrollDown[0]
                     elif mouse_event[4] == curses.BUTTON1_DOUBLE_CLICKED:
                         if (
                             mouse_event[2] >= 6
@@ -1275,7 +1275,7 @@ def choice_win(allowdel=False):
                             and mouse_event[2] < 6 + totlines
                         ):
                             index = mouse_event[2] - 6 + y
-                        key_chwin = list(self.keymap.Follow)[0]
+                        key_chwin = self.keymap.Follow[0]
                     elif (
                         mouse_event[4] == curses.BUTTON1_CLICKED
                         and mouse_event[2] >= 6
@@ -1283,11 +1283,11 @@ def choice_win(allowdel=False):
                         and mouse_event[2] < 6 + totlines
                     ):
                         if index == mouse_event[2] - 6 + y:
-                            key_chwin = list(self.keymap.Follow)[0]
+                            key_chwin = self.keymap.Follow[0]
                             continue
                         index = mouse_event[2] - 6 + y
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        key_chwin = list(self.keymap.Quit)[0]
+                        key_chwin = self.keymap.Quit[0]
 
             chwin.clear()
             chwin.refresh()
@@ -1600,7 +1600,7 @@ class Reader:
         while True:
             bmarkslist = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
             if bmarkslist == []:
-                return list(self.keymap.ShowBookmarks)[0], None
+                return self.keymap.ShowBookmarks[0], None
             retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, (Key("B"),))
             if todel is not None:
                 del STATE["States"][self.ebook.path]["bmarks"][todel]
@@ -1912,19 +1912,19 @@ class Reader:
                     k = ord("l")
                     break
                 k = self.screen.getch()
-                if k == curses.KEY_MOUSE:
+                if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(self.keymap.Quit)[0]
+                        k = self.keymap.Quit[0]
                     elif mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < self.screen_cols // 2:
-                            k = list(self.keymap.PageUp)[0]
+                            k = self.keymap.PageUp[0]
                         else:
-                            k = list(self.keymap.PageDown)[0]
+                            k = self.keymap.PageDown[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(self.keymap.ScrollUp)[0]
+                        k = self.keymap.ScrollUp[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(self.keymap.ScrollDown)[0]
+                        k = self.keymap.ScrollDown[0]
                 if (
                     k
                     in self.keymap.Quit
@@ -2042,8 +2042,8 @@ class Reader:
                     count = 1
                 else:
                     count = int(countstring)
-                if k in range(48, 58):  # i.e., k is a numeral
-                    countstring = countstring + chr(k)
+                if k in tuple(Key(i) for i in range(48, 58)):  # i.e., k is a numeral
+                    countstring = countstring + k.char
                 else:
                     if k in self.keymap.Quit:
                         if k == 27 and countstring != "":
@@ -2088,7 +2088,7 @@ class Reader:
                         )
                     elif k in self.keymap.ScrollUp:
                         if SPREAD == 2:
-                            k = list(self.keymap.PageUp)[0]
+                            k = self.keymap.PageUp[0]
                             continue
                         if count > 1:
                             svline = reading_state.row - 1
@@ -2134,7 +2134,7 @@ class Reader:
                                 reading_state = dataclasses.replace(reading_state, row=0)
                     elif k in self.keymap.ScrollDown:
                         if SPREAD == 2:
-                            k = list(self.keymap.PageDown)[0]
+                            k = self.keymap.PageDown[0]
                             continue
                         if count > 1:
                             svline = reading_state.row + rows - 1
@@ -2646,29 +2646,28 @@ class Reader:
                 except curses.error:
                     pass
                 if self.is_speaking:
-                    k = list(self.keymap.TTSToggle)[0]
+                    k = self.keymap.TTSToggle[0]
                     continue
                 k = pad.getch()
-                if k == curses.KEY_MOUSE:
+                if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON1_CLICKED:
                         if mouse_event[1] < cols // 2:
-                            # TODO: list() is unnecessary
-                            k = list(self.keymap.PageUp)[0]
+                            k = self.keymap.PageUp[0]
                         else:
-                            k = list(self.keymap.PageDown)[0]
+                            k = self.keymap.PageDown[0]
                     elif mouse_event[4] == curses.BUTTON3_CLICKED:
-                        k = list(self.keymap.TableOfContents)[0]
+                        k = self.keymap.TableOfContents[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED:
-                        k = list(self.keymap.ScrollUp)[0]
+                        k = self.keymap.ScrollUp[0]
                     elif mouse_event[4] == 2097152:
-                        k = list(self.keymap.ScrollDown)[0]
+                        k = self.keymap.ScrollDown[0]
                     elif mouse_event[4] == curses.BUTTON4_PRESSED + curses.BUTTON_CTRL:
-                        k = list(self.keymap.Enlarge)[0]
+                        k = self.keymap.Enlarge[0]
                     elif mouse_event[4] == 2097152 + curses.BUTTON_CTRL:
-                        k = list(self.keymap.Shrink)[0]
+                        k = self.keymap.Shrink[0]
                     elif mouse_event[4] == curses.BUTTON2_CLICKED:
-                        k = list(self.keymap.TTSToggle)[0]
+                        k = self.keymap.TTSToggle[0]
 
                 if svline != "dontsave":
                     pad.chgat(
