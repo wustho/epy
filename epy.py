@@ -959,13 +959,14 @@ class State(AppData):
     def get_last_reading_state(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> ReadingState:
         try:
             conn = sqlite3.connect(self.filepath)
+            conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("SELECT * FROM reading_states WHERE filepath=?", (ebook.path,))
-            res = cur.fetchone()
-            if res:
-                return ReadingState(
-                    content_index=res[1], textwidth=res[2], row=res[3], rel_pctg=res[4]
-                )
+            result = cur.fetchone()
+            if result:
+                result = dict(result)
+                del result["filepath"]
+                return ReadingState(**result)
             return ReadingState()
         finally:
             conn.close()
@@ -1006,10 +1007,52 @@ class State(AppData):
         finally:
             conn.close()
 
+    def insert_bookmark(
+        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str, reading_state: ReadingState
+    ) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute(
+                """
+                INSERT INTO bookmarks
+                VALUES (:filepath, :name, :content_index, :textwidth, :row, :rel_pctg)
+                """,
+                {"filepath": ebook.path, "name": name, **dataclasses.asdict(reading_state)},
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_bookmarks(
+        self, ebook: Union[Epub, Mobi, Azw3, FictionBook]
+    ) -> List[Tuple[str, ReadingState]]:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM bookmarks WHERE filepath=?", (ebook.path,))
+            results = cur.fetchall()
+            bookmarks: List[Tuple[str, ReadingState]] = []
+            for result in results:
+                tmp_dict = dict(result)
+                filepath = tmp_dict["filepath"]
+                del tmp_dict["filepath"]
+                bookmarks.append((filepath, ReadingState(**tmp_dict)))
+            return bookmarks
+        finally:
+            conn.close()
+
     def init_db(self) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
-            conn.execute("CREATE TABLE last_read (id INTEGER PRIMARY KEY, filepath TEXT)")
+            conn.execute(
+                """
+                CREATE TABLE last_read (
+                    id INTEGER PRIMARY KEY,
+                    filepath TEXT
+                )
+                """
+            )
             conn.execute(
                 """
                 CREATE TABLE reading_states (
@@ -1021,7 +1064,6 @@ class State(AppData):
                 )
                 """
             )
-            # TODO
             conn.execute(
                 """
                 CREATE TABLE bookmarks (
@@ -1929,10 +1971,19 @@ class Reader:
                 stderr=subprocess.DEVNULL,
             )
             while True:
+                # TODO
                 if speaker.poll() is not None:
-                    k = ord("l")
+                    k = Key("l")
                     break
-                k = self.screen.getch()
+                # TODO
+                # k = self.screen.getch()
+                try:
+                    j = self.screen.getch()
+                    k = Key(j)
+                except:
+                    k = NoUpdate()
+                    # sys.exit(repr(j))
+                # TODO: check mouse support
                 if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON2_CLICKED:
@@ -1964,7 +2015,7 @@ class Reader:
 
         if k in self.keymap.Quit:
             self.is_speaking = False
-            k = None
+            k = NoUpdate()
         return k
 
     def savestate(self, reading_state: ReadingState) -> None:
@@ -2071,24 +2122,18 @@ class Reader:
                     countstring = countstring + k.char
                 else:
                     if k in self.keymap.Quit:
-                        if k == 27 and countstring != "":
+                        if k == Key(27) and countstring != "":
                             countstring = ""
                         else:
-                            # TODO
-                            # savestate(
-                            #     self.ebook.path,
-                            #     reading_state.content_index,
-                            #     reading_state.textwidth,
-                            #     reading_state.row,
-                            #     reading_state.row / totlines,
-                            # )
                             self.savestate(
                                 dataclasses.replace(
                                     reading_state, rel_pctg=reading_state.row / totlines
                                 )
                             )
                             sys.exit()
+
                     elif k in self.keymap.TTSToggle and self._tts_support:
+                        # TODO: cannot stop with 'q'
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
                         for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
@@ -2103,6 +2148,7 @@ class Reader:
                         ):
                             self.is_speaking = False
                         continue
+
                     elif k in self.keymap.DoubleSpreadToggle:
                         if cols < mincols_doublespr:
                             k = self.show_win_error(
@@ -2116,6 +2162,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
+
                     elif k in self.keymap.ScrollUp:
                         if SPREAD == 2:
                             k = self.keymap.PageUp[0]
@@ -2136,6 +2183,7 @@ class Reader:
                             )
                         else:
                             reading_state = dataclasses.replace(reading_state, row=0)
+
                     elif k in self.keymap.PageUp:
                         if reading_state.row == 0 and reading_state.content_index != 0:
                             self.page_animation = Direction.BACKWARD
@@ -2162,6 +2210,7 @@ class Reader:
                                 )
                             else:
                                 reading_state = dataclasses.replace(reading_state, row=0)
+
                     elif k in self.keymap.ScrollDown:
                         if SPREAD == 2:
                             k = self.keymap.PageDown[0]
@@ -2183,6 +2232,7 @@ class Reader:
                             )
                         else:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
+
                     elif k in self.keymap.PageDown:
                         if totlines - reading_state.row > rows * SPREAD:
                             self.page_animation = Direction.FORWARD
@@ -2206,10 +2256,12 @@ class Reader:
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
                             )
+
                     # elif k in K["HalfScreenUp"] | K["HalfScreenDown"]:
                     #     countstring = str(rows // 2)
                     #     k = list(K["ScrollUp" if k in K["HalfScreenUp"] else "ScrollDown"])[0]
                     #     continue
+
                     elif k in self.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
@@ -2232,6 +2284,7 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc + 1],
                                 )
+
                     elif k in self.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
                             toc_idx,
@@ -2251,6 +2304,7 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[ntoc - 1],
                                 )
+
                     elif k in self.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
@@ -2265,6 +2319,7 @@ class Reader:
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
+
                     elif k in self.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
                             toc_idx,
@@ -2286,6 +2341,7 @@ class Reader:
                             reading_state = dataclasses.replace(
                                 reading_state, row=pgend(totlines, rows)
                             )
+
                     elif k in self.keymap.TableOfContents:
                         if self.ebook.toc_entries == [[], [], []]:
                             k = self.show_win_error(
@@ -2319,14 +2375,17 @@ class Reader:
                                     textwidth=reading_state.textwidth,
                                     section=toc_sect[fllwd],
                                 )
+
                     elif k in self.keymap.Metadata:
                         k = self.show_win_metadata()
                         if k in self._win_keys:
                             continue
+
                     elif k in self.keymap.Help:
                         k = self.show_win_help()
                         if k in self._win_keys:
                             continue
+
                     elif (
                         k in self.keymap.Enlarge
                         and (reading_state.textwidth + count) < cols - 4
@@ -2340,6 +2399,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
+
                     elif k in self.keymap.Shrink and reading_state.textwidth >= 22 and SPREAD == 1:
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth - count
@@ -2349,6 +2409,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
+
                     elif k in self.keymap.SetWidth and SPREAD == 1:
                         if countstring == "":
                             # if called without a count, toggle between 80 cols and full width
@@ -2374,11 +2435,7 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             rel_pctg=reading_state.row / totlines,
                         )
-                    # elif k == ord("0"):
-                    #     if width != 80 and cols - 2 >= 80:
-                    #         return 0, 80, 0, y/totlines, ""
-                    #     else:
-                    #         return 0, cols - 2, 0, y/totlines, ""
+
                     elif k in self.keymap.RegexSearch:
                         ret_object = self.searching(
                             pad,
@@ -2396,6 +2453,7 @@ class Reader:
                         elif isinstance(ret_object, ReadingState):
                             # y = ret_object
                             reading_state = ret_object
+
                     elif k in self.keymap.OpenImage and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
@@ -2445,6 +2503,7 @@ class Reader:
                                 continue
                             except Exception as e:
                                 self.show_win_error("Error Opening Image", str(e), tuple())
+
                     elif (
                         k in self.keymap.SwitchColor
                         and self.is_color_supported
@@ -2464,51 +2523,60 @@ class Reader:
                             textwidth=reading_state.textwidth,
                             row=reading_state.row,
                         )
+
                     elif k in self.keymap.AddBookmark:
-                        defbmname_suffix = 1
-                        defbmname = "Bookmark " + str(defbmname_suffix)
-                        occupiedbmnames = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
-                        while defbmname in occupiedbmnames:
-                            defbmname_suffix += 1
-                            defbmname = "Bookmark " + str(defbmname_suffix)
-                        bmname = self.input_prompt(" Add bookmark ({}):".format(defbmname))
-                        # TODO: support default Bookmark 1, Bookmark 2 so on
+                        bmname = self.input_prompt(" Add bookmark:")
                         if isinstance(bmname, str) and bmname:
-                            if bmname.strip() == "":
-                                bmname = defbmname
-                            STATE["States"][self.ebook.path]["bmarks"].append(
-                                [
+                            try:
+                                self.state.insert_bookmark(
+                                    self.ebook,
                                     bmname,
-                                    reading_state.content_index,
-                                    reading_state.row,
-                                    reading_state.row / totlines,
-                                ]
-                            )
+                                    dataclasses.replace(
+                                        reading_state, rel_pctg=reading_state.row / totlines
+                                    ),
+                                )
+                            except sqlite3.IntegrityError:
+                                k = self.show_win_error(
+                                    "Error: Add Bookmarks",
+                                    f"Bookmark with name '{bmname}' already exists.",
+                                    (Key("B"),),
+                                )
+                                continue
                         else:
                             k = bmname
                             continue
+
                     elif k in self.keymap.ShowBookmarks:
-                        if STATE["States"][self.ebook.path]["bmarks"] == []:
+                        bookmarks = self.state.get_bookmarks(self.ebook)
+                        if not bookmarks:
                             k = self.show_win_error(
                                 "Bookmarks",
                                 "N/A: Bookmarks are not found in this book.",
                                 (Key("B"),),
                             )
                             continue
-                        else:
-                            retk, idxchoice = self.show_win_choices_bookmarks()
-                            if retk is not None:
-                                k = retk
-                                continue
-                            elif idxchoice is not None:
-                                bmtojump = STATE["States"][self.ebook.path]["bmarks"][idxchoice]
-                                # return bmtojump[1] - index, width, bmtojump[2], bmtojump[3], ""
-                                return ReadingState(
-                                    content_index=bmtojump[1],
-                                    textwidth=reading_state.textwidth,
-                                    row=bmtojump[2],
-                                    rel_pctg=bmtojump[3],
-                                )
+                        # if STATE["States"][self.ebook.path]["bmarks"] == []:
+                        #     k = self.show_win_error(
+                        #         "Bookmarks",
+                        #         "N/A: Bookmarks are not found in this book.",
+                        #         (Key("B"),),
+                        #     )
+                        #     continue
+                        # else:
+                        #     retk, idxchoice = self.show_win_choices_bookmarks()
+                        #     if retk is not None:
+                        #         k = retk
+                        #         continue
+                        #     elif idxchoice is not None:
+                        #         bmtojump = STATE["States"][self.ebook.path]["bmarks"][idxchoice]
+                        #         # return bmtojump[1] - index, width, bmtojump[2], bmtojump[3], ""
+                        #         return ReadingState(
+                        #             content_index=bmtojump[1],
+                        #             textwidth=reading_state.textwidth,
+                        #             row=bmtojump[2],
+                        #             rel_pctg=bmtojump[3],
+                        #         )
+
                     elif k in self.keymap.DefineWord and self.ext_dict_app is not None:
                         word = self.input_prompt(" Define:")
                         if isinstance(word, str) and word:
@@ -2519,17 +2587,19 @@ class Reader:
                         else:
                             k = word
                             continue
+
                     elif k in self.keymap.MarkPosition:
                         jumnum = pad.getch()
-                        if jumnum in range(49, 58):
-                            self.jump_list[chr(jumnum)] = reading_state
+                        if jumnum in tuple(Key(i) for i in range(48, 58)):
+                                self.jump_list[jumnum.char] = reading_state
                         else:
                             k = jumnum
                             continue
+
                     elif k in self.keymap.JumpToPosition:
                         jumnum = pad.getch()
-                        if jumnum in range(49, 58) and chr(jumnum) in self.jump_list.keys():
-                            marked_reading_state = self.jump_list[chr(jumnum)]
+                        if jumnum in tuple(Key(i) for i in range(48, 58)) and jumnum.char in self.jump_list:
+                            marked_reading_state = self.jump_list[jumnum.char]
                             return dataclasses.replace(
                                 marked_reading_state,
                                 textwidth=reading_state.textwidth,
@@ -2539,23 +2609,18 @@ class Reader:
                                 section="",
                             )
                         else:
-                            k = jumnum
+                            k = NoUpdate()
                             continue
+
                     elif k in self.keymap.ShowHideProgress:
                         SHOWPROGRESS = not SHOWPROGRESS
+
                     elif k == Key(curses.KEY_RESIZE):
                         self.savestate(
                             dataclasses.replace(
                                 reading_state, rel_pctg=reading_state.row / totlines
                             )
                         )
-                        # savestate(
-                        #     self.ebook.path,
-                        #     reading_state.content_index,
-                        #     reading_state.textwidth,
-                        #     reading_state.row,
-                        #     reading_state.row / totlines,
-                        # )
                         # stated in pypi windows-curses page:
                         # to call resize_term right after KEY_RESIZE
                         if sys.platform == "win32":
@@ -2578,6 +2643,7 @@ class Reader:
                                 textwidth=reading_state.textwidth,
                                 row=reading_state.row,
                             )
+
                     countstring = ""
 
                 if svline != "dontsave":
