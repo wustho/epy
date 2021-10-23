@@ -3001,7 +3001,7 @@ def parse_cli_args() -> str:
 
     if not args:
         candidate = (last_read_in_history, None)
-        if not os.path.isfile(candidate[0]):
+        if not candidate[0] or not os.path.isfile(candidate[0]):
             # instant fail
             sys.exit("ERROR: Found no last read file.")
 
