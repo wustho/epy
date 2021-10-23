@@ -2097,8 +2097,24 @@ class Reader:
                 reading_state, row=toc_secid.get(reading_state.section, 0)
             )
 
+        # checkpoint_row is container for visual helper
+        # when we scroll the page by more than 1 line
+        # so it's less disorienting
+        # eg. when we scroll down by 3 lines then:
+        #
+        #     ...
+        #     this line has been read
+        #     this line has been read
+        #     this line has been read
+        #     this line has been read
+        #     ------------------------------- <- the visual helper
+        #     this line has not been read yet
+        #     this line has not been read yet
+        #     this line has not been read yet
+        checkpoint_row: Optional[int] = None
+
         countstring = ""
-        svline = "dontsave"
+
         try:
             while True:
                 if countstring == "":
@@ -2154,7 +2170,7 @@ class Reader:
                             k = self.keymap.PageUp[0]
                             continue
                         if count > 1:
-                            svline = reading_state.row - 1
+                            checkpoint_row = reading_state.row - 1
                         if reading_state.row >= count:
                             reading_state = dataclasses.replace(
                                 reading_state, row=reading_state.row - count
@@ -2202,7 +2218,7 @@ class Reader:
                             k = self.keymap.PageDown[0]
                             continue
                         if count > 1:
-                            svline = reading_state.row + rows - 1
+                            checkpoint_row = reading_state.row + rows - 1
                         if reading_state.row + count <= totlines - rows:
                             reading_state = dataclasses.replace(
                                 reading_state, row=reading_state.row + count
@@ -2632,9 +2648,9 @@ class Reader:
 
                     countstring = ""
 
-                if svline != "dontsave":
+                if checkpoint_row:
                     pad.chgat(
-                        svline,
+                        checkpoint_row,
                         0,
                         reading_state.textwidth,
                         self.screen.getbkgd() | curses.A_UNDERLINE,
@@ -2757,11 +2773,11 @@ class Reader:
                     elif mouse_event[4] == curses.BUTTON2_CLICKED:
                         k = self.keymap.TTSToggle[0]
 
-                if svline != "dontsave":
+                if checkpoint_row:
                     pad.chgat(
-                        svline, 0, reading_state.textwidth, self.screen.getbkgd() | curses.A_NORMAL
+                        checkpoint_row, 0, reading_state.textwidth, self.screen.getbkgd() | curses.A_NORMAL
                     )
-                    svline = "dontsave"
+                    checkpoint_row = None
         except KeyboardInterrupt:
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
