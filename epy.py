@@ -3025,6 +3025,10 @@ def parse_cli_args() -> str:
         return filepath
 
 
-if __name__ == "__main__":
+def main():
     filepath = parse_cli_args()
     curses.wrapper(preread, filepath)
+
+
+if __name__ == "__main__":
+    main()
