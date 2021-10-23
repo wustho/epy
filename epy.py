@@ -1186,15 +1186,29 @@ def pgend(total_lines: int, window_height: int) -> int:
         return 0
 
 
-def truncate(teks, subte, maxlen, startsub=0):
+def truncate(teks: str, subtitution_text: str, maxlen: int, startsub: int = 0) -> str:
+    """
+    Truncate text
+
+    eg.
+    teks: 'This is long silly dummy text'
+    subtitution_text:  '...'
+    maxlen: 12
+    startsub: 3
+    :return: 'This...ly dummy text'
+    """
     if startsub > maxlen:
         raise ValueError("Var startsub cannot be bigger than maxlen.")
     elif len(teks) <= maxlen:
         return teks
     else:
-        lensu = len(subte)
+        lensu = len(subtitution_text)
         beg = teks[:startsub]
-        mid = subte if lensu <= maxlen - startsub else subte[: maxlen - startsub]
+        mid = (
+            subtitution_text
+            if lensu <= maxlen - startsub
+            else subtitution_text[: maxlen - startsub]
+        )
         end = teks[startsub + lensu - maxlen :] if lensu < maxlen - startsub else ""
         return beg + mid + end
 
