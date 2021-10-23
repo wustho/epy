@@ -37,7 +37,7 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Tuple, List, Mapping
+from typing import Optional, Union, Tuple, List, Mapping, Any
 from dataclasses import dataclass
 from difflib import SequenceMatcher as SM
 from enum import Enum
@@ -110,15 +110,15 @@ class Key:
         self.value: int = char_or_int if isinstance(char_or_int, int) else ord(char_or_int)
         self.char: str = char_or_int if isinstance(char_or_int, str) else chr(char_or_int)
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Key):
             return self.value == other.value
         return False
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return self.__eq__(other)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.value)
 
 
@@ -235,16 +235,16 @@ class Epub:
         self.path: str = os.path.abspath(fileepub)
         self.file: zipfile.ZipFile = zipfile.ZipFile(fileepub, "r")
 
-    def get_meta(self):
+    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         meta = []
         # why self.file.read(self.rootfile) problematic
         cont = ET.fromstring(self.file.open(self.rootfile).read())
         for i in cont.findall("OPF:metadata/*", self.NS):
             if i.text is not None:
-                meta.append([re.sub("{.*?}", "", i.tag), i.text])
-        return meta
+                meta.append((re.sub("{.*?}", "", i.tag), i.text))
+        return tuple(meta)
 
-    def initialize(self):
+    def initialize(self) -> None:
         cont = ET.parse(self.file.open("META-INF/container.xml"))
         self.rootfile = cont.find("CONT:rootfiles/CONT:rootfile", self.NS).attrib["full-path"]
         self.rootdir = (
@@ -338,17 +338,17 @@ class Mobi(Epub):
         self.path = os.path.abspath(filemobi)
         self.file, _ = mobi.extract(filemobi)
 
-    def get_meta(self):
+    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         meta = []
         # why self.file.read(self.rootfile) problematic
         with open(os.path.join(self.rootdir, "content.opf")) as f:
             cont = ET.parse(f).getroot()
         for i in cont.findall("OPF:metadata/*", self.NS):
             if i.text is not None:
-                meta.append([re.sub("{.*?}", "", i.tag), i.text])
-        return meta
+                meta.append((re.sub("{.*?}", "", i.tag), i.text))
+        return tuple(meta)
 
-    def initialize(self):
+    def initialize(self) -> None:
         self.rootdir = os.path.join(self.file, "mobi7")
         self.toc = os.path.join(self.rootdir, "toc.ncx")
         self.version = "2.0"
@@ -435,7 +435,7 @@ class Azw3(Epub):
         self.tmpdir, self.tmpepub = mobi.extract(fileepub)
         self.file = zipfile.ZipFile(self.tmpepub, "r")
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         shutil.rmtree(self.tmpdir)
         return
 
@@ -447,12 +447,12 @@ class FictionBook:
         self.path = os.path.abspath(filefb)
         self.file = filefb
 
-    def get_meta(self):
+    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         desc = self.root.find("FB2:description", self.NS)
         alltags = desc.findall("*/*")
-        return [[re.sub("{.*?}", "", i.tag), " ".join(i.itertext())] for i in alltags]
+        return tuple((re.sub("{.*?}", "", i.tag), " ".join(i.itertext())) for i in alltags)
 
-    def initialize(self):
+    def initialize(self) -> None:
         cont = ET.parse(self.file)
         self.root = cont.getroot()
 
@@ -468,7 +468,7 @@ class FictionBook:
                 self.toc_entries[1].append(n)
                 self.toc_entries[2].append("")
 
-    def get_raw_text(self, node):
+    def get_raw_text(self, node) -> str:
         ET.register_namespace("", "http://www.gribuser.ru/xml/fictionbook/2.0")
         # sys.exit(ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:",""))
         return ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:", "")
@@ -1156,32 +1156,32 @@ def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
         sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
 
 
-def tuple_subtract(tuple_one, tuple_two):
+def tuple_subtract(tuple_one: Tuple[Any, ...], tuple_two: Tuple[Any, ...]) -> Tuple[Any, ...]:
     """Returns tuple with members in tuple_one
     but not in tuple_two"""
-    return (i for i in tuple_one if i not in tuple_two)
+    return tuple(i for i in tuple_one if i not in tuple_two)
 
 
-def pgup(pos, winhi, preservedline=0, c=1):
-    if pos >= (winhi - preservedline) * c:
-        return pos - (winhi + preservedline) * c
+def pgup(current_row: int, window_height: int, counter: int = 1) -> int:
+    if current_row >= (window_height) * counter:
+        return current_row - (window_height) * counter
     else:
         return 0
 
 
-def pgdn(pos, tot, winhi, preservedline=0, c=1):
-    if pos + (winhi * c) <= tot - winhi:
-        return pos + (winhi * c)
+def pgdn(current_row: int, total_lines: int, window_height: int, counter: int = 1) -> int:
+    if current_row + (window_height * counter) <= total_lines - window_height:
+        return current_row + (window_height * counter)
     else:
-        pos = tot - winhi
-        if pos < 0:
+        current_row = total_lines - window_height
+        if current_row < 0:
             return 0
-        return pos
+        return current_row
 
 
-def pgend(tot, winhi):
-    if tot - winhi >= 0:
-        return tot - winhi
+def pgend(total_lines: int, window_height: int) -> int:
+    if total_lines - window_height >= 0:
+        return total_lines - window_height
     else:
         return 0
 
@@ -1249,12 +1249,19 @@ def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
     return LettersCount(all=sum(per_content_counts), cumulative=tuple(cumulative_counts))
 
 
-def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_conn):
+def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_conn) -> None:
     child_conn.send(count_letters(ebook))
     child_conn.close()
 
 
 def choice_win(allowdel=False):
+    """
+    Conjure options window by wrapping a window function
+    which has a return type of tuple in the form of
+    (title, list_to_chose, initial_active_index, windows_key_to_toggle)
+    and return tuple of (returned_key, chosen_index, chosen_index_to_delete)
+    """
+
     def inner_f(listgen):
         @wraps(listgen)
         def wrapper(self, *args, **kwargs):
