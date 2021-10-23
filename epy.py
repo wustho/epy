@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.16"
+__version__ = "2021.10.23"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -1954,9 +1954,7 @@ class Reader:
             elif s == Key(curses.KEY_RESIZE):
                 return Key(curses.KEY_RESIZE)
 
-            # TODO
             if reading_state.row + rows - 1 > pad.chunks[pad.find_chunkidx(reading_state.row)]:
-                # y = pad.chunks[pad.find_chunkidx(y)] + 1
                 reading_state = dataclasses.replace(
                     reading_state, row=pad.chunks[pad.find_chunkidx(reading_state.row)] + 1
                 )

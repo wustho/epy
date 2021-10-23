@@ -10,7 +10,7 @@ if sys.platform == "win32":
 
 setup(
     name="epy-reader",
-    version="2021.10.16",
+    version="2021.10.23",
     description="Terminal/CLI Ebook (epub, fb2, mobi, azw3) Reader",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -20,7 +20,7 @@ setup(
     license="GPL-3.0",
     keywords=["epub", "epub3", "fb2", "mobi", "azw3", "CLI", "Terminal", "Reader"],
     install_requires=requirements,
-    python_requires="~=3.0",
+    python_requires="~=3.7",
     py_modules=["epy"],
     entry_points={"console_scripts": ["epy = epy:main"]},
     classifiers=[
