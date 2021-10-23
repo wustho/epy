@@ -1530,6 +1530,9 @@ class Reader:
         # page scroll animation
         self.page_animation: Optional[Direction] = None
 
+        # show reading progress
+        self.show_reading_progress = self.setting.ShowProgressIndicator
+
         # search storage
         self.search_data: Optional[SearchData] = None
 
@@ -2067,7 +2070,6 @@ class Reader:
                 self._process_counting_letter.close()
 
     def read(self, reading_state: ReadingState) -> ReadingState:
-        global SHOWPROGRESS
 
         # k = self.keymap.RegexSearch[0] if self.search_data else 0
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
@@ -2664,7 +2666,7 @@ class Reader:
                             continue
 
                     elif k in self.keymap.ShowHideProgress:
-                        SHOWPROGRESS = not SHOWPROGRESS
+                        self.show_reading_progress = not self.show_reading_progress
 
                     elif k == Key(curses.KEY_RESIZE):
                         self.savestate(
@@ -2782,7 +2784,7 @@ class Reader:
                             self._process_counting_letter = None
 
                     if (
-                        SHOWPROGRESS
+                        self.show_reading_progress
                         and (cols - reading_state.textwidth - 2) // 2 > 3
                         and self.letters_count
                     ):
@@ -2838,7 +2840,6 @@ class Reader:
 
 
 def preread(stdscr, filepath: str):
-    global SHOWPROGRESS
 
     ebook = get_ebook_obj(filepath)
     state = State()
@@ -2854,7 +2855,6 @@ def preread(stdscr, filepath: str):
         else:
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
-        SHOWPROGRESS = reader.setting.ShowProgressIndicator
         reader.run_counting_letters()
 
         while True:
