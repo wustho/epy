@@ -24,6 +24,7 @@ __url__ = "https://github.com/wustho/epy"
 import base64
 import curses
 import dataclasses
+import hashlib
 import json
 import multiprocessing
 import os
@@ -79,7 +80,7 @@ class ReadingState:
     textwidth: int = 80
     row: int = 0
     rel_pctg: Optional[float] = None
-    section: str = ""
+    section: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,13 @@ class Keymap:
     TableOfContents: Tuple[Key, ...]
 
 
+@dataclass(frozen=True)
+class TocEntry:
+    label: str
+    content_index: int
+    section: Optional[str]
+
+
 class Epub:
     NS = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
@@ -235,10 +243,19 @@ class Epub:
         self.path: str = os.path.abspath(fileepub)
         self.file: zipfile.ZipFile = zipfile.ZipFile(fileepub, "r")
 
+        # populate these attribute
+        # by calling self.initialize()
+        self.version: str
+        self.root_filepath: str
+        self.root_dirpath: str
+        self.toc_path: str
+        self.contents: Tuple[str] = ()
+        self.toc_entries: Tuple[TocEntry] = ()
+
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
-        meta = []
-        # why self.file.read(self.rootfile) problematic
-        cont = ET.fromstring(self.file.open(self.rootfile).read())
+        meta: List[Tuple[str, str]] = []
+        # why self.file.read(self.root_filepath) problematic
+        cont = ET.fromstring(self.file.open(self.root_filepath).read())
         for i in cont.findall("OPF:metadata/*", self.NS):
             if i.text is not None:
                 meta.append((re.sub("{.*?}", "", i.tag), i.text))
@@ -246,27 +263,26 @@ class Epub:
 
     def initialize(self) -> None:
         cont = ET.parse(self.file.open("META-INF/container.xml"))
-        self.rootfile = cont.find("CONT:rootfiles/CONT:rootfile", self.NS).attrib["full-path"]
-        self.rootdir = (
-            os.path.dirname(self.rootfile) + "/" if os.path.dirname(self.rootfile) != "" else ""
+        self.root_filepath = cont.find("CONT:rootfiles/CONT:rootfile", self.NS).attrib["full-path"]
+        self.root_dirpath = (
+            os.path.dirname(self.root_filepath) + "/"
+            if os.path.dirname(self.root_filepath) != ""
+            else ""
         )
-        cont = ET.parse(self.file.open(self.rootfile))
+        cont = ET.parse(self.file.open(self.root_filepath))
         # EPUB3
         self.version = cont.getroot().get("version")
         if self.version == "2.0":
             # "OPF:manifest/*[@id='ncx']"
-            self.toc = self.rootdir + cont.find(
+            self.toc_path = self.root_dirpath + cont.find(
                 "OPF:manifest/*[@media-type='application/x-dtbncx+xml']", self.NS
             ).get("href")
         elif self.version == "3.0":
-            self.toc = self.rootdir + cont.find("OPF:manifest/*[@properties='nav']", self.NS).get(
-                "href"
-            )
+            self.toc_path = self.root_dirpath + cont.find(
+                "OPF:manifest/*[@properties='nav']", self.NS
+            ).get("href")
 
-        self.contents = []
-        self.toc_entries = [[], [], []]
-
-        # cont = ET.parse(self.file.open(self.rootfile)).getroot()
+        # cont = ET.parse(self.file.open(self.root_filepath)).getroot()
         manifest = []
         for i in cont.findall("OPF:manifest/*", self.NS):
             # EPUB3
@@ -274,25 +290,30 @@ class Epub:
             if i.get("media-type") != "application/x-dtbncx+xml" and i.get("properties") != "nav":
                 manifest.append([i.get("id"), i.get("href")])
 
-        spine, contents = [], []
+        book_contents: List[str] = []
+        spine: List[str] = []
+        contents: List[str] = []
         for i in cont.findall("OPF:spine/*", self.NS):
             spine.append(i.get("idref"))
         for i in spine:
             for j in manifest:
                 if i == j[0]:
-                    self.contents.append(self.rootdir + unquote(j[1]))
+                    book_contents.append(self.root_dirpath + unquote(j[1]))
                     contents.append(unquote(j[1]))
                     manifest.remove(j)
                     # TODO: test is break necessary
                     break
+        self.contents = tuple(book_contents)
 
         try:
-            toc = ET.parse(self.file.open(self.toc)).getroot()
+            toc = ET.parse(self.file.open(self.toc_path)).getroot()
             # EPUB3
             if self.version == "2.0":
                 navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
             elif self.version == "3.0":
                 navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", self.NS)
+
+            toc_entries: List[TocEntry] = []
             for i in navPoints:
                 if self.version == "2.0":
                     src = i.find("DAISY:content", self.NS).get("src")
@@ -305,12 +326,13 @@ class Epub:
                     idx = contents.index(unquote(src[0]))
                 except ValueError:
                     continue
-                self.toc_entries[0].append(name)
-                self.toc_entries[1].append(idx)
-                if len(src) == 2:
-                    self.toc_entries[2].append(src[1])
-                elif len(src) == 1:
-                    self.toc_entries[2].append("")
+
+                toc_entries.append(
+                    TocEntry(
+                        label=name, content_index=idx, section=src[1] if len(src) == 2 else None
+                    )
+                )
+            self.toc_entries = tuple(toc_entries)
         except AttributeError:
             pass
 
@@ -338,10 +360,19 @@ class Mobi(Epub):
         self.path = os.path.abspath(filemobi)
         self.file, _ = mobi.extract(filemobi)
 
+        # populate these attribute
+        # by calling self.initialize()
+        self.version: str
+        self.root_filepath: str
+        self.root_dirpath: str
+        self.toc_path: str
+        self.contents: Tuple[str] = ()
+        self.toc_entries: Tuple[TocEntry] = ()
+
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
-        meta = []
-        # why self.file.read(self.rootfile) problematic
-        with open(os.path.join(self.rootdir, "content.opf")) as f:
+        meta: List[Tuple[str, str]] = []
+        # why self.file.read(self.root_filepath) problematic
+        with open(os.path.join(self.root_dirpath, "content.opf")) as f:
             cont = ET.parse(f).getroot()
         for i in cont.findall("OPF:metadata/*", self.NS):
             if i.text is not None:
@@ -349,14 +380,11 @@ class Mobi(Epub):
         return tuple(meta)
 
     def initialize(self) -> None:
-        self.rootdir = os.path.join(self.file, "mobi7")
-        self.toc = os.path.join(self.rootdir, "toc.ncx")
+        self.root_dirpath = os.path.join(self.file, "mobi7")
+        self.toc_path = os.path.join(self.root_dirpath, "toc.ncx")
         self.version = "2.0"
 
-        self.contents = []
-        self.toc_entries = [[], [], []]
-
-        with open(os.path.join(self.rootdir, "content.opf")) as f:
+        with open(os.path.join(self.root_dirpath, "content.opf")) as f:
             cont = ET.parse(f).getroot()
         manifest = []
         for i in cont.findall("OPF:manifest/*", self.NS):
@@ -365,25 +393,30 @@ class Mobi(Epub):
             if i.get("media-type") != "application/x-dtbncx+xml" and i.get("properties") != "nav":
                 manifest.append([i.get("id"), i.get("href")])
 
-        spine, contents = [], []
+        book_contents: List[str] = []
+        spine: List[str] = []
+        contents: List[str] = []
         for i in cont.findall("OPF:spine/*", self.NS):
             spine.append(i.get("idref"))
         for i in spine:
             for j in manifest:
                 if i == j[0]:
-                    self.contents.append(os.path.join(self.rootdir, unquote(j[1])))
+                    book_contents.append(os.path.join(self.root_dirpath, unquote(j[1])))
                     contents.append(unquote(j[1]))
                     manifest.remove(j)
                     # TODO: test is break necessary
                     break
+        self.contents = tuple(book_contents)
 
-        with open(self.toc) as f:
+        with open(self.toc_path) as f:
             toc = ET.parse(f).getroot()
         # EPUB3
         if self.version == "2.0":
             navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
         elif self.version == "3.0":
             navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", self.NS)
+
+        toc_entries: List[TocEntry] = []
         for i in navPoints:
             if self.version == "2.0":
                 src = i.find("DAISY:content", self.NS).get("src")
@@ -396,12 +429,11 @@ class Mobi(Epub):
                 idx = contents.index(unquote(src[0]))
             except ValueError:
                 continue
-            self.toc_entries[0].append(name)
-            self.toc_entries[1].append(idx)
-            if len(src) == 2:
-                self.toc_entries[2].append(src[1])
-            elif len(src) == 1:
-                self.toc_entries[2].append("")
+
+            toc_entries.append(
+                TocEntry(label=name, content_index=idx, section=src[1] if len(src) == 2 else None)
+            )
+        self.toc_entries = tuple(toc_entries)
 
     def get_raw_text(self, chpath: str) -> str:
         # using try-except block to catch
@@ -447,6 +479,12 @@ class FictionBook:
         self.path = os.path.abspath(filefb)
         self.file = filefb
 
+        # populate these attribute
+        # by calling self.initialize()
+        self.root: str
+        self.contents: Tuple[str] = ()
+        self.toc_entries: Tuple[TocEntry] = ()
+
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         desc = self.root.find("FB2:description", self.NS)
         alltags = desc.findall("*/*")
@@ -456,17 +494,17 @@ class FictionBook:
         cont = ET.parse(self.file)
         self.root = cont.getroot()
 
-        self.contents = []
-        self.toc_entries = [[], [], []]
+        self.contents = tuple(self.root.findall("FB2:body/*", self.NS))
 
-        self.contents = self.root.findall("FB2:body/*", self.NS)
         # TODO
+        toc_entries: List[TocEntry] = []
         for n, i in enumerate(self.contents):
             title = i.find("FB2:title", self.NS)
             if title is not None:
-                self.toc_entries[0].append("".join(title.itertext()))
-                self.toc_entries[1].append(n)
-                self.toc_entries[2].append("")
+                toc_entries.append(
+                    TocEntry(label="".join(title.itertext()), content_index=n, section=None)
+                )
+        self.toc_entries = tuple(toc_entries)
 
     def get_raw_text(self, node) -> str:
         ET.register_namespace("", "http://www.gribuser.ru/xml/fictionbook/2.0")
@@ -1053,9 +1091,14 @@ class State(AppData):
             conn.execute(
                 """
                 INSERT INTO bookmarks
-                VALUES (:filepath, :name, :content_index, :textwidth, :row, :rel_pctg)
+                VALUES (:id, :filepath, :name, :content_index, :textwidth, :row, :rel_pctg)
                 """,
-                {"filepath": ebook.path, "name": name, **dataclasses.asdict(reading_state)},
+                {
+                    "id": hashlib.sha1(f"{ebook.path}{name}".encode()).hexdigest()[:10],
+                    "filepath": ebook.path,
+                    "name": name,
+                    **dataclasses.asdict(reading_state),
+                },
             )
             conn.commit()
         finally:
@@ -1092,6 +1135,7 @@ class State(AppData):
                 name = tmp_dict["name"]
                 del tmp_dict["filepath"]
                 del tmp_dict["name"]
+                del tmp_dict["id"]
                 bookmarks.append((name, ReadingState(**tmp_dict)))
             return bookmarks
         finally:
@@ -1122,8 +1166,9 @@ class State(AppData):
             conn.execute(
                 """
                 CREATE TABLE bookmarks (
+                    id TEXT PRIMARY KEY,
                     filepath TEXT,
-                    name TEXT PRIMARY KEY,
+                    name TEXT,
                     content_index INTEGER,
                     textwidth INTEGER,
                     row INTEGER,
@@ -1234,14 +1279,14 @@ def dots_path(curr, tofi):
     return "/".join(candir + tofi)
 
 
-def find_curr_toc_id(toc_idx, toc_sect, toc_secid, index, y):
+def find_curr_toc_id(
+    toc_entries: Tuple[TocEntry], toc_secid: Mapping[str, int], index: int, y: int
+) -> int:
     ntoc = 0
-    for n, (i, j) in enumerate(zip(toc_idx, toc_sect)):
-        if i <= index:
-            if y >= toc_secid.get(j, 0):
+    for n, toc_entry in enumerate(toc_entries):
+        if toc_entry.content_index <= index:
+            if y >= toc_secid.get(toc_entry.section, 0):
                 ntoc = n
-        else:
-            break
     return ntoc
 
 
@@ -1670,8 +1715,13 @@ class Reader:
         return title, msg, key
 
     @choice_win()
-    def toc(self, src, index):
-        return "Table of Contents", src, index, self.keymap.TableOfContents
+    def toc(self, toc_entries: Tuple[TocEntry], index: int):
+        return (
+            "Table of Contents",
+            [i.label for i in toc_entries],
+            index,
+            self.keymap.TableOfContents,
+        )
 
     @text_win
     def show_win_metadata(self):
@@ -2092,7 +2142,6 @@ class Reader:
 
     def read(self, reading_state: ReadingState) -> ReadingState:
 
-        # k = self.keymap.RegexSearch[0] if self.search_data else 0
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
 
@@ -2109,14 +2158,12 @@ class Reader:
             x = 2
 
         contents = self.ebook.contents
-        toc_name = self.ebook.toc_entries[0]
-        toc_idx = self.ebook.toc_entries[1]
-        toc_sect = self.ebook.toc_entries[2]
+
         toc_secid = {}
         chpath = contents[reading_state.content_index]
         content = self.ebook.get_raw_text(chpath)
 
-        parser = HTMLtoLines(set(toc_sect))
+        parser = HTMLtoLines(set(toc_entry.section for toc_entry in self.ebook.toc_entries))
         # parser = HTMLtoLines()
         # try:
         parser.feed(content)
@@ -2160,7 +2207,9 @@ class Reader:
         except curses.error:
             pass
 
-        if reading_state.section != "":
+        # if reading_state.section is not None
+        # then override reading_state.row to follow the section
+        if reading_state.section:
             reading_state = dataclasses.replace(
                 reading_state, row=toc_secid.get(reading_state.section, 0)
             )
@@ -2337,78 +2386,84 @@ class Reader:
 
                     elif k in self.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
-                            toc_idx,
-                            toc_sect,
+                            self.ebook.toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
-                        if ntoc < len(toc_idx) - 1:
-                            if reading_state.content_index == toc_idx[ntoc + 1]:
+                        if ntoc < len(self.ebook.toc_entries) - 1:
+                            if (
+                                reading_state.content_index
+                                == self.ebook.toc_entries[ntoc + 1].content_index
+                            ):
                                 try:
                                     reading_state = dataclasses.replace(
-                                        reading_state, row=toc_secid[toc_sect[ntoc + 1]]
+                                        reading_state,
+                                        row=toc_secid[self.ebook.toc_entries[ntoc + 1].section],
                                     )
                                 except KeyError:
                                     pass
                             else:
                                 return ReadingState(
-                                    content_index=toc_idx[ntoc + 1],
+                                    content_index=self.ebook.toc_entries[ntoc + 1].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=toc_sect[ntoc + 1],
+                                    section=self.ebook.toc_entries[ntoc + 1].section,
                                 )
 
                     elif k in self.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
-                            toc_idx,
-                            toc_sect,
+                            self.ebook.toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         if ntoc > 0:
-                            if reading_state.content_index == toc_idx[ntoc - 1]:
+                            if (
+                                reading_state.content_index
+                                == self.ebook.toc_entries[ntoc - 1].content_index
+                            ):
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=toc_secid.get(toc_sect[ntoc - 1], 0)
+                                    reading_state,
+                                    row=toc_secid.get(self.ebook.toc_entries[ntoc - 1].section, 0),
                                 )
                             else:
                                 return ReadingState(
-                                    content_index=toc_idx[ntoc - 1],
+                                    content_index=self.ebook.toc_entries[ntoc - 1].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=toc_sect[ntoc - 1],
+                                    section=self.ebook.toc_entries[ntoc - 1].section,
                                 )
 
                     elif k in self.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
-                            toc_idx,
-                            toc_sect,
+                            self.ebook.toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
                             reading_state = dataclasses.replace(
-                                reading_state, row=toc_secid[toc_sect[ntoc]]
+                                reading_state, row=toc_secid[self.ebook.toc_entries[ntoc].section]
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
 
                     elif k in self.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
-                            toc_idx,
-                            toc_sect,
+                            self.ebook.toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
-                            if toc_secid[toc_sect[ntoc + 1]] - rows >= 0:
+                            if toc_secid[self.ebook.toc_entries[ntoc + 1].section] - rows >= 0:
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=toc_secid[toc_sect[ntoc + 1]] - rows
+                                    reading_state,
+                                    row=toc_secid[self.ebook.toc_entries[ntoc + 1].section] - rows,
                                 )
                             else:
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=toc_secid[toc_sect[ntoc]]
+                                    reading_state,
+                                    row=toc_secid[self.ebook.toc_entries[ntoc].section],
                                 )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(
@@ -2416,7 +2471,7 @@ class Reader:
                             )
 
                     elif k in self.keymap.TableOfContents:
-                        if self.ebook.toc_entries == [[], [], []]:
+                        if not self.ebook.toc_entries:
                             k = self.show_win_error(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
@@ -2424,29 +2479,32 @@ class Reader:
                             )
                             continue
                         ntoc = find_curr_toc_id(
-                            toc_idx,
-                            toc_sect,
+                            self.ebook.toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
-                        rettock, fllwd, _ = self.toc(toc_name, ntoc)
+                        rettock, fllwd, _ = self.toc(self.ebook.toc_entries, ntoc)
                         if rettock is not None:  # and rettock in WINKEYS:
                             k = rettock
                             continue
                         elif fllwd is not None:
-                            if reading_state.content_index == toc_idx[fllwd]:
+                            if (
+                                reading_state.content_index
+                                == self.ebook.toc_entries[fllwd].content_index
+                            ):
                                 try:
                                     reading_state = dataclasses.replace(
-                                        reading_state, row=toc_secid[toc_sect[fllwd]]
+                                        reading_state,
+                                        row=toc_secid[self.ebook.toc_entries[fllwd].section],
                                     )
                                 except KeyError:
                                     reading_state = dataclasses.replace(reading_state, row=0)
                             else:
                                 return ReadingState(
-                                    content_index=toc_idx[fllwd],
+                                    content_index=self.ebook.toc_entries[fllwd].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=toc_sect[fllwd],
+                                    section=self.ebook.toc_entries[fllwd].section,
                                 )
 
                     elif k in self.keymap.Metadata:
@@ -2642,12 +2700,18 @@ class Reader:
                                 bookmark_to_jump = self.state.get_bookmarks(self.ebook)[idxchoice][
                                     1
                                 ]
-                                return ReadingState(
-                                    content_index=bookmark_to_jump.content_index,
-                                    textwidth=reading_state.textwidth,
-                                    row=bookmark_to_jump.row,
-                                    rel_pctg=bookmark_to_jump.rel_pctg,
-                                )
+                                if (
+                                    bookmark_to_jump.content_index == reading_state.content_index
+                                    and bookmark_to_jump.textwidth == reading_state.textwidth
+                                ):
+                                    reading_state = bookmark_to_jump
+                                else:
+                                    return ReadingState(
+                                        content_index=bookmark_to_jump.content_index,
+                                        textwidth=reading_state.textwidth,
+                                        row=bookmark_to_jump.row,
+                                        rel_pctg=bookmark_to_jump.rel_pctg,
+                                    )
 
                     elif k in self.keymap.DefineWord and self.ext_dict_app:
                         word = self.input_prompt(" Define:")

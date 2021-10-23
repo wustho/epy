@@ -22,7 +22,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 
 ## Note on `v2021.10.23` and beyond
 
-There happens major refactoring for `epy` in version `v2021.10.23` which harness
+There happened major refactoring for `epy` in version `v2021.10.23` which harness
 a lot of new stuffs in python standard libraries starting from `python>=3.7`, so
 `epy` won't be compatible with older python version and won't be backward compatible
 with older `epy` version. And if you decide to install this version you might lose
