@@ -55,7 +55,6 @@ except ModuleNotFoundError:
 
 
 STATEFILE = ""
-SPREAD = 1
 
 
 class Direction(Enum):
@@ -1028,12 +1027,10 @@ class State(AppData):
         finally:
             conn.close()
 
-    def delete_bookmark(
-            self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str
-    ) -> None:
+    def delete_bookmark(self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
-            conn.execute( "DELETE FROM bookmarks WHERE filepath=? AND name=?", (ebook.path, name) )
+            conn.execute("DELETE FROM bookmarks WHERE filepath=? AND name=?", (ebook.path, name))
             conn.commit()
         finally:
             conn.close()
@@ -1494,6 +1491,9 @@ class Reader:
         # search storage
         self.search_data: Optional[SearchData] = None
 
+        # double spread
+        self.spread = 2 if self.setting.StartWithDoubleSpread else 1
+
         # jumps marker container
         self.jump_list: Mapping[str, ReadingState] = dict()
 
@@ -1672,7 +1672,9 @@ class Reader:
             bookmarks = [i[0] for i in self.state.get_bookmarks(self.ebook)]
             if not bookmarks:
                 return self.keymap.ShowBookmarks[0], None
-            retk, idx, todel = self.show_win_options("Bookmarks", bookmarks, idx, self.keymap.ShowBookmarks)
+            retk, idx, todel = self.show_win_options(
+                "Bookmarks", bookmarks, idx, self.keymap.ShowBookmarks
+            )
             if todel is not None:
                 self.state.delete_bookmark(self.ebook, bookmarks[todel])
             else:
@@ -1752,13 +1754,12 @@ class Reader:
     ) -> Union[NoUpdate, ReadingState, Key]:
 
         rows, cols = self.screen.getmaxyx()
-        if SPREAD == 2:
-            # TODO: maybe dont change textwidth but make a copy?
-            # reading_state.textwidth = (cols - 7) // 2
-            reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
+        # unnecessary
+        # if self.spread == 2:
+        #     reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
 
         x = (cols - reading_state.textwidth) // 2
-        if SPREAD == 1:
+        if self.spread == 1:
             x = (cols - reading_state.textwidth) // 2
         else:
             x = 2
@@ -1782,7 +1783,7 @@ class Reader:
             for j in pattern.finditer(i):
                 found.append([n, j.span()[0], j.span()[1] - j.span()[0]])
 
-        if found == []:
+        if not found:
             if (
                 self.search_data.direction == Direction.FORWARD
                 and reading_state.content_index + 1 < tot
@@ -1831,7 +1832,7 @@ class Reader:
                     )
                     self.screen.refresh()
                     pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-                    if SPREAD == 2:
+                    if self.spread == 2:
                         if reading_state.row + rows < len(src):
                             pad.refresh(
                                 reading_state.row + rows - 1,
@@ -1928,15 +1929,15 @@ class Reader:
                 )
 
             while found[sidx][0] not in list(
-                range(reading_state.row, reading_state.row + (rows - 1) * SPREAD)
+                range(reading_state.row, reading_state.row + (rows - 1) * self.spread)
             ):
                 if found[sidx][0] > reading_state.row:
                     reading_state = dataclasses.replace(
-                        reading_state, row=reading_state.row + ((rows - 1) * SPREAD)
+                        reading_state, row=reading_state.row + ((rows - 1) * self.spread)
                     )
                 else:
                     reading_state = dataclasses.replace(
-                        reading_state, row=reading_state.row - ((rows - 1) * SPREAD)
+                        reading_state, row=reading_state.row - ((rows - 1) * self.spread)
                     )
                     if reading_state.row < 0:
                         reading_state = dataclasses.replace(reading_state, row=0)
@@ -1949,7 +1950,7 @@ class Reader:
             self.screen.addstr(rows - 1, 0, msg, curses.A_REVERSE)
             self.screen.refresh()
             pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-            if SPREAD == 2:
+            if self.spread == 2:
                 if reading_state.row + rows < len(src):
                     pad.refresh(
                         reading_state.row + rows - 1,
@@ -2035,7 +2036,7 @@ class Reader:
                 self._process_counting_letter.close()
 
     def read(self, reading_state: ReadingState) -> ReadingState:
-        global SHOWPROGRESS, SPREAD
+        global SHOWPROGRESS
 
         # k = self.keymap.RegexSearch[0] if self.search_data else 0
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
@@ -2043,12 +2044,12 @@ class Reader:
 
         mincols_doublespr = 2 + 22 + 3 + 22 + 2
         if cols < mincols_doublespr:
-            SPREAD = 1
-        if SPREAD == 2:
+            self.spread = 1
+        if self.spread == 2:
             reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
 
         x = (cols - reading_state.textwidth) // 2
-        if SPREAD == 1:
+        if self.spread == 1:
             x = (cols - reading_state.textwidth) // 2
         else:
             x = 2
@@ -2072,7 +2073,7 @@ class Reader:
         src_lines, imgs, toc_secid, formatting = parser.get_lines(reading_state.textwidth)
         totlines = len(src_lines) + 1  # 1 extra line for suffix
 
-        if reading_state.row < 0 and totlines <= rows * SPREAD:
+        if reading_state.row < 0 and totlines <= rows * self.spread:
             reading_state = dataclasses.replace(reading_state, row=0)
         elif reading_state.rel_pctg is not None:
             reading_state = dataclasses.replace(
@@ -2151,7 +2152,7 @@ class Reader:
                     elif k in self.keymap.TTSToggle and self._tts_support:
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
-                        for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
+                        for i in src_lines[reading_state.row : reading_state.row + (rows * self.spread)]:
                             if re.match(r"^\s*$", i) is not None:
                                 tospeak += "\n. \n"
                             else:
@@ -2171,7 +2172,7 @@ class Reader:
                                 "Min: {} cols x {} rows".format(mincols_doublespr, 12),
                                 (Key("D"),),
                             )
-                        SPREAD = (SPREAD % 2) + 1
+                        self.spread = (self.spread % 2) + 1
                         return ReadingState(
                             content_index=reading_state.content_index,
                             textwidth=reading_state.textwidth,
@@ -2179,7 +2180,7 @@ class Reader:
                         )
 
                     elif k in self.keymap.ScrollUp:
-                        if SPREAD == 2:
+                        if self.spread == 2:
                             k = self.keymap.PageUp[0]
                             continue
                         if count > 1:
@@ -2211,23 +2212,23 @@ class Reader:
                                 content_index=reading_state.content_index - 1,
                                 textwidth=reading_state.textwidth,
                                 row=rows
-                                * SPREAD
+                                * self.spread
                                 * (
                                     len(tmp_parser.get_lines(reading_state.textwidth)[0])
-                                    // (rows * SPREAD)
+                                    // (rows * self.spread)
                                 ),
                             )
                         else:
-                            if reading_state.row >= rows * SPREAD * count:
+                            if reading_state.row >= rows * self.spread * count:
                                 self.page_animation = Direction.BACKWARD
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=reading_state.row - (rows * SPREAD * count)
+                                    reading_state, row=reading_state.row - (rows * self.spread * count)
                                 )
                             else:
                                 reading_state = dataclasses.replace(reading_state, row=0)
 
                     elif k in self.keymap.ScrollDown:
-                        if SPREAD == 2:
+                        if self.spread == 2:
                             k = self.keymap.PageDown[0]
                             continue
                         if count > 1:
@@ -2249,10 +2250,10 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
-                        if totlines - reading_state.row > rows * SPREAD:
+                        if totlines - reading_state.row > rows * self.spread:
                             self.page_animation = Direction.FORWARD
                             if (
-                                reading_state.row + (rows * SPREAD)
+                                reading_state.row + (rows * self.spread)
                                 > pad.chunks[pad.find_chunkidx(reading_state.row)]
                             ):
                                 reading_state = dataclasses.replace(
@@ -2261,7 +2262,7 @@ class Reader:
                                 )
                             else:
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=reading_state.row + (rows * SPREAD)
+                                    reading_state, row=reading_state.row + (rows * self.spread)
                                 )
                             # self.screen.clear()
                             # self.screen.refresh()
@@ -2404,7 +2405,7 @@ class Reader:
                     elif (
                         k in self.keymap.Enlarge
                         and (reading_state.textwidth + count) < cols - 4
-                        and SPREAD == 1
+                        and self.spread == 1
                     ):
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth + count
@@ -2415,7 +2416,7 @@ class Reader:
                             rel_pctg=reading_state.row / totlines,
                         )
 
-                    elif k in self.keymap.Shrink and reading_state.textwidth >= 22 and SPREAD == 1:
+                    elif k in self.keymap.Shrink and reading_state.textwidth >= 22 and self.spread == 1:
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth - count
                         )
@@ -2425,7 +2426,7 @@ class Reader:
                             rel_pctg=reading_state.row / totlines,
                         )
 
-                    elif k in self.keymap.SetWidth and SPREAD == 1:
+                    elif k in self.keymap.SetWidth and self.spread == 1:
                         if countstring == "":
                             # if called without a count, toggle between 80 cols and full width
                             if reading_state.textwidth != 80 and cols - 4 >= 80:
@@ -2472,7 +2473,7 @@ class Reader:
                     elif k in self.keymap.OpenImage and self.image_viewer is not None:
                         gambar, idx = [], []
                         for n, i in enumerate(
-                            src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]
+                            src_lines[reading_state.row : reading_state.row + (rows * self.spread)]
                         ):
                             img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
                             if img is not None:
@@ -2576,7 +2577,9 @@ class Reader:
                                 k = retk
                                 continue
                             elif idxchoice is not None:
-                                bookmark_to_jump = self.state.get_bookmarks(self.ebook)[idxchoice][1]
+                                bookmark_to_jump = self.state.get_bookmarks(self.ebook)[idxchoice][
+                                    1
+                                ]
                                 return ReadingState(
                                     content_index=bookmark_to_jump.content_index,
                                     textwidth=reading_state.textwidth,
@@ -2598,14 +2601,17 @@ class Reader:
                     elif k in self.keymap.MarkPosition:
                         jumnum = pad.getch()
                         if jumnum in tuple(Key(i) for i in range(48, 58)):
-                                self.jump_list[jumnum.char] = reading_state
+                            self.jump_list[jumnum.char] = reading_state
                         else:
                             k = jumnum
                             continue
 
                     elif k in self.keymap.JumpToPosition:
                         jumnum = pad.getch()
-                        if jumnum in tuple(Key(i) for i in range(48, 58)) and jumnum.char in self.jump_list:
+                        if (
+                            jumnum in tuple(Key(i) for i in range(48, 58))
+                            and jumnum.char in self.jump_list
+                        ):
                             marked_reading_state = self.jump_list[jumnum.char]
                             return dataclasses.replace(
                                 marked_reading_state,
@@ -2686,7 +2692,7 @@ class Reader:
                                     rows - 1,
                                     x + reading_state.textwidth,
                                 )
-                                if SPREAD == 2 and reading_state.row + rows < totlines:
+                                if self.spread == 2 and reading_state.row + rows < totlines:
                                     pad.refresh(
                                         reading_state.row + rows,
                                         0,
@@ -2704,7 +2710,7 @@ class Reader:
                                     rows - 1,
                                     x + i,
                                 )
-                                if SPREAD == 2 and reading_state.row + rows < totlines:
+                                if self.spread == 2 and reading_state.row + rows < totlines:
                                     pad.refresh(
                                         reading_state.row + rows,
                                         reading_state.textwidth - i - 1,
@@ -2717,7 +2723,7 @@ class Reader:
                         pad.refresh(
                             reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth
                         )
-                        if SPREAD == 2 and reading_state.row + rows < totlines:
+                        if self.spread == 2 and reading_state.row + rows < totlines:
                             pad.refresh(
                                 reading_state.row + rows,
                                 0,
@@ -2780,7 +2786,10 @@ class Reader:
 
                 if checkpoint_row:
                     pad.chgat(
-                        checkpoint_row, 0, reading_state.textwidth, self.screen.getbkgd() | curses.A_NORMAL
+                        checkpoint_row,
+                        0,
+                        reading_state.textwidth,
+                        self.screen.getbkgd() | curses.A_NORMAL,
                     )
                     checkpoint_row = None
         except KeyboardInterrupt:
@@ -2791,7 +2800,7 @@ class Reader:
 
 
 def preread(stdscr, filepath: str):
-    global SHOWPROGRESS, SPREAD
+    global SHOWPROGRESS
 
     ebook = get_ebook_obj(filepath)
     state = State()
@@ -2808,7 +2817,6 @@ def preread(stdscr, filepath: str):
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
         SHOWPROGRESS = reader.setting.ShowProgressIndicator
-        SPREAD = 2 if reader.setting.StartWithDoubleSpread else 1
         reader.run_counting_letters()
 
         while True:
