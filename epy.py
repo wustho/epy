@@ -232,8 +232,8 @@ class Epub:
     }
 
     def __init__(self, fileepub: str):
-        self.path = os.path.abspath(fileepub)
-        self.file = zipfile.ZipFile(fileepub, "r")
+        self.path: str = os.path.abspath(fileepub)
+        self.file: zipfile.ZipFile = zipfile.ZipFile(fileepub, "r")
 
     def get_meta(self):
         meta = []
@@ -805,7 +805,7 @@ class Board:
             except:
                 pass
 
-    def getch(self) -> Key:
+    def getch(self) -> Union[Key, NoUpdate]:
         tmp = self.pad.getch()
         # curses.screen.timeout(delay)
         # if delay < 0 then getch() return -1
@@ -816,7 +816,7 @@ class Board:
     def bkgd(self) -> None:
         self.pad.bkgd(self.screen.getbkgd())
 
-    def find_chunkidx(self, y):
+    def find_chunkidx(self, y) -> Optional[int]:
         for n, i in enumerate(self.chunks):
             if y <= i:
                 return n
@@ -1246,7 +1246,7 @@ def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
         cumulative_counts.append(sum(per_content_counts))
         per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
-    return LettersCount(all=sum(per_content_counts), cumulative=cumulative_counts)
+    return LettersCount(all=sum(per_content_counts), cumulative=tuple(cumulative_counts))
 
 
 def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_conn):
@@ -1431,7 +1431,7 @@ def text_win(textfunc):
         textw.keypad(True)
         textw.addstr(1, 2, title)
         textw.addstr(2, 2, "-" * len(title))
-        key_textw = 0
+        key_textw: Union[NoUpdate, Key] = NoUpdate()
 
         totlines = len(texts)
 
@@ -1577,7 +1577,7 @@ class Reader:
         return self.screen.getmaxyx()[1]
 
     @property
-    def ext_dict_app(self) -> str:
+    def ext_dict_app(self) -> Optional[str]:
         self._ext_dict_app: Optional[str] = None
         dict_app_preset_list = ["sdcv", "dict"]
 
@@ -2524,7 +2524,8 @@ class Reader:
                         if len(gambar) == 1:
                             impath = imgs[int(gambar[0])]
                         elif len(gambar) > 1:
-                            p, i = 0, 0
+                            p: Union[NoUpdate, Key] = NoUpdate()
+                            i = 0
                             while p not in self.keymap.Quit and p not in self.keymap.Follow:
                                 self.screen.move(
                                     idx[i] % rows,
@@ -2627,7 +2628,7 @@ class Reader:
                                     rel_pctg=bookmark_to_jump.rel_pctg,
                                 )
 
-                    elif k in self.keymap.DefineWord and self.ext_dict_app is not None:
+                    elif k in self.keymap.DefineWord and self.ext_dict_app:
                         word = self.input_prompt(" Define:")
                         if isinstance(word, str) and word:
                             defin = self.define_word(word)
@@ -2958,7 +2959,7 @@ def parse_cli_args() -> str:
             dig = len(str(len(reading_history) + 1))
             tcols = termc - dig - 2
             for n, i in enumerate(reading_history):
-                p = i.replace(os.getenv("HOME"), "~")
+                p = i.replace(os.getenv("HOME"), "~") if os.getenv("HOME") else i
                 print(
                     "{}{} {}".format(
                         str(n + 1).rjust(dig),
