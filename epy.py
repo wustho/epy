@@ -796,11 +796,14 @@ class Board:
                 pass
 
     def getch(self) -> Key:
-        # return self.pad.getch()
-        return Key(self.pad.getch())
+        tmp = self.pad.getch()
+        # curses.screen.timeout(delay)
+        # if delay < 0 then getch() return -1
+        if tmp == -1:
+            return NoUpdate()
+        return Key(tmp)
 
-    # TODO: bg unnecessary
-    def bkgd(self, bg):
+    def bkgd(self) -> None:
         self.pad.bkgd(self.screen.getbkgd())
 
     def find_chunkidx(self, y):
@@ -1251,8 +1254,8 @@ def choice_win(allowdel=False):
                     count = 1
                 else:
                     count = int(countstring)
-                if key_chwin in range(48, 58):  # i.e., k is a numeral
-                    countstring = countstring + chr(key_chwin)
+                if key_chwin in tuple(Key(i) for i in range(48, 58)):  # i.e., k is a numeral
+                    countstring = countstring + key_chwin.char
                 else:
                     if key_chwin in self.keymap.ScrollUp + self.keymap.PageUp:
                         index -= count
@@ -1266,14 +1269,6 @@ def choice_win(allowdel=False):
                         chwin.clear()
                         chwin.refresh()
                         return None, index, None
-                    # elif key_chwin in K["PageUp"]:
-                    #     index -= 3
-                    #     if index < 0:
-                    #         index = 0
-                    # elif key_chwin in K["PageDown"]:
-                    #     index += 3
-                    #     if index >= totlines:
-                    #         index = totlines - 1
                     elif key_chwin in self.keymap.BeginningOfCh:
                         index = 0
                     elif key_chwin in self.keymap.EndOfCh:
@@ -1971,19 +1966,11 @@ class Reader:
                 stderr=subprocess.DEVNULL,
             )
             while True:
-                # TODO
                 if speaker.poll() is not None:
-                    k = Key("l")
+                    k = self.keymap.PageDown[0]
                     break
-                # TODO
-                # k = self.screen.getch()
-                try:
-                    j = self.screen.getch()
-                    k = Key(j)
-                except:
-                    k = NoUpdate()
-                    # sys.exit(repr(j))
-                # TODO: check mouse support
+                tmp = self.screen.getch()
+                k = NoUpdate() if tmp == -1 else Key(tmp)
                 if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON2_CLICKED:
@@ -2088,7 +2075,7 @@ class Reader:
         # this make curses.A_REVERSE not working
         # put before paint_text
         if self.is_color_supported:
-            pad.bkgd(self.screen.getbkgd())
+            pad.bkgd()
 
         pad.paint_text(0)
         pad.format()
@@ -2133,7 +2120,6 @@ class Reader:
                             sys.exit()
 
                     elif k in self.keymap.TTSToggle and self._tts_support:
-                        # TODO: cannot stop with 'q'
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
                         for i in src_lines[reading_state.row : reading_state.row + (rows * SPREAD)]:
