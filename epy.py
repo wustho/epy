@@ -1026,6 +1026,16 @@ class State(AppData):
         finally:
             conn.close()
 
+    def delete_bookmark(
+            self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str
+    ) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute( "DELETE FROM bookmarks WHERE filepath=? AND name=?", (ebook.path, name) )
+            conn.commit()
+        finally:
+            conn.close()
+
     def get_bookmarks(
         self, ebook: Union[Epub, Mobi, Azw3, FictionBook]
     ) -> List[Tuple[str, ReadingState]]:
@@ -1038,9 +1048,10 @@ class State(AppData):
             bookmarks: List[Tuple[str, ReadingState]] = []
             for result in results:
                 tmp_dict = dict(result)
-                filepath = tmp_dict["filepath"]
+                name = tmp_dict["name"]
                 del tmp_dict["filepath"]
-                bookmarks.append((filepath, ReadingState(**tmp_dict)))
+                del tmp_dict["name"]
+                bookmarks.append((name, ReadingState(**tmp_dict)))
             return bookmarks
         finally:
             conn.close()
@@ -1656,12 +1667,12 @@ class Reader:
     def show_win_choices_bookmarks(self):
         idx = 0
         while True:
-            bmarkslist = [i[0] for i in STATE["States"][self.ebook.path]["bmarks"]]
-            if bmarkslist == []:
+            bookmarks = [i[0] for i in self.state.get_bookmarks(self.ebook)]
+            if not bookmarks:
                 return self.keymap.ShowBookmarks[0], None
-            retk, idx, todel = self.show_win_options("Bookmarks", bmarkslist, idx, (Key("B"),))
+            retk, idx, todel = self.show_win_options("Bookmarks", bookmarks, idx, self.keymap.ShowBookmarks)
             if todel is not None:
-                del STATE["States"][self.ebook.path]["bmarks"][todel]
+                self.state.delete_bookmark(self.ebook, bookmarks[todel])
             else:
                 return retk, idx
 
@@ -2554,30 +2565,22 @@ class Reader:
                             k = self.show_win_error(
                                 "Bookmarks",
                                 "N/A: Bookmarks are not found in this book.",
-                                (Key("B"),),
+                                self.keymap.ShowBookmarks,
                             )
                             continue
-                        # if STATE["States"][self.ebook.path]["bmarks"] == []:
-                        #     k = self.show_win_error(
-                        #         "Bookmarks",
-                        #         "N/A: Bookmarks are not found in this book.",
-                        #         (Key("B"),),
-                        #     )
-                        #     continue
-                        # else:
-                        #     retk, idxchoice = self.show_win_choices_bookmarks()
-                        #     if retk is not None:
-                        #         k = retk
-                        #         continue
-                        #     elif idxchoice is not None:
-                        #         bmtojump = STATE["States"][self.ebook.path]["bmarks"][idxchoice]
-                        #         # return bmtojump[1] - index, width, bmtojump[2], bmtojump[3], ""
-                        #         return ReadingState(
-                        #             content_index=bmtojump[1],
-                        #             textwidth=reading_state.textwidth,
-                        #             row=bmtojump[2],
-                        #             rel_pctg=bmtojump[3],
-                        #         )
+                        else:
+                            retk, idxchoice = self.show_win_choices_bookmarks()
+                            if retk is not None:
+                                k = retk
+                                continue
+                            elif idxchoice is not None:
+                                bookmark_to_jump = self.state.get_bookmarks(self.ebook)[idxchoice][1]
+                                return ReadingState(
+                                    content_index=bookmark_to_jump.content_index,
+                                    textwidth=reading_state.textwidth,
+                                    row=bookmark_to_jump.row,
+                                    rel_pctg=bookmark_to_jump.rel_pctg,
+                                )
 
                     elif k in self.keymap.DefineWord and self.ext_dict_app is not None:
                         word = self.input_prompt(" Define:")
@@ -2782,13 +2785,6 @@ class Reader:
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
             )
-            # savestate(
-            #     self.ebook.path,
-            #     reading_state.content_index,
-            #     reading_state.textwidth,
-            #     reading_state.row,
-            #     reading_state.row / totlines,
-            # )
             sys.exit()
 
 
