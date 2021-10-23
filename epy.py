@@ -905,6 +905,8 @@ class Config(AppData):
 
         self.setting = Settings(**setting_dict)
         self.keymap = Keymap(**keymap_updated)
+        # to build help menu text
+        self.keymap_user_dict = keymap_dict
 
     @property
     def filepath(self) -> str:
@@ -1428,7 +1430,6 @@ def text_win(textfunc):
 
         textw.clear()
         textw.refresh()
-        # TODO: do not return None
         return NoUpdate()
 
     return wrapper
@@ -1441,6 +1442,8 @@ class Reader:
 
         self.setting = config.setting
         self.keymap = config.keymap
+        # to build help menu text
+        self.keymap_user_dict = config.keymap_user_dict
 
         # keys that will make
         # windows exit and return the said key
@@ -1605,6 +1608,10 @@ class Reader:
     def show_win_options(self, title, options, active_index, key_set):
         return title, options, active_index, key_set
 
+    @text_win
+    def show_win_error(self, title, msg, key):
+        return title, msg, key
+
     @choice_win()
     def toc(self, src, index):
         return "Table of Contents", src, index, self.keymap.TableOfContents
@@ -1624,17 +1631,12 @@ class Reader:
     @text_win
     def show_win_help(self):
         src = "Key Bindings:\n"
-        # TODO
-        # dig = max([len(i) for i in CFG["Keys"].values()]) + 2
-        # for i in CFG["Keys"].keys():
-        #     src += "{}  {}\n".format(
-        #         CFG["Keys"][i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
-        #     )
+        dig = max([len(i) for i in self.keymap_user_dict.values()]) + 2
+        for i in self.keymap_user_dict.keys():
+            src += "{}  {}\n".format(
+                self.keymap_user_dict[i].rjust(dig), " ".join(re.findall("[A-Z][^A-Z]*", i))
+            )
         return "Help", src, self.keymap.Help
-
-    @text_win
-    def show_win_error(self, title, msg, key):
-        return title, msg, key
 
     @text_win
     def define_word(self, word):
