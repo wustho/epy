@@ -24,6 +24,7 @@ __url__ = "https://github.com/wustho/epy"
 import base64
 import curses
 import dataclasses
+import hashlib
 import json
 import multiprocessing
 import os
@@ -1090,9 +1091,14 @@ class State(AppData):
             conn.execute(
                 """
                 INSERT INTO bookmarks
-                VALUES (:filepath, :name, :content_index, :textwidth, :row, :rel_pctg)
+                VALUES (:id, :filepath, :name, :content_index, :textwidth, :row, :rel_pctg)
                 """,
-                {"filepath": ebook.path, "name": name, **dataclasses.asdict(reading_state)},
+                {
+                    "id": hashlib.sha1(f"{ebook.path}{name}".encode()).hexdigest()[:10],
+                    "filepath": ebook.path,
+                    "name": name,
+                    **dataclasses.asdict(reading_state),
+                },
             )
             conn.commit()
         finally:
@@ -1129,6 +1135,7 @@ class State(AppData):
                 name = tmp_dict["name"]
                 del tmp_dict["filepath"]
                 del tmp_dict["name"]
+                del tmp_dict["id"]
                 bookmarks.append((name, ReadingState(**tmp_dict)))
             return bookmarks
         finally:
@@ -1159,8 +1166,9 @@ class State(AppData):
             conn.execute(
                 """
                 CREATE TABLE bookmarks (
+                    id TEXT PRIMARY KEY,
                     filepath TEXT,
-                    name TEXT PRIMARY KEY,
+                    name TEXT,
                     content_index INTEGER,
                     textwidth INTEGER,
                     row INTEGER,
@@ -2692,12 +2700,18 @@ class Reader:
                                 bookmark_to_jump = self.state.get_bookmarks(self.ebook)[idxchoice][
                                     1
                                 ]
-                                return ReadingState(
-                                    content_index=bookmark_to_jump.content_index,
-                                    textwidth=reading_state.textwidth,
-                                    row=bookmark_to_jump.row,
-                                    rel_pctg=bookmark_to_jump.rel_pctg,
-                                )
+                                if (
+                                    bookmark_to_jump.content_index == reading_state.content_index
+                                    and bookmark_to_jump.textwidth == reading_state.textwidth
+                                ):
+                                    reading_state = bookmark_to_jump
+                                else:
+                                    return ReadingState(
+                                        content_index=bookmark_to_jump.content_index,
+                                        textwidth=reading_state.textwidth,
+                                        row=bookmark_to_jump.row,
+                                        rel_pctg=bookmark_to_jump.rel_pctg,
+                                    )
 
                     elif k in self.keymap.DefineWord and self.ext_dict_app:
                         word = self.input_prompt(" Define:")
