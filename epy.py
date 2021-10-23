@@ -49,12 +49,23 @@ from urllib.parse import unquote
 try:
     import mobi
 
-    MOBISUPPORT = True
+    MOBI_SUPPORT = True
 except ModuleNotFoundError:
-    MOBISUPPORT = False
+    MOBI_SUPPORT = False
 
 
-STATEFILE = ""
+# add image viewers here
+# sorted by most widely used
+VIEWER_PRESET_LIST = (
+    "feh",
+    "imv",
+    "gio",
+    "gnome-open",
+    "gvfs-open",
+    "xdg-open",
+    "kde-open",
+    "firefox",
+)
 
 
 class Direction(Enum):
@@ -952,6 +963,11 @@ class Config(AppData):
 
 
 class State(AppData):
+    """
+    Use sqlite3 instead of JSON (in older version)
+    to shift the weight from memory to process
+    """
+
     def __init__(self):
         if not os.path.isfile(self.filepath):
             self.init_db()
@@ -959,6 +975,44 @@ class State(AppData):
     @property
     def filepath(self) -> str:
         return os.path.join(self.prefix, "states.db") if self.prefix else os.devnull
+
+    def get_from_history(self) -> Tuple[str]:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            cur = conn.cursor()
+            cur.execute("SELECT filepath FROM reading_states")
+            results = cur.fetchall()
+            return tuple(i[0] for i in results)
+        finally:
+            conn.close()
+
+    def delete_from_history(self, filepath: str) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute("DELETE FROM reading_states WHERE filepath=?", (filepath,))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_last_read(self) -> Optional[str]:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            cur = conn.cursor()
+            cur.execute("SELECT filepath FROM last_read WHERE id=0")
+            res = cur.fetchone()
+            if res:
+                return res[0]
+            return None
+        finally:
+            conn.close()
+
+    def set_last_read(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute("INSERT OR REPLACE INTO last_read VALUES (0, ?)", (ebook.path,))
+            conn.commit()
+        finally:
+            conn.close()
 
     def get_last_reading_state(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> ReadingState:
         try:
@@ -991,26 +1045,6 @@ class State(AppData):
         finally:
             conn.close()
 
-    def gat_last_read(self) -> Optional[str]:
-        try:
-            conn = sqlite3.connect(self.filepath)
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM last_read WHERE id=0")
-            res = cur.fetchone()
-            if res:
-                return res[1]
-            return None
-        finally:
-            conn.close()
-
-    def set_last_read(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> None:
-        try:
-            conn = sqlite3.connect(self.filepath)
-            conn.execute("INSERT OR REPLACE INTO last_read VALUES (0, ?)", (ebook.path,))
-            conn.commit()
-        finally:
-            conn.close()
-
     def insert_bookmark(
         self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str, reading_state: ReadingState
     ) -> None:
@@ -1031,6 +1065,14 @@ class State(AppData):
         try:
             conn = sqlite3.connect(self.filepath)
             conn.execute("DELETE FROM bookmarks WHERE filepath=? AND name=?", (ebook.path, name))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def delete_bookmarks_by_filepath(self, filepath: str) -> None:
+        try:
+            conn = sqlite3.connect(self.filepath)
+            conn.execute("DELETE FROM bookmarks WHERE filepath=?", (filepath,))
             conn.commit()
         finally:
             conn.close()
@@ -1100,11 +1142,11 @@ def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
         return Epub(filepath)
     elif file_ext == ".fb2":
         return FictionBook(filepath)
-    elif MOBISUPPORT and file_ext == ".mobi":
+    elif MOBI_SUPPORT and file_ext == ".mobi":
         return Mobi(filepath)
-    elif MOBISUPPORT and file_ext == ".azw3":
+    elif MOBI_SUPPORT and file_ext == ".azw3":
         return Azw3(filepath)
-    elif not MOBISUPPORT and file_ext in {".mobi", ".azw3"}:
+    elif not MOBI_SUPPORT and file_ext in {".mobi", ".azw3"}:
         sys.exit(
             "ERROR: Format not supported. (Supported: epub, fb2). "
             "To get mobi and azw3 support, install mobi module from pip. "
@@ -1551,15 +1593,6 @@ class Reader:
     @property
     def image_viewer(self) -> str:
         self._image_viewer: Optional[str] = None
-        viewer_preset_list = [
-            "feh",
-            "gio",
-            "gnome-open",
-            "gvfs-open",
-            "xdg-open",
-            "kde-open",
-            "firefox",
-        ]
 
         if shutil.which(self.setting.DefaultViewer.split()[0]) is not None:
             self._image_viewer = self.setting.DefaultViewer
@@ -1568,7 +1601,7 @@ class Reader:
         elif sys.platform == "darwin":
             self._image_viewer = "open"
         else:
-            for i in viewer_preset_list:
+            for i in VIEWER_PRESET_LIST:
                 if shutil.which(i) is not None:
                     self._image_viewer = i
                     break
@@ -2152,7 +2185,9 @@ class Reader:
                     elif k in self.keymap.TTSToggle and self._tts_support:
                         # tospeak = "\n".join(src_lines[y:y+rows-1])
                         tospeak = ""
-                        for i in src_lines[reading_state.row : reading_state.row + (rows * self.spread)]:
+                        for i in src_lines[
+                            reading_state.row : reading_state.row + (rows * self.spread)
+                        ]:
                             if re.match(r"^\s*$", i) is not None:
                                 tospeak += "\n. \n"
                             else:
@@ -2222,7 +2257,8 @@ class Reader:
                             if reading_state.row >= rows * self.spread * count:
                                 self.page_animation = Direction.BACKWARD
                                 reading_state = dataclasses.replace(
-                                    reading_state, row=reading_state.row - (rows * self.spread * count)
+                                    reading_state,
+                                    row=reading_state.row - (rows * self.spread * count),
                                 )
                             else:
                                 reading_state = dataclasses.replace(reading_state, row=0)
@@ -2416,7 +2452,11 @@ class Reader:
                             rel_pctg=reading_state.row / totlines,
                         )
 
-                    elif k in self.keymap.Shrink and reading_state.textwidth >= 22 and self.spread == 1:
+                    elif (
+                        k in self.keymap.Shrink
+                        and reading_state.textwidth >= 22
+                        and self.spread == 1
+                    ):
                         reading_state = dataclasses.replace(
                             reading_state, textwidth=reading_state.textwidth - count
                         )
@@ -2826,11 +2866,12 @@ def preread(stdscr, filepath: str):
         reader.cleanup()
 
 
-def main():
+def parse_cli_args() -> str:
+    """
+    Try parsing cli args and return filepath of ebook to read
+    or quitting based on args and app state
+    """
     termc, termr = shutil.get_terminal_size()
-
-    # TODO: test only
-    curses.wrapper(preread, sys.argv[1])
 
     args = []
     if sys.argv[1:] != []:
@@ -2840,18 +2881,33 @@ def main():
         print(__doc__.rstrip())
         sys.exit()
 
-    # loadstate()
-
     if len({"-v", "--version", "-V"} & set(args)) != 0:
-        print("Startup file loaded:")
-        print(CFGFILE)
-        print(STATEFILE)
-        print()
         print("v" + __version__)
         print(__license__, "License")
         print("Copyright (c) 2019", __author__)
         print(__url__)
         sys.exit()
+
+    app_state = State()
+
+    # trying finding file and keep it in candidate
+    # which has the form of candidate = (filepath, error_msg)
+    # if filepath is None or error_msg is None then
+    # the app failed and exit with error_msg
+    candidate: Tuple[Optional[str], Optional[str]]
+
+    last_read_in_history = app_state.get_last_read()
+
+    # clean up history from missing file
+    reading_history = app_state.get_from_history()
+    is_history_modified = False
+    for file in reading_history:
+        if not os.path.isfile(file):
+            app_state.delete_from_history(file)
+            app_state.delete_bookmarks_by_filepath(file)
+            is_history_modified = True
+    if is_history_modified:
+        reading_history = app_state.get_from_history()
 
     if len({"-d"} & set(args)) != 0:
         args.remove("-d")
@@ -2859,66 +2915,68 @@ def main():
     else:
         dump = False
 
-    if args == []:
-        file = STATE["LastRead"]
-        if not os.path.isfile(file):
-            # print(__doc__)
+    if not args:
+        candidate = (last_read_in_history, None)
+        if not os.path.isfile(candidate[0]):
+            # instant fail
             sys.exit("ERROR: Found no last read file.")
 
     elif os.path.isfile(args[0]):
-        file = args[0]
+        candidate = (args[0], None)
 
     else:
-        file = None
-        todel = []
-        xitmsg = 0
+        candidate = (None, "ERROR: No matching file found in history.")
 
-        val = 0
-        for i in STATE["States"].keys():
-            if not os.path.exists(i):
-                todel.append(i)
-            else:
-                match_val = sum(
-                    [
-                        j.size
-                        for j in SM(None, i.lower(), " ".join(args).lower()).get_matching_blocks()
-                    ]
-                )
-                if match_val >= val:
-                    val = match_val
-                    file = i
-        if val == 0:
-            xitmsg = "\nERROR: No matching file found in history."
-
-        for i in todel:
-            del STATE["States"][i]
-        with open(STATEFILE, "w") as f:
-            json.dump(STATE, f, indent=4)
-
+        # find file from history with index number
         if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
             try:
-                file = list(STATE["States"].keys())[int(args[0]) - 1]
-                xitmsg = 0
+                # file = list(STATE["States"].keys())[int(args[0]) - 1]
+                candidate = (reading_history[int(args[0]) - 1], None)
             except IndexError:
-                xitmsg = "ERROR: No matching file found in history."
+                pass
 
-        if xitmsg != 0 or "-r" in args:
+        # find file from history by string matching
+        if (not candidate[0]) or candidate[1]:
+            matching_value = 0
+            for file in reading_history:
+                this_file_match_value = sum(
+                    [
+                        i.size
+                        for i in SM(
+                            None, file.lower(), " ".join(args).lower()
+                        ).get_matching_blocks()
+                    ]
+                )
+                if this_file_match_value >= matching_value:
+                    matching_value = this_file_match_value
+                    candidate = (file, None)
+
+            if matching_value == 0:
+                candidate = (None, "\nERROR: No matching file found in history.")
+
+        if (not candidate[0]) or candidate[1] or "-r" in args:
             print("Reading history:")
-            dig = len(str(len(STATE["States"].keys()) + 1))
+            # dig = len(str(len(STATE["States"].keys()) + 1))
+            dig = len(str(len(reading_history) + 1))
             tcols = termc - dig - 2
-            for n, i in enumerate(STATE["States"].keys()):
+            for n, i in enumerate(reading_history):
                 p = i.replace(os.getenv("HOME"), "~")
                 print(
                     "{}{} {}".format(
                         str(n + 1).rjust(dig),
-                        "*" if i == STATE["LastRead"] else " ",
+                        "*" if i == last_read_in_history else " ",
                         truncate(p, "...", tcols, 7),
                     )
                 )
-            sys.exit(xitmsg)
+            if "-r" in args:
+                sys.exit()
+
+    filepath, error_msg = candidate
+    if (not filepath) or error_msg:
+        sys.exit(error_msg)
 
     if dump:
-        ebook = det_ebook_cls(file)
+        ebook = get_ebook_obj(filepath)
         try:
             try:
                 ebook.initialize()
@@ -2943,8 +3001,10 @@ def main():
     else:
         if termc < 22 or termr < 12:
             sys.exit("ERROR: Screen was too small (min 22cols x 12rows).")
-        curses.wrapper(preread, file)
+
+        return filepath
 
 
 if __name__ == "__main__":
-    main()
+    filepath = parse_cli_args()
+    curses.wrapper(preread, filepath)
