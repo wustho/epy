@@ -1142,124 +1142,124 @@ class State(AppData):
             conn.close()
 
 
-class Board:
-    """
-    OBSOLETE: use InfiniBoard instead
-
-    Wrapper to curses.newpad() because curses.pad has
-    line max lines 32767. If there is >=32768 lines
-    Exception will be raised.
-    """
-
-    MAXCHUNKS = 32000 - 2  # lines
-
-    def __init__(self, screen, totlines, width):
-        self.screen = screen
-        self.chunks = [self.MAXCHUNKS * (i + 1) - 1 for i in range(totlines // self.MAXCHUNKS)]
-        self.chunks += (
-            []
-            if totlines % self.MAXCHUNKS == 0
-            else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])]
-        )  # -1
-        self.pad = curses.newpad(min([self.MAXCHUNKS + 2, totlines]), width)
-        self.pad.keypad(True)
-        # self.current_chunk = 0
-        self.y = 0
-        self.width = width
-
-    def feed(self, textlist):
-        self.text = textlist
-
-    def feed_format(self, formatting):
-        self.formatting = formatting
-
-    def format(self):
-        chunkidx = self.find_chunkidx(self.y)
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        # if y in range(start_chunk, end_chunk+1):
-        for i in [
-            j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk
-        ]:
-            try:
-                self.pad.chgat(
-                    i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_ITALIC
-                )
-            except:
-                pass
-        for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
-            try:
-                self.pad.chgat(
-                    i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_BOLD
-                )
-            except:
-                pass
-
-    def getch(self) -> Union[Key, NoUpdate]:
-        tmp = self.pad.getch()
-        # curses.screen.timeout(delay)
-        # if delay < 0 then getch() return -1
-        if tmp == -1:
-            return NoUpdate()
-        return Key(tmp)
-
-    def bkgd(self) -> None:
-        self.pad.bkgd(self.screen.getbkgd())
-
-    def find_chunkidx(self, y) -> Optional[int]:
-        for n, i in enumerate(self.chunks):
-            if y <= i:
-                return n
-
-    def paint_text(self, chunkidx=0):
-        self.pad.clear()
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        for n, i in enumerate(self.text[start_chunk : end_chunk + 1]):
-            if re.search("\\[IMG:[0-9]+\\]", i):
-                self.pad.addstr(n, self.width // 2 - len(i) // 2 + 1, i, curses.A_REVERSE)
-            else:
-                self.pad.addstr(n, 0, i)
-        # chapter suffix
-        ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
-        try:
-            self.pad.addstr(n + 1, (self.width - len(ch_suffix)) // 2 + 1, ch_suffix)
-        except curses.error:
-            pass
-
-        # if chunkidx < len(self.chunks)-1:
-        # try:
-        # self.pad.addstr(self.MAXCHUNKS+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
-        # except curses.error:
-        # pass
-
-    def chgat(self, y, x, n, attr):
-        chunkidx = self.find_chunkidx(y)
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        if y in range(start_chunk, end_chunk + 1):
-            # TODO: error when searching for |c
-            self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
-
-    def getbkgd(self):
-        return self.pad.getbkgd()
-
-    def refresh(self, y, b, c, d, e, f):
-        chunkidx = self.find_chunkidx(y)
-        if chunkidx != self.find_chunkidx(self.y):
-            self.paint_text(chunkidx)
-            self.y = y
-            self.format()
-        # TODO: not modulo by self.MAXCHUNKS but self.pad.height
-        self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
-        self.y = y
+# class Board:
+#     """
+#     OBSOLETE: use InfiniBoard instead
+#
+#     Wrapper to curses.newpad() because curses.pad has
+#     line max lines 32767. If there is >=32768 lines
+#     Exception will be raised.
+#     """
+#
+#     MAXCHUNKS = 32000 - 2  # lines
+#
+#     def __init__(self, screen, totlines, width):
+#         self.screen = screen
+#         self.chunks = [self.MAXCHUNKS * (i + 1) - 1 for i in range(totlines // self.MAXCHUNKS)]
+#         self.chunks += (
+#             []
+#             if totlines % self.MAXCHUNKS == 0
+#             else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])]
+#         )  # -1
+#         self.pad = curses.newpad(min([self.MAXCHUNKS + 2, totlines]), width)
+#         self.pad.keypad(True)
+#         # self.current_chunk = 0
+#         self.y = 0
+#         self.width = width
+#
+#     def feed(self, textlist):
+#         self.text = textlist
+#
+#     def feed_format(self, formatting):
+#         self.formatting = formatting
+#
+#     def format(self):
+#         chunkidx = self.find_chunkidx(self.y)
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         # if y in range(start_chunk, end_chunk+1):
+#         for i in [
+#             j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk
+#         ]:
+#             try:
+#                 self.pad.chgat(
+#                     i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_ITALIC
+#                 )
+#             except:
+#                 pass
+#         for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
+#             try:
+#                 self.pad.chgat(
+#                     i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_BOLD
+#                 )
+#             except:
+#                 pass
+#
+#     def getch(self) -> Union[Key, NoUpdate]:
+#         tmp = self.pad.getch()
+#         # curses.screen.timeout(delay)
+#         # if delay < 0 then getch() return -1
+#         if tmp == -1:
+#             return NoUpdate()
+#         return Key(tmp)
+#
+#     def bkgd(self) -> None:
+#         self.pad.bkgd(self.screen.getbkgd())
+#
+#     def find_chunkidx(self, y) -> Optional[int]:
+#         for n, i in enumerate(self.chunks):
+#             if y <= i:
+#                 return n
+#
+#     def paint_text(self, chunkidx=0):
+#         self.pad.clear()
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         for n, i in enumerate(self.text[start_chunk : end_chunk + 1]):
+#             if re.search("\\[IMG:[0-9]+\\]", i):
+#                 self.pad.addstr(n, self.width // 2 - len(i) // 2 + 1, i, curses.A_REVERSE)
+#             else:
+#                 self.pad.addstr(n, 0, i)
+#         # chapter suffix
+#         ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
+#         try:
+#             self.pad.addstr(n + 1, (self.width - len(ch_suffix)) // 2 + 1, ch_suffix)
+#         except curses.error:
+#             pass
+#
+#         # if chunkidx < len(self.chunks)-1:
+#         # try:
+#         # self.pad.addstr(self.MAXCHUNKS+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
+#         # except curses.error:
+#         # pass
+#
+#     def chgat(self, y, x, n, attr):
+#         chunkidx = self.find_chunkidx(y)
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         if y in range(start_chunk, end_chunk + 1):
+#             # TODO: error when searching for |c
+#             self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
+#
+#     def getbkgd(self):
+#         return self.pad.getbkgd()
+#
+#     def refresh(self, y, b, c, d, e, f):
+#         chunkidx = self.find_chunkidx(y)
+#         if chunkidx != self.find_chunkidx(self.y):
+#             self.paint_text(chunkidx)
+#             self.y = y
+#             self.format()
+#         # TODO: not modulo by self.MAXCHUNKS but self.pad.height
+#         self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
+#         self.y = y
 
 
 class InfiniBoard:
     """
     Wrapper for curses screen to render infinite texts.
-    The idea is instead of pre render text before reading,
-    this will only renders texts on demand by which available
+    The idea is instead of pre render all the text before reading,
+    this will only renders part of text on demand by which available
     page on screen.
 
     And what this does is only drawing text/string on curses screen
