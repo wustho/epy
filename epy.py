@@ -675,8 +675,9 @@ class HTMLtoLines(HTMLParser):
                 self.idpref.add(len(self.text) - 1)
 
     def get_lines(self, width=0):
-        text, sect = [], {}
-        formatting = {"italic": [], "bold": []}
+        text: List[str] = []
+        sect: Mapping[str, int] = dict()
+        formatting: List[InlineStyle] = []
         tmpital = []
         for i in self.initital:
             # handle uneven markup
@@ -720,7 +721,10 @@ class HTMLtoLines(HTMLParser):
             if n in self.idhead:
                 # text += [i.rjust(width // 2 + len(i) // 2)] + [""]
                 text += [i.center(width)] + [""]
-                formatting["bold"] += [[j, 0, len(text[j])] for j in range(startline, len(text))]
+                formatting += [
+                    InlineStyle(row=j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD)
+                    for j in range(startline, len(text))
+                ]
             elif n in self.idinde:
                 text += ["   " + j for j in textwrap.wrap(i, width - 3)] + [""]
             elif n in self.idbull:
@@ -755,20 +759,47 @@ class HTMLtoLines(HTMLParser):
                             tmp_end = [k, j[1] + j[2] - tmp_count]
                         tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
-                    formatting["italic"].append(tmp_start + [tmp_end[1] - tmp_start[1]])
-                elif tmp_start[0] == tmp_end[0] - 1:
-                    formatting["italic"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=tmp_end[1] - tmp_start[1],
+                            attr=curses.A_ITALIC,
+                        )
                     )
-                    formatting["italic"].append([tmp_end[0], 0, tmp_end[1]])
+                elif tmp_start[0] == tmp_end[0] - 1:
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_ITALIC,
+                        )
+                    )
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                        )
+                    )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
-                    formatting["italic"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_ITALIC,
+                        )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting["italic"].append([l, 0, len(text[l])])
-                    formatting["italic"].append([tmp_end[0], 0, tmp_end[1]])
+                        formatting.append(
+                            InlineStyle(row=l, col=0, n_letters=len(tect[l]), attr=curses.A_ITALIC)
+                        )
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                        )
+                    )
             tmp_filtered = [j for j in tmpbold if j[0] == n]
             for j in tmp_filtered:
                 tmp_count = 0
@@ -787,25 +818,48 @@ class HTMLtoLines(HTMLParser):
                             tmp_end = [k, j[1] + j[2] - tmp_count]
                         tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
-                    formatting["bold"].append(tmp_start + [tmp_end[1] - tmp_start[1]])
-                elif tmp_start[0] == tmp_end[0] - 1:
-                    formatting["bold"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=tmp_end[1] - tmp_start[1],
+                            attr=curses.A_BOLD,
+                        )
                     )
-                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+                elif tmp_start[0] == tmp_end[0] - 1:
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_BOLD,
+                        )
+                    )
+                    formatting.append(
+                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                    )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
-                    formatting["bold"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_BOLD,
+                        )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting["bold"].append([l, 0, len(text[l])])
-                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+                        formatting.append(
+                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_BOLD)
+                        )
+                    formatting.append(
+                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                    )
 
         # chapter suffix
         text += ["***".center(width)]
 
-        return text, self.imgs, sect, formatting
+        return tuple(text), self.imgs, sect, tuple(formatting)
 
 
 class AppData:
@@ -1202,7 +1256,9 @@ class Board:
 
 
 class InfiniBoard:
-    def __init__(self, screen, text: Tuple[str], textwidth: int):
+    def __init__(
+        self, screen, text: Tuple[str], textwidth: int = 80, default_style: Tuple[InlineStyle] = ()
+    ):
         self.screen = screen
         self.screen_rows, self.screen_cols = self.screen.getmaxyx()
         self.textwidth = textwidth
@@ -1210,16 +1266,18 @@ class InfiniBoard:
         self.text = text
         self.total_lines = len(text)
         # self.win = curses.newwin(self.screen_rows, textwidth, 0, self.x)
-        # TODO
-        self.default_style: Tuple[InlineStyle, ...] = ()
+        self.default_style: Tuple[InlineStyle, ...] = default_style
         self.temporary_style = []
 
-    def feed_style(self, styles: Optional[List[InlineStyle]] = None) -> None:
+    def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
+        """Reset styling if `styles` is Nont"""
         self.temporary_style = styles if styles else []
 
-    def format(self, row: int) -> None:
-        for i in self.temporary_style:
-            if i.row in range(row, row + self.screen_rows):
+    def format(
+        self, row: int, styles: Tuple[InlineStyle, ...] = (), bottom_padding: int = 0
+    ) -> None:
+        for i in styles:
+            if i.row in range(row, row + self.screen_rows - bottom_padding):
                 self.chgat(row, i.row, i.col, i.n_letters, i.attr)
 
     def getch(self) -> Union[NoUpdate, Key]:
@@ -1244,9 +1302,9 @@ class InfiniBoard:
                 self.screen.addstr(n_row, self.x, text_line.center(self.textwidth), curses.A_BOLD)
             else:
                 self.screen.addstr(n_row, self.x, text_line)
-        self.format(row)
-        # TODO
-        # self.format(row, bottom_padding)
+
+        self.format(row, self.default_style, bottom_padding)
+        self.format(row, self.temporary_style, bottom_padding)
         # self.screen.refresh()
 
     def write_n(
@@ -2072,7 +2130,7 @@ class Reader:
                 self.search_data = None
                 # for i in found:
                 #     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
-                board.feed_style()
+                board.feed_temporary_style()
                 # pad.format()
                 # self.screen.clear()
                 # self.screen.refresh()
@@ -2154,7 +2212,7 @@ class Reader:
                 styles.append(
                     InlineStyle(row=i[0], col=i[1], n_letters=i[2], attr=board.getbkgd() | attr)
                 )
-            board.feed_style(styles)
+            board.feed_temporary_style(tuple(styles))
 
             self.screen.clear()
             self.screen.addstr(rows - 1, 0, msg, curses.A_REVERSE)
@@ -2290,7 +2348,12 @@ class Reader:
             reading_state = dataclasses.replace(reading_state, row=reading_state.row % totlines)
 
         # pad.feed_format(formatting)
-        board = InfiniBoard(screen=self.screen, text=src_lines, textwidth=reading_state.textwidth)
+        board = InfiniBoard(
+            screen=self.screen,
+            text=src_lines,
+            textwidth=reading_state.textwidth,
+            default_style=formatting,
+        )
 
         # this make curses.A_REVERSE not working
         # put before paint_text
