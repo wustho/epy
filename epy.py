@@ -464,7 +464,7 @@ class Mobi(Epub):
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
         # TODO: test on windows
         # if impath "Images/asdf.png" is problematic
-        with open(os.path.join(self.rootdir, impath), "rb") as f:
+        with open(os.path.join(self.root_dirpath, impath), "rb") as f:
             src = f.read()
         return impath, src
 
@@ -2718,7 +2718,7 @@ class Reader:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
                                     impath = dots_path(chpath, impath)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(impath)
-                                k = self.open_image(pad, imgnm, imgbstr)
+                                k = self.open_image(board, imgnm, imgbstr)
                                 continue
                             except Exception as e:
                                 self.show_win_error("Error Opening Image", str(e), tuple())
