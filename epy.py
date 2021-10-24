@@ -109,6 +109,7 @@ class InlineStyle:
     """
     eg. InlineStyle(attr=curses.A_BOLD, row=3, cols=4, n_letters=3)
     """
+
     row: int
     col: int
     n_letters: int
@@ -915,25 +916,24 @@ class Board:
 
 
 class InfiniBoard:
-    def __init__(self, screen, textwidth: int):
+    def __init__(self, screen, text: Sequence[str], textwidth: int):
         self.screen = screen
         self.screen_rows, self.screen_cols = self.screen.getmaxyx()
-        self.x = ((self.screen_cols - textwidth) // 2) +1
+        self.textwidth = textwidth
+        self.x = ((self.screen_cols - self.textwidth) // 2) + 1
+        self.text = text
+        self.total_lines = len(text)
         # self.win = curses.newwin(self.screen_rows, textwidth, 0, self.x)
         # TODO
         self.style = []
 
-    def feed_text(self, text: List[str]) -> None:
-        self.text = text
-        self.total_lines = len(text)
-
-    def feed_style(self, styles: Optional[List[InlineStyle]]= None) -> None:
+    def feed_style(self, styles: Optional[List[InlineStyle]] = None) -> None:
         self.style = styles if styles else []
 
     def format(self, row: int) -> None:
-            for i in self.style:
-                if i.row in range(row, row+self.screen_rows):
-                    self.chgat(row, i.row, i.col, i.n_letters, i.attr)
+        for i in self.style:
+            if i.row in range(row, row + self.screen_rows):
+                self.chgat(row, i.row, i.col, i.n_letters, i.attr)
 
     def getch(self) -> Union[NoUpdate, Key]:
         input = self.screen.getch()
@@ -947,16 +947,27 @@ class InfiniBoard:
     # def bkgd(self, *args):
     #     self.screen.bkgd(*args)
 
-    def chgat(self, row:int, y: int, x: int, n: int, attr: int) -> None:
-        self.screen.chgat(y-row, self.x+x, n, attr)
+    def chgat(self, row: int, y: int, x: int, n: int, attr: int) -> None:
+        self.screen.chgat(y - row, self.x + x, n, attr)
 
-    def refresh(self, row: int, bottom_padding: int = 0) -> None:
-        for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines-row)):
+    def write(self, row: int, bottom_padding: int = 0) -> None:
+        for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
             # self.win.addstr(n_row, 0, self.text[row + n_row])
             self.screen.addstr(n_row, self.x, self.text[row + n_row])
             # self.screen.chgat(n_row, self.x, 2, curses.A_BOLD)
         self.format(row)
+        # TODO
+        # self.format(row, bottom_padding)
         # self.screen.refresh()
+
+    def write_n(self, row: int, n: int = 1, direction: Direction = Direction.FORWARD, bottom_padding: int = 0) -> None:
+        assert n > 0
+        for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
+            if direction == Direction.FORWARD:
+                self.screen.addnstr(n_row, self.x + self.textwidth - n, self.text[row+n_row], n)
+            else:
+                if self.text[row+n_row][self.textwidth-n:]:
+                    self.screen.addnstr(n_row, self.x, self.text[row + n_row][self.textwidth-n:], n)
 
 
 class AppData:
@@ -1913,8 +1924,9 @@ class Reader:
             return NoUpdate()
 
     def searching(
-        self, pad, src, reading_state: ReadingState, tot
+        self, board: InfiniBoard, src, reading_state: ReadingState, tot
     ) -> Union[NoUpdate, ReadingState, Key]:
+        # TODO: annotate this
 
         rows, cols = self.screen.getmaxyx()
         # unnecessary
@@ -1995,7 +2007,8 @@ class Reader:
                     )
                     # self.screen.refresh()
                     # pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-                    pad.refresh(reading_state.row, 1)
+                    board.write(reading_state.row, 1)
+                    # TODO
                     if self.spread == 2:
                         if reading_state.row + rows < len(src):
                             pad.refresh(
@@ -2006,7 +2019,7 @@ class Reader:
                                 rows - 2,
                                 cols - 2,
                             )
-                    s = pad.getch()
+                    s = board.getch()
 
         sidx = len(found) - 1
         if self.search_data.direction == Direction.FORWARD:
@@ -2032,7 +2045,7 @@ class Reader:
                 self.search_data = None
                 # for i in found:
                 #     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
-                pad.feed_style()
+                board.feed_style()
                 # pad.format()
                 # self.screen.clear()
                 # self.screen.refresh()
@@ -2111,14 +2124,16 @@ class Reader:
             for n, i in enumerate(found):
                 attr = curses.A_REVERSE if n == sidx else curses.A_NORMAL
                 # pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
-                styles.append(InlineStyle(row=i[0], col=i[1], n_letters=i[2], attr=pad.getbkgd()|attr))
-            pad.feed_style(styles)
+                styles.append(
+                    InlineStyle(row=i[0], col=i[1], n_letters=i[2], attr=board.getbkgd() | attr)
+                )
+            board.feed_style(styles)
 
             self.screen.clear()
             self.screen.addstr(rows - 1, 0, msg, curses.A_REVERSE)
             self.screen.refresh()
             # pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-            pad.refresh(reading_state.row, 1)
+            board.write(reading_state.row, 1)
             if self.spread == 2:
                 if reading_state.row + rows < len(src):
                     pad.refresh(
@@ -2129,7 +2144,7 @@ class Reader:
                         rows - 2,
                         cols - 2,
                     )
-            s = pad.getch()
+            s = board.getch()
 
     def speaking(self, text):
         self.is_speaking = True
@@ -2248,8 +2263,7 @@ class Reader:
             reading_state = dataclasses.replace(reading_state, row=reading_state.row % totlines)
 
         # pad.feed_format(formatting)
-        board = InfiniBoard(self.screen, reading_state.textwidth)
-        board.feed_text(src_lines)
+        board = InfiniBoard(screen=self.screen, text=src_lines, textwidth=reading_state.textwidth)
 
         # this make curses.A_REVERSE not working
         # put before paint_text
@@ -2269,7 +2283,7 @@ class Reader:
         #     pad.refresh(reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth)
         # except curses.error:
         #     pass
-        board.refresh(reading_state.row)
+        board.write(reading_state.row)
 
         # if reading_state.section is not None
         # then override reading_state.row to follow the section
@@ -2420,27 +2434,12 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
+                        self.page_animation = Direction.FORWARD
                         if totlines - reading_state.row > rows * self.spread:
                             reading_state = dataclasses.replace(
                                 reading_state, row=reading_state.row + (rows * self.spread)
                             )
-                            # self.page_animation = Direction.FORWARD
-                            # if (
-                            #     reading_state.row + (rows * self.spread)
-                            #     > pad.chunks[pad.find_chunkidx(reading_state.row)]
-                            # ):
-                            #     reading_state = dataclasses.replace(
-                            #         reading_state,
-                            #         row=pad.chunks[pad.find_chunkidx(reading_state.row)] + 1,
-                            #     )
-                            # else:
-                            #     reading_state = dataclasses.replace(
-                            #         reading_state, row=reading_state.row + (rows * self.spread)
-                            #     )
-                            # self.screen.clear()
-                            # self.screen.refresh()
                         elif reading_state.content_index != len(contents) - 1:
-                            self.page_animation = Direction.FORWARD
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
@@ -2687,7 +2686,6 @@ class Reader:
                                 )
                                 self.screen.refresh()
                                 safe_curs_set(1)
-                                # p = pad.getch()
                                 p = board.getch()
                                 if p in self.keymap.ScrollDown:
                                     i += 1
@@ -2794,7 +2792,7 @@ class Reader:
                             continue
 
                     elif k in self.keymap.MarkPosition:
-                        jumnum = pad.getch()
+                        jumnum = board.getch()
                         if jumnum in tuple(Key(i) for i in range(48, 58)):
                             self.jump_list[jumnum.char] = reading_state
                         else:
@@ -2802,7 +2800,7 @@ class Reader:
                             continue
 
                     elif k in self.keymap.JumpToPosition:
-                        jumnum = pad.getch()
+                        jumnum = board.getch()
                         if (
                             jumnum in tuple(Key(i) for i in range(48, 58))
                             and jumnum.char in self.jump_list
@@ -2867,68 +2865,17 @@ class Reader:
                     # while refresh() id necessary whenever a char added to scr
                     self.screen.clear()
                     self.screen.addstr(0, 0, countstring)
-                    self.screen.refresh()
-                    # if self.setting.PageScrollAnimation and self.page_animation:
-                    if False and self.setting.PageScrollAnimation and self.page_animation:
-                        for i in range(reading_state.textwidth + 1):
+                    # self.screen.refresh()
+
+                    if self.setting.PageScrollAnimation and self.page_animation:
+                        for i in range(1, reading_state.textwidth + 1):
                             curses.napms(1)
-                            # to optimize performance
-                            if i == reading_state.textwidth:
-                                # to cleanup screen from animation residue
-                                # actually only problematic for "next" animation
-                                # but just to be safe
-                                self.screen.clear()
-                                self.screen.refresh()
-                            if self.page_animation == Direction.FORWARD:
-                                pad.refresh(
-                                    reading_state.row,
-                                    0,
-                                    0,
-                                    x + reading_state.textwidth - i,
-                                    rows - 1,
-                                    x + reading_state.textwidth,
-                                )
-                                if self.spread == 2 and reading_state.row + rows < totlines:
-                                    pad.refresh(
-                                        reading_state.row + rows,
-                                        0,
-                                        0,
-                                        cols - 2 - i,
-                                        rows - 1,
-                                        cols - 2,
-                                    )
-                            if self.page_animation == Direction.BACKWARD:
-                                pad.refresh(
-                                    reading_state.row,
-                                    reading_state.textwidth - i - 1,
-                                    0,
-                                    x,
-                                    rows - 1,
-                                    x + i,
-                                )
-                                if self.spread == 2 and reading_state.row + rows < totlines:
-                                    pad.refresh(
-                                        reading_state.row + rows,
-                                        reading_state.textwidth - i - 1,
-                                        0,
-                                        cols - 2 - reading_state.textwidth,
-                                        rows - 1,
-                                        cols - 2 - reading_state.textwidth + i,
-                                    )
-                    else:
-                        board.refresh(reading_state.row)
-                        # pad.refresh(
-                        #     reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth
-                        # )
-                        # if self.spread == 2 and reading_state.row + rows < totlines:
-                        #     pad.refresh(
-                        #         reading_state.row + rows,
-                        #         0,
-                        #         0,
-                        #         cols - 2 - reading_state.textwidth,
-                        #         rows - 1,
-                        #         cols - 2,
-                        #     )
+                            # self.screen.clear()
+                            board.write_n(reading_state.row, i, self.page_animation)
+                            self.screen.refresh()
+
+                    self.screen.clear()
+                    board.write(reading_state.row)
                     self.page_animation = None
 
                     # check self._process
@@ -2957,9 +2904,11 @@ class Reader:
                     self.screen.refresh()
                 except curses.error:
                     pass
+
                 if self.is_speaking:
                     k = self.keymap.TTSToggle[0]
                     continue
+
                 # k = pad.getch()
                 k = board.getch()
                 if k == Key(curses.KEY_MOUSE):
