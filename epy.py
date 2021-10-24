@@ -1420,7 +1420,7 @@ def truncate(teks: str, subtitution_text: str, maxlen: int, startsub: int = 0) -
         return beg + mid + end
 
 
-def safe_curs_set(state):
+def safe_curs_set(state: int) -> None:
     try:
         curses.curs_set(state)
     except:
@@ -1959,7 +1959,7 @@ class Reader:
             stat.bkgd(self.screen.getbkgd())
         stat.keypad(True)
         curses.echo(1)
-        safe_curs_set(1)
+        safe_curs_set(2)
 
         init_text = ""
 
@@ -2324,21 +2324,15 @@ class Reader:
             self.spread = 1
         if self.spread == 2:
             reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
-
         x = (cols - reading_state.textwidth) // 2
-        if self.spread == 1:
-            x = (cols - reading_state.textwidth) // 2
-        else:
+        if self.spread == 2:
             x = 2
 
         contents = self.ebook.contents
-
-        toc_secid = {}
         chpath = contents[reading_state.content_index]
         content = self.ebook.get_raw_text(chpath)
 
         parser = HTMLtoLines(set(toc_entry.section for toc_entry in self.ebook.toc_entries))
-        # parser = HTMLtoLines()
         # try:
         parser.feed(content)
         parser.close()
@@ -2357,7 +2351,6 @@ class Reader:
         else:
             reading_state = dataclasses.replace(reading_state, row=reading_state.row % totlines)
 
-        # pad.feed_format(formatting)
         board = InfiniBoard(
             screen=self.screen,
             text=src_lines,
@@ -2365,25 +2358,18 @@ class Reader:
             default_style=formatting,
         )
 
-        # this make curses.A_REVERSE not working
-        # put before paint_text
-        # if self.is_color_supported:
-        #     pad.bkgd()
-        #
-        # pad.format()
-
         LOCALPCTG = []
         for i in src_lines:
             LOCALPCTG.append(len(re.sub("\s", "", i)))
 
         self.screen.clear()
         self.screen.refresh()
+        board.write(reading_state.row)
         # try except to be more flexible on terminal resize
         # try:
         #     pad.refresh(reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth)
         # except curses.error:
         #     pass
-        board.write(reading_state.row)
 
         # if reading_state.section is not None
         # then override reading_state.row to follow the section
@@ -2785,7 +2771,7 @@ class Reader:
                                     + 1,
                                 )
                                 self.screen.refresh()
-                                safe_curs_set(1)
+                                safe_curs_set(2)
                                 p = board.getch()
                                 if p in self.keymap.ScrollDown:
                                     i += 1
@@ -2965,22 +2951,18 @@ class Reader:
                     )
 
                 try:
-                    # NOTE: clear() will delete everything but doesnt need refresh()
-                    # while refresh() id necessary whenever a char added to scr
-                    self.screen.clear()
-                    self.screen.addstr(0, 0, countstring)
-                    # self.screen.refresh()
-
                     if self.setting.PageScrollAnimation and self.page_animation:
+                        self.screen.clear()
                         for i in range(1, reading_state.textwidth + 1):
                             curses.napms(1)
                             # self.screen.clear()
                             board.write_n(reading_state.row, i, self.page_animation)
                             self.screen.refresh()
+                        self.page_animation = None
 
                     self.screen.clear()
+                    self.screen.addstr(0, 0, countstring)
                     board.write(reading_state.row)
-                    self.page_animation = None
 
                     # check self._process
                     if isinstance(self._process_counting_letter, multiprocessing.Process):
@@ -3013,7 +2995,6 @@ class Reader:
                     k = self.keymap.TTSToggle[0]
                     continue
 
-                # k = pad.getch()
                 k = board.getch()
                 if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
