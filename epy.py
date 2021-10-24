@@ -718,7 +718,8 @@ class HTMLtoLines(HTMLParser):
             if n in self.sectsindex.keys():
                 sect[self.sectsindex[n]] = len(text)
             if n in self.idhead:
-                text += [i.rjust(width // 2 + len(i) // 2)] + [""]
+                # text += [i.rjust(width // 2 + len(i) // 2)] + [""]
+                text += [i.center(width)] + [""]
                 formatting["bold"] += [[j, 0, len(text[j])] for j in range(startline, len(text))]
             elif n in self.idinde:
                 text += ["   " + j for j in textwrap.wrap(i, width - 3)] + [""]
@@ -800,6 +801,9 @@ class HTMLtoLines(HTMLParser):
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
                         formatting["bold"].append([l, 0, len(text[l])])
                     formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+
+        # chapter suffix
+        text += ["***".center(width)]
 
         return text, self.imgs, sect, formatting
 
@@ -952,9 +956,11 @@ class InfiniBoard:
 
     def write(self, row: int, bottom_padding: int = 0) -> None:
         for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
-            # self.win.addstr(n_row, 0, self.text[row + n_row])
-            self.screen.addstr(n_row, self.x, self.text[row + n_row])
-            # self.screen.chgat(n_row, self.x, 2, curses.A_BOLD)
+            text_line = self.text[row + n_row]
+            if re.search("\\[IMG:[0-9]+\\]", text_line):
+                self.screen.addstr(n_row, self.x, text_line.center(self.textwidth))
+            else:
+                self.screen.addstr(n_row, self.x, text_line)
         self.format(row)
         # TODO
         # self.format(row, bottom_padding)
