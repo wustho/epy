@@ -1256,6 +1256,16 @@ class Board:
 
 
 class InfiniBoard:
+    """
+    Wrapper for curses screen to render infinite texts.
+    The idea is instead of pre render text before reading,
+    this will only renders texts on demand by which available
+    page on screen.
+
+    And what this does is only drawing text/string on curses screen
+    without .clear() or .refresh() to optimize performance.
+    """
+
     def __init__(
         self, screen, text: Tuple[str], textwidth: int = 80, default_style: Tuple[InlineStyle] = ()
     ):
@@ -1273,12 +1283,12 @@ class InfiniBoard:
         """Reset styling if `styles` is Nont"""
         self.temporary_style = styles if styles else []
 
-    def format(
+    def render_styles(
         self, row: int, styles: Tuple[InlineStyle, ...] = (), bottom_padding: int = 0
     ) -> None:
         for i in styles:
             if i.row in range(row, row + self.screen_rows - bottom_padding):
-                self.chgat(row, i.row, i.col, i.n_letters, i.attr)
+                self.chgat(row, i.row, i.col, i.n_letters, self.screen.getbkgd() | i.attr)
 
     def getch(self) -> Union[NoUpdate, Key]:
         input = self.screen.getch()
@@ -1303,8 +1313,8 @@ class InfiniBoard:
             else:
                 self.screen.addstr(n_row, self.x, text_line)
 
-        self.format(row, self.default_style, bottom_padding)
-        self.format(row, self.temporary_style, bottom_padding)
+        self.render_styles(row, self.default_style, bottom_padding)
+        self.render_styles(row, self.temporary_style, bottom_padding)
         # self.screen.refresh()
 
     def write_n(
@@ -2942,13 +2952,17 @@ class Reader:
 
                     countstring = ""
 
-                # if checkpoint_row:
-                #     pad.chgat(
-                #         checkpoint_row,
-                #         0,
-                #         reading_state.textwidth,
-                #         self.screen.getbkgd() | curses.A_UNDERLINE,
-                #     )
+                if checkpoint_row:
+                    board.feed_temporary_style(
+                        (
+                            InlineStyle(
+                                row=checkpoint_row,
+                                col=0,
+                                n_letters=reading_state.textwidth,
+                                attr=curses.A_UNDERLINE,
+                            ),
+                        )
+                    )
 
                 try:
                     # NOTE: clear() will delete everything but doesnt need refresh()
@@ -3022,13 +3036,9 @@ class Reader:
                         k = self.keymap.TTSToggle[0]
 
                 if checkpoint_row:
-                    pad.chgat(
-                        checkpoint_row,
-                        0,
-                        reading_state.textwidth,
-                        self.screen.getbkgd() | curses.A_NORMAL,
-                    )
+                    board.feed_temporary_style()
                     checkpoint_row = None
+
         except KeyboardInterrupt:
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
