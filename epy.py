@@ -1275,13 +1275,12 @@ class InfiniBoard:
         self.x = ((self.screen_cols - self.textwidth) // 2) + 1
         self.text = text
         self.total_lines = len(text)
-        # self.win = curses.newwin(self.screen_rows, textwidth, 0, self.x)
         self.default_style: Tuple[InlineStyle, ...] = default_style
-        self.temporary_style = []
+        self.temporary_style = ()
 
     def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
         """Reset styling if `styles` is Nont"""
-        self.temporary_style = styles if styles else []
+        self.temporary_style = styles if styles else ()
 
     def render_styles(
         self, row: int, styles: Tuple[InlineStyle, ...] = (), bottom_padding: int = 0
@@ -1298,9 +1297,6 @@ class InfiniBoard:
 
     def getbkgd(self):
         return self.screen.getbkgd()
-
-    # def bkgd(self, *args):
-    #     self.screen.bkgd(*args)
 
     def chgat(self, row: int, y: int, x: int, n: int, attr: int) -> None:
         self.screen.chgat(y - row, self.x + x, n, attr)
