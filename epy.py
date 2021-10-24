@@ -793,7 +793,7 @@ class HTMLtoLines(HTMLParser):
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
                         formatting.append(
-                            InlineStyle(row=l, col=0, n_letters=len(tect[l]), attr=curses.A_ITALIC)
+                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_ITALIC)
                         )
                     formatting.append(
                         InlineStyle(
