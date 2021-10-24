@@ -960,14 +960,30 @@ class InfiniBoard:
         # self.format(row, bottom_padding)
         # self.screen.refresh()
 
-    def write_n(self, row: int, n: int = 1, direction: Direction = Direction.FORWARD, bottom_padding: int = 0) -> None:
+    def write_n(
+        self,
+        row: int,
+        n: int = 1,
+        direction: Direction = Direction.FORWARD,
+        bottom_padding: int = 0,
+    ) -> None:
         assert n > 0
         for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
             if direction == Direction.FORWARD:
-                self.screen.addnstr(n_row, self.x + self.textwidth - n, self.text[row+n_row], n)
+                # self.screen.addnstr(n_row, self.x + self.textwidth - n, self.text[row+n_row], n)
+                # `+ " " * (self.textwidth - len(self.text[row + n_row]))` is workaround to
+                # to prevent curses trace because not calling screen.clear()
+                self.screen.addnstr(
+                    n_row,
+                    self.x + self.textwidth - n,
+                    self.text[row + n_row] + " " * (self.textwidth - len(self.text[row + n_row])),
+                    n,
+                )
             else:
-                if self.text[row+n_row][self.textwidth-n:]:
-                    self.screen.addnstr(n_row, self.x, self.text[row + n_row][self.textwidth-n:], n)
+                if self.text[row + n_row][self.textwidth - n :]:
+                    self.screen.addnstr(
+                        n_row, self.x, self.text[row + n_row][self.textwidth - n :], n
+                    )
 
 
 class AppData:
