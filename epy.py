@@ -116,8 +116,22 @@ class InlineStyle:
     attr: int
 
 
+@dataclass(frozen=True)
+class TocEntry:
+    label: str
+    content_index: int
+    section: Optional[str]
+
+
+@dataclass(frozen=True)
+class NoUpdate:
+    pass
+
+
 class Key:
-    """Because ord("k") chr(34) are confusing"""
+    """
+    Because ord("k") chr(34) are confusing
+    """
 
     def __init__(self, char_or_int: Union[str, int]):
         self.value: int = char_or_int if isinstance(char_or_int, int) else ord(char_or_int)
@@ -133,11 +147,6 @@ class Key:
 
     def __hash__(self) -> int:
         return hash(self.value)
-
-
-@dataclass(frozen=True)
-class NoUpdate:
-    pass
 
 
 @dataclass(frozen=True)
@@ -233,13 +242,6 @@ class Keymap:
     SwitchColor: Tuple[Key, ...]
     TTSToggle: Tuple[Key, ...]
     TableOfContents: Tuple[Key, ...]
-
-
-@dataclass(frozen=True)
-class TocEntry:
-    label: str
-    content_index: int
-    section: Optional[str]
 
 
 class Epub:
@@ -2360,12 +2362,9 @@ class Reader:
 
         self.screen.clear()
         self.screen.refresh()
+        # try-except clause if there is issue
+        # with curses resize event
         board.write(reading_state.row)
-        # try except to be more flexible on terminal resize
-        # try:
-        #     pad.refresh(reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth)
-        # except curses.error:
-        #     pass
 
         # if reading_state.section is not None
         # then override reading_state.row to follow the section
@@ -2374,22 +2373,7 @@ class Reader:
                 reading_state, row=toc_secid.get(reading_state.section, 0)
             )
 
-        # checkpoint_row is container for visual helper
-        # when we scroll the page by more than 1 line
-        # so it's less disorienting
-        # eg. when we scroll down by 3 lines then:
-        #
-        #     ...
-        #     this line has been read
-        #     this line has been read
-        #     this line has been read
-        #     this line has been read
-        #     ------------------------------- <- the visual helper
-        #     this line has not been read yet
-        #     this line has not been read yet
-        #     this line has not been read yet
         checkpoint_row: Optional[int] = None
-
         countstring = ""
 
         try:
@@ -3032,14 +3016,13 @@ def preread(stdscr, filepath: str):
     reader = Reader(screen=stdscr, ebook=ebook, config=config, state=state)
 
     try:
-        reading_state = state.get_last_reading_state(reader.ebook)
+        reader.run_counting_letters()
 
+        reading_state = state.get_last_reading_state(reader.ebook)
         if reader.screen_cols <= reading_state.textwidth + 4:
             reading_state = dataclasses.replace(reading_state, textwidth=reader.screen_cols - 4)
         else:
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
-
-        reader.run_counting_letters()
 
         while True:
             reading_state = reader.read(reading_state)
