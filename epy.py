@@ -1366,6 +1366,7 @@ class InfiniBoard:
     ) -> None:
         assert n > 0
         for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
+            text_line = self.text[row + n_row]
             if direction == Direction.FORWARD:
                 # self.screen.addnstr(n_row, self.x + self.textwidth - n, self.text[row+n_row], n)
                 # `+ " " * (self.textwidth - len(self.text[row + n_row]))` is workaround to
@@ -1373,13 +1374,36 @@ class InfiniBoard:
                 self.screen.addnstr(
                     n_row,
                     self.x + self.textwidth - n,
-                    self.text[row + n_row] + " " * (self.textwidth - len(self.text[row + n_row])),
+                    text_line + " " * (self.textwidth - len(text_line)),
                     n,
                 )
-            else:
-                if self.text[row + n_row][self.textwidth - n :]:
+
+                if (
+                    self.spread == 2
+                    and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+                ):
+                    text_line_alt = self.text[row + n_row + self.screen_rows - bottom_padding]
                     self.screen.addnstr(
-                        n_row, self.x, self.text[row + n_row][self.textwidth - n :], n
+                        n_row,
+                        self.x_alt + self.textwidth - n,
+                        text_line_alt + " " * (self.textwidth - len(text_line_alt)),
+                        n,
+                    )
+
+            else:
+                if text_line[self.textwidth - n :]:
+                    self.screen.addnstr(n_row, self.x, text_line[self.textwidth - n :], n)
+
+                if (
+                    self.spread == 2
+                    and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+                ):
+                    text_line_alt = self.text[row + n_row + self.screen_rows - bottom_padding]
+                    self.screen.addnstr(
+                        n_row,
+                        self.x_alt,
+                        text_line_alt[self.textwidth - n :],
+                        n,
                     )
 
 
