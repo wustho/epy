@@ -1322,7 +1322,7 @@ class InfiniBoard:
             else:
                 self.screen.addstr(n_row, self.x, text_line)
 
-            if self.spread == 2:
+            if self.spread == 2 and row + self.screen_rows - bottom_padding + n_row < self.total_lines:
                 text_line = self.text[row + self.screen_rows - bottom_padding + n_row]
                 if re.search("\\[IMG:[0-9]+\\]", text_line):
                     self.screen.addstr(n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD)
