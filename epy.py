@@ -1317,7 +1317,7 @@ class InfiniBoard:
                     row,
                     i.row - (self.screen_rows - bottom_padding),
                     -self.x + self.x_alt + i.col,
-                    i.n_letters - 1,
+                    i.n_letters,
                     self.screen.getbkgd() | i.attr,
                 )
 
@@ -2114,7 +2114,7 @@ class Reader:
                 while True:
                     if s in self.keymap.Quit:
                         self.search_data = None
-                        # self.screen.clear()
+                        self.screen.clear()
                         self.screen.refresh()
                         return reading_state
                     # TODO: maybe >= 0?
@@ -2135,27 +2135,15 @@ class Reader:
                             textwidth=reading_state.textwidth,
                         )
 
-                    # self.screen.clear()
+                    self.screen.clear()
                     self.screen.addstr(
                         rows - 1,
                         0,
                         " Finished searching: " + self.search_data.value[: cols - 22] + " ",
                         curses.A_REVERSE,
                     )
-                    # self.screen.refresh()
-                    # pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
                     board.write(reading_state.row, 1)
-                    # TODO
-                    if self.spread == 2:
-                        if reading_state.row + rows < len(src):
-                            pad.refresh(
-                                reading_state.row + rows - 1,
-                                0,
-                                0,
-                                cols - 2 - reading_state.textwidth,
-                                rows - 2,
-                                cols - 2,
-                            )
+                    self.screen.refresh()
                     s = board.getch()
 
         sidx = len(found) - 1
@@ -2271,16 +2259,6 @@ class Reader:
             self.screen.refresh()
             # pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
             board.write(reading_state.row, 1)
-            if self.spread == 2:
-                if reading_state.row + rows < len(src):
-                    pad.refresh(
-                        reading_state.row + rows - 1,
-                        0,
-                        0,
-                        cols - 2 - reading_state.textwidth,
-                        rows - 2,
-                        cols - 2,
-                    )
             s = board.getch()
 
     def speaking(self, text):
