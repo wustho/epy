@@ -1275,7 +1275,12 @@ class InfiniBoard:
     """
 
     def __init__(
-        self, screen, text: Tuple[str], textwidth: int = 80, default_style: Tuple[InlineStyle] = (), spread: int= 1
+        self,
+        screen,
+        text: Tuple[str],
+        textwidth: int = 80,
+        default_style: Tuple[InlineStyle] = (),
+        spread: int = 1,
     ):
         self.screen = screen
         self.screen_rows, self.screen_cols = self.screen.getmaxyx()
@@ -1289,7 +1294,9 @@ class InfiniBoard:
 
         if self.spread == 2:
             self.x = DoubleSpreadPadding.LEFT.value
-            self.x_alt = DoubleSpreadPadding.LEFT.value + self.textwidth + DoubleSpreadPadding.MIDDLE.value
+            self.x_alt = (
+                DoubleSpreadPadding.LEFT.value + self.textwidth + DoubleSpreadPadding.MIDDLE.value
+            )
 
     def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
         """Reset styling if `styles` is Nont"""
@@ -1301,6 +1308,18 @@ class InfiniBoard:
         for i in styles:
             if i.row in range(row, row + self.screen_rows - bottom_padding):
                 self.chgat(row, i.row, i.col, i.n_letters, self.screen.getbkgd() | i.attr)
+
+            if self.spread == 2 and i.row in range(
+                row + self.screen_rows - bottom_padding,
+                row + 2 * (self.screen_rows - bottom_padding),
+            ):
+                self.chgat(
+                    row,
+                    i.row - (self.screen_rows - bottom_padding),
+                    -self.x + self.x_alt + i.col,
+                    i.n_letters - 1,
+                    self.screen.getbkgd() | i.attr,
+                )
 
     def getch(self) -> Union[NoUpdate, Key]:
         input = self.screen.getch()
@@ -1322,10 +1341,15 @@ class InfiniBoard:
             else:
                 self.screen.addstr(n_row, self.x, text_line)
 
-            if self.spread == 2 and row + self.screen_rows - bottom_padding + n_row < self.total_lines:
+            if (
+                self.spread == 2
+                and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+            ):
                 text_line = self.text[row + self.screen_rows - bottom_padding + n_row]
                 if re.search("\\[IMG:[0-9]+\\]", text_line):
-                    self.screen.addstr(n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD)
+                    self.screen.addstr(
+                        n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD
+                    )
                 else:
                     self.screen.addstr(n_row, self.x_alt, text_line)
 
@@ -2341,7 +2365,10 @@ class Reader:
         if cols < mincols_doublespr:
             self.spread = 1
         if self.spread == 2:
-            reading_state = dataclasses.replace(reading_state, textwidth=(cols -sum([padding.value for padding in DoubleSpreadPadding])) // 2)
+            reading_state = dataclasses.replace(
+                reading_state,
+                textwidth=(cols - sum([padding.value for padding in DoubleSpreadPadding])) // 2,
+            )
         x = (cols - reading_state.textwidth) // 2
         if self.spread == 2:
             x = 2
@@ -2374,7 +2401,7 @@ class Reader:
             text=src_lines,
             textwidth=reading_state.textwidth,
             default_style=formatting,
-            spread=self.spread
+            spread=self.spread,
         )
 
         LOCALPCTG = []
