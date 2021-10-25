@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.23"
+__version__ = "2021.10.25"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -74,6 +74,12 @@ class Direction(Enum):
     BACKWARD = "backward"
 
 
+class DoubleSpreadPadding(Enum):
+    LEFT = 10
+    MIDDLE = 7
+    RIGHT = 10
+
+
 @dataclass(frozen=True)
 class ReadingState:
     content_index: int = 0
@@ -104,8 +110,34 @@ class LettersCount:
     cumulative: Tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class InlineStyle:
+    """
+    eg. InlineStyle(attr=curses.A_BOLD, row=3, cols=4, n_letters=3)
+    """
+
+    row: int
+    col: int
+    n_letters: int
+    attr: int
+
+
+@dataclass(frozen=True)
+class TocEntry:
+    label: str
+    content_index: int
+    section: Optional[str]
+
+
+@dataclass(frozen=True)
+class NoUpdate:
+    pass
+
+
 class Key:
-    """Because ord("k") chr(34) are confusing"""
+    """
+    Because ord("k") chr(34) are confusing
+    """
 
     def __init__(self, char_or_int: Union[str, int]):
         self.value: int = char_or_int if isinstance(char_or_int, int) else ord(char_or_int)
@@ -121,11 +153,6 @@ class Key:
 
     def __hash__(self) -> int:
         return hash(self.value)
-
-
-@dataclass(frozen=True)
-class NoUpdate:
-    pass
 
 
 @dataclass(frozen=True)
@@ -221,13 +248,6 @@ class Keymap:
     SwitchColor: Tuple[Key, ...]
     TTSToggle: Tuple[Key, ...]
     TableOfContents: Tuple[Key, ...]
-
-
-@dataclass(frozen=True)
-class TocEntry:
-    label: str
-    content_index: int
-    section: Optional[str]
 
 
 class Epub:
@@ -452,7 +472,7 @@ class Mobi(Epub):
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
         # TODO: test on windows
         # if impath "Images/asdf.png" is problematic
-        with open(os.path.join(self.rootdir, impath), "rb") as f:
+        with open(os.path.join(self.root_dirpath, impath), "rb") as f:
             src = f.read()
         return impath, src
 
@@ -663,8 +683,9 @@ class HTMLtoLines(HTMLParser):
                 self.idpref.add(len(self.text) - 1)
 
     def get_lines(self, width=0):
-        text, sect = [], {}
-        formatting = {"italic": [], "bold": []}
+        text: List[str] = []
+        sect: Mapping[str, int] = dict()
+        formatting: List[InlineStyle] = []
         tmpital = []
         for i in self.initital:
             # handle uneven markup
@@ -706,8 +727,12 @@ class HTMLtoLines(HTMLParser):
             if n in self.sectsindex.keys():
                 sect[self.sectsindex[n]] = len(text)
             if n in self.idhead:
-                text += [i.rjust(width // 2 + len(i) // 2)] + [""]
-                formatting["bold"] += [[j, 0, len(text[j])] for j in range(startline, len(text))]
+                # text += [i.rjust(width // 2 + len(i) // 2)] + [""]
+                text += [i.center(width)] + [""]
+                formatting += [
+                    InlineStyle(row=j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD)
+                    for j in range(startline, len(text))
+                ]
             elif n in self.idinde:
                 text += ["   " + j for j in textwrap.wrap(i, width - 3)] + [""]
             elif n in self.idbull:
@@ -742,20 +767,47 @@ class HTMLtoLines(HTMLParser):
                             tmp_end = [k, j[1] + j[2] - tmp_count]
                         tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
-                    formatting["italic"].append(tmp_start + [tmp_end[1] - tmp_start[1]])
-                elif tmp_start[0] == tmp_end[0] - 1:
-                    formatting["italic"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=tmp_end[1] - tmp_start[1],
+                            attr=curses.A_ITALIC,
+                        )
                     )
-                    formatting["italic"].append([tmp_end[0], 0, tmp_end[1]])
+                elif tmp_start[0] == tmp_end[0] - 1:
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_ITALIC,
+                        )
+                    )
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                        )
+                    )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
-                    formatting["italic"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_ITALIC,
+                        )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting["italic"].append([l, 0, len(text[l])])
-                    formatting["italic"].append([tmp_end[0], 0, tmp_end[1]])
+                        formatting.append(
+                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_ITALIC)
+                        )
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                        )
+                    )
             tmp_filtered = [j for j in tmpbold if j[0] == n]
             for j in tmp_filtered:
                 tmp_count = 0
@@ -774,133 +826,48 @@ class HTMLtoLines(HTMLParser):
                             tmp_end = [k, j[1] + j[2] - tmp_count]
                         tmp_count += len(text[k]) + 1
                 if tmp_start[0] == tmp_end[0]:
-                    formatting["bold"].append(tmp_start + [tmp_end[1] - tmp_start[1]])
-                elif tmp_start[0] == tmp_end[0] - 1:
-                    formatting["bold"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=tmp_end[1] - tmp_start[1],
+                            attr=curses.A_BOLD,
+                        )
                     )
-                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+                elif tmp_start[0] == tmp_end[0] - 1:
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_BOLD,
+                        )
+                    )
+                    formatting.append(
+                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                    )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
-                    formatting["bold"].append(
-                        tmp_start + [len(text[tmp_start[0]]) - tmp_start[1] + 1]
+                    formatting.append(
+                        InlineStyle(
+                            row=tmp_start[0],
+                            col=tmp_start[1],
+                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
+                            attr=curses.A_BOLD,
+                        )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting["bold"].append([l, 0, len(text[l])])
-                    formatting["bold"].append([tmp_end[0], 0, tmp_end[1]])
+                        formatting.append(
+                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_BOLD)
+                        )
+                    formatting.append(
+                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                    )
 
-        return text, self.imgs, sect, formatting
-
-
-class Board:
-    """
-    Wrapper to curses.newpad() because curses.pad has
-    line max lines 32767. If there is >=32768 lines
-    Exception will be raised.
-    """
-
-    MAXCHUNKS = 32000 - 2  # lines
-
-    def __init__(self, screen, totlines, width):
-        self.screen = screen
-        self.chunks = [self.MAXCHUNKS * (i + 1) - 1 for i in range(totlines // self.MAXCHUNKS)]
-        self.chunks += (
-            []
-            if totlines % self.MAXCHUNKS == 0
-            else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])]
-        )  # -1
-        self.pad = curses.newpad(min([self.MAXCHUNKS + 2, totlines]), width)
-        self.pad.keypad(True)
-        # self.current_chunk = 0
-        self.y = 0
-        self.width = width
-
-    def feed(self, textlist):
-        self.text = textlist
-
-    def feed_format(self, formatting):
-        self.formatting = formatting
-
-    def format(self):
-        chunkidx = self.find_chunkidx(self.y)
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        # if y in range(start_chunk, end_chunk+1):
-        for i in [
-            j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk
-        ]:
-            try:
-                self.pad.chgat(
-                    i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_ITALIC
-                )
-            except:
-                pass
-        for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
-            try:
-                self.pad.chgat(
-                    i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_BOLD
-                )
-            except:
-                pass
-
-    def getch(self) -> Union[Key, NoUpdate]:
-        tmp = self.pad.getch()
-        # curses.screen.timeout(delay)
-        # if delay < 0 then getch() return -1
-        if tmp == -1:
-            return NoUpdate()
-        return Key(tmp)
-
-    def bkgd(self) -> None:
-        self.pad.bkgd(self.screen.getbkgd())
-
-    def find_chunkidx(self, y) -> Optional[int]:
-        for n, i in enumerate(self.chunks):
-            if y <= i:
-                return n
-
-    def paint_text(self, chunkidx=0):
-        self.pad.clear()
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        for n, i in enumerate(self.text[start_chunk : end_chunk + 1]):
-            if re.search("\\[IMG:[0-9]+\\]", i):
-                self.pad.addstr(n, self.width // 2 - len(i) // 2 + 1, i, curses.A_REVERSE)
-            else:
-                self.pad.addstr(n, 0, i)
         # chapter suffix
-        ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
-        try:
-            self.pad.addstr(n + 1, (self.width - len(ch_suffix)) // 2 + 1, ch_suffix)
-        except curses.error:
-            pass
+        text += ["***".center(width)]
 
-        # if chunkidx < len(self.chunks)-1:
-        # try:
-        # self.pad.addstr(self.MAXCHUNKS+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
-        # except curses.error:
-        # pass
-
-    def chgat(self, y, x, n, attr):
-        chunkidx = self.find_chunkidx(y)
-        start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
-        end_chunk = self.chunks[chunkidx]
-        if y in range(start_chunk, end_chunk + 1):
-            # TODO: error when searching for |c
-            self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
-
-    def getbkgd(self):
-        return self.pad.getbkgd()
-
-    def refresh(self, y, b, c, d, e, f):
-        chunkidx = self.find_chunkidx(y)
-        if chunkidx != self.find_chunkidx(self.y):
-            self.paint_text(chunkidx)
-            self.y = y
-            self.format()
-        # TODO: not modulo by self.MAXCHUNKS but self.pad.height
-        self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
-        self.y = y
+        return tuple(text), self.imgs, sect, tuple(formatting)
 
 
 class AppData:
@@ -1133,9 +1100,11 @@ class State(AppData):
             for result in results:
                 tmp_dict = dict(result)
                 name = tmp_dict["name"]
-                del tmp_dict["filepath"]
-                del tmp_dict["name"]
-                del tmp_dict["id"]
+                tmp_dict = {
+                    k: v
+                    for k, v in tmp_dict.items()
+                    if k in ("content_index", "textwidth", "row", "rel_pctg")
+                }
                 bookmarks.append((name, ReadingState(**tmp_dict)))
             return bookmarks
         finally:
@@ -1181,6 +1150,263 @@ class State(AppData):
             conn.close()
 
 
+# class Board:
+#     """
+#     OBSOLETE: use InfiniBoard instead
+#
+#     Wrapper to curses.newpad() because curses.pad has
+#     line max lines 32767. If there is >=32768 lines
+#     Exception will be raised.
+#     """
+#
+#     MAXCHUNKS = 32000 - 2  # lines
+#
+#     def __init__(self, screen, totlines, width):
+#         self.screen = screen
+#         self.chunks = [self.MAXCHUNKS * (i + 1) - 1 for i in range(totlines // self.MAXCHUNKS)]
+#         self.chunks += (
+#             []
+#             if totlines % self.MAXCHUNKS == 0
+#             else [totlines % self.MAXCHUNKS + (0 if self.chunks == [] else self.chunks[-1])]
+#         )  # -1
+#         self.pad = curses.newpad(min([self.MAXCHUNKS + 2, totlines]), width)
+#         self.pad.keypad(True)
+#         # self.current_chunk = 0
+#         self.y = 0
+#         self.width = width
+#
+#     def feed(self, textlist):
+#         self.text = textlist
+#
+#     def feed_format(self, formatting):
+#         self.formatting = formatting
+#
+#     def format(self):
+#         chunkidx = self.find_chunkidx(self.y)
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         # if y in range(start_chunk, end_chunk+1):
+#         for i in [
+#             j for j in self.formatting["italic"] if start_chunk <= j[0] and j[0] <= end_chunk
+#         ]:
+#             try:
+#                 self.pad.chgat(
+#                     i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_ITALIC
+#                 )
+#             except:
+#                 pass
+#         for i in [j for j in self.formatting["bold"] if start_chunk <= j[0] and j[0] <= end_chunk]:
+#             try:
+#                 self.pad.chgat(
+#                     i[0] % self.MAXCHUNKS, i[1], i[2], self.screen.getbkgd() | curses.A_BOLD
+#                 )
+#             except:
+#                 pass
+#
+#     def getch(self) -> Union[Key, NoUpdate]:
+#         tmp = self.pad.getch()
+#         # curses.screen.timeout(delay)
+#         # if delay < 0 then getch() return -1
+#         if tmp == -1:
+#             return NoUpdate()
+#         return Key(tmp)
+#
+#     def bkgd(self) -> None:
+#         self.pad.bkgd(self.screen.getbkgd())
+#
+#     def find_chunkidx(self, y) -> Optional[int]:
+#         for n, i in enumerate(self.chunks):
+#             if y <= i:
+#                 return n
+#
+#     def paint_text(self, chunkidx=0):
+#         self.pad.clear()
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         for n, i in enumerate(self.text[start_chunk : end_chunk + 1]):
+#             if re.search("\\[IMG:[0-9]+\\]", i):
+#                 self.pad.addstr(n, self.width // 2 - len(i) // 2 + 1, i, curses.A_REVERSE)
+#             else:
+#                 self.pad.addstr(n, 0, i)
+#         # chapter suffix
+#         ch_suffix = "***"  # "\u3064\u3065\u304f" つづく
+#         try:
+#             self.pad.addstr(n + 1, (self.width - len(ch_suffix)) // 2 + 1, ch_suffix)
+#         except curses.error:
+#             pass
+#
+#         # if chunkidx < len(self.chunks)-1:
+#         # try:
+#         # self.pad.addstr(self.MAXCHUNKS+1, (self.width - len(ch_suffix))//2 + 1, ch_suffix)
+#         # except curses.error:
+#         # pass
+#
+#     def chgat(self, y, x, n, attr):
+#         chunkidx = self.find_chunkidx(y)
+#         start_chunk = 0 if chunkidx == 0 else self.chunks[chunkidx - 1] + 1
+#         end_chunk = self.chunks[chunkidx]
+#         if y in range(start_chunk, end_chunk + 1):
+#             # TODO: error when searching for |c
+#             self.pad.chgat(y % self.MAXCHUNKS, x, n, attr)
+#
+#     def getbkgd(self):
+#         return self.pad.getbkgd()
+#
+#     def refresh(self, y, b, c, d, e, f):
+#         chunkidx = self.find_chunkidx(y)
+#         if chunkidx != self.find_chunkidx(self.y):
+#             self.paint_text(chunkidx)
+#             self.y = y
+#             self.format()
+#         # TODO: not modulo by self.MAXCHUNKS but self.pad.height
+#         self.pad.refresh(y % self.MAXCHUNKS, b, c, d, e, f)
+#         self.y = y
+
+
+class InfiniBoard:
+    """
+    Wrapper for curses screen to render infinite texts.
+    The idea is instead of pre render all the text before reading,
+    this will only renders part of text on demand by which available
+    page on screen.
+
+    And what this does is only drawing text/string on curses screen
+    without .clear() or .refresh() to optimize performance.
+    """
+
+    def __init__(
+        self,
+        screen,
+        text: Tuple[str],
+        textwidth: int = 80,
+        default_style: Tuple[InlineStyle] = (),
+        spread: int = 1,
+    ):
+        self.screen = screen
+        self.screen_rows, self.screen_cols = self.screen.getmaxyx()
+        self.textwidth = textwidth
+        self.x = ((self.screen_cols - self.textwidth) // 2) + 1
+        self.text = text
+        self.total_lines = len(text)
+        self.default_style: Tuple[InlineStyle, ...] = default_style
+        self.temporary_style = ()
+        self.spread = spread
+
+        if self.spread == 2:
+            self.x = DoubleSpreadPadding.LEFT.value
+            self.x_alt = (
+                DoubleSpreadPadding.LEFT.value + self.textwidth + DoubleSpreadPadding.MIDDLE.value
+            )
+
+    def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
+        """Reset styling if `styles` is Nont"""
+        self.temporary_style = styles if styles else ()
+
+    def render_styles(
+        self, row: int, styles: Tuple[InlineStyle, ...] = (), bottom_padding: int = 0
+    ) -> None:
+        for i in styles:
+            if i.row in range(row, row + self.screen_rows - bottom_padding):
+                self.chgat(row, i.row, i.col, i.n_letters, self.screen.getbkgd() | i.attr)
+
+            if self.spread == 2 and i.row in range(
+                row + self.screen_rows - bottom_padding,
+                row + 2 * (self.screen_rows - bottom_padding),
+            ):
+                self.chgat(
+                    row,
+                    i.row - (self.screen_rows - bottom_padding),
+                    -self.x + self.x_alt + i.col,
+                    i.n_letters,
+                    self.screen.getbkgd() | i.attr,
+                )
+
+    def getch(self) -> Union[NoUpdate, Key]:
+        input = self.screen.getch()
+        if input == -1:
+            return NoUpdate()
+        return Key(input)
+
+    def getbkgd(self):
+        return self.screen.getbkgd()
+
+    def chgat(self, row: int, y: int, x: int, n: int, attr: int) -> None:
+        self.screen.chgat(y - row, self.x + x, n, attr)
+
+    def write(self, row: int, bottom_padding: int = 0) -> None:
+        for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
+            text_line = self.text[row + n_row]
+            if re.search("\\[IMG:[0-9]+\\]", text_line):
+                self.screen.addstr(n_row, self.x, text_line.center(self.textwidth), curses.A_BOLD)
+            else:
+                self.screen.addstr(n_row, self.x, text_line)
+
+            if (
+                self.spread == 2
+                and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+            ):
+                text_line = self.text[row + self.screen_rows - bottom_padding + n_row]
+                if re.search("\\[IMG:[0-9]+\\]", text_line):
+                    self.screen.addstr(
+                        n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD
+                    )
+                else:
+                    self.screen.addstr(n_row, self.x_alt, text_line)
+
+        self.render_styles(row, self.default_style, bottom_padding)
+        self.render_styles(row, self.temporary_style, bottom_padding)
+        # self.screen.refresh()
+
+    def write_n(
+        self,
+        row: int,
+        n: int = 1,
+        direction: Direction = Direction.FORWARD,
+        bottom_padding: int = 0,
+    ) -> None:
+        assert n > 0
+        for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
+            text_line = self.text[row + n_row]
+            if direction == Direction.FORWARD:
+                # self.screen.addnstr(n_row, self.x + self.textwidth - n, self.text[row+n_row], n)
+                # `+ " " * (self.textwidth - len(self.text[row + n_row]))` is workaround to
+                # to prevent curses trace because not calling screen.clear()
+                self.screen.addnstr(
+                    n_row,
+                    self.x + self.textwidth - n,
+                    text_line + " " * (self.textwidth - len(text_line)),
+                    n,
+                )
+
+                if (
+                    self.spread == 2
+                    and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+                ):
+                    text_line_alt = self.text[row + n_row + self.screen_rows - bottom_padding]
+                    self.screen.addnstr(
+                        n_row,
+                        self.x_alt + self.textwidth - n,
+                        text_line_alt + " " * (self.textwidth - len(text_line_alt)),
+                        n,
+                    )
+
+            else:
+                if text_line[self.textwidth - n :]:
+                    self.screen.addnstr(n_row, self.x, text_line[self.textwidth - n :], n)
+
+                if (
+                    self.spread == 2
+                    and row + self.screen_rows - bottom_padding + n_row < self.total_lines
+                ):
+                    text_line_alt = self.text[row + n_row + self.screen_rows - bottom_padding]
+                    self.screen.addnstr(
+                        n_row,
+                        self.x_alt,
+                        text_line_alt[self.textwidth - n :],
+                        n,
+                    )
+
+
 def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
     file_ext = os.path.splitext(filepath)[1]
     if file_ext == ".epub":
@@ -1202,8 +1428,10 @@ def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
 
 
 def tuple_subtract(tuple_one: Tuple[Any, ...], tuple_two: Tuple[Any, ...]) -> Tuple[Any, ...]:
-    """Returns tuple with members in tuple_one
-    but not in tuple_two"""
+    """
+    Returns tuple with members in tuple_one
+    but not in tuple_two
+    """
     return tuple(i for i in tuple_one if i not in tuple_two)
 
 
@@ -1258,7 +1486,7 @@ def truncate(teks: str, subtitution_text: str, maxlen: int, startsub: int = 0) -
         return beg + mid + end
 
 
-def safe_curs_set(state):
+def safe_curs_set(state: int) -> None:
     try:
         curses.curs_set(state)
     except:
@@ -1797,7 +2025,7 @@ class Reader:
             stat.bkgd(self.screen.getbkgd())
         stat.keypad(True)
         curses.echo(1)
-        safe_curs_set(1)
+        safe_curs_set(2)
 
         init_text = ""
 
@@ -1857,8 +2085,9 @@ class Reader:
             return NoUpdate()
 
     def searching(
-        self, pad, src, reading_state: ReadingState, tot
+        self, board: InfiniBoard, src, reading_state: ReadingState, tot
     ) -> Union[NoUpdate, ReadingState, Key]:
+        # TODO: annotate this
 
         rows, cols = self.screen.getmaxyx()
         # unnecessary
@@ -1937,19 +2166,9 @@ class Reader:
                         " Finished searching: " + self.search_data.value[: cols - 22] + " ",
                         curses.A_REVERSE,
                     )
+                    board.write(reading_state.row, 1)
                     self.screen.refresh()
-                    pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-                    if self.spread == 2:
-                        if reading_state.row + rows < len(src):
-                            pad.refresh(
-                                reading_state.row + rows - 1,
-                                0,
-                                0,
-                                cols - 2 - reading_state.textwidth,
-                                rows - 2,
-                                cols - 2,
-                            )
-                    s = pad.getch()
+                    s = board.getch()
 
         sidx = len(found) - 1
         if self.search_data.direction == Direction.FORWARD:
@@ -1973,11 +2192,12 @@ class Reader:
         while True:
             if s in self.keymap.Quit:
                 self.search_data = None
-                for i in found:
-                    pad.chgat(i[0], i[1], i[2], pad.getbkgd())
-                pad.format()
-                self.screen.clear()
-                self.screen.refresh()
+                # for i in found:
+                #     pad.chgat(i[0], i[1], i[2], pad.getbkgd())
+                board.feed_temporary_style()
+                # pad.format()
+                # self.screen.clear()
+                # self.screen.refresh()
                 return reading_state
             elif s == Key("n"):
                 self.search_data = dataclasses.replace(
@@ -2028,10 +2248,10 @@ class Reader:
             elif s == Key(curses.KEY_RESIZE):
                 return Key(curses.KEY_RESIZE)
 
-            if reading_state.row + rows - 1 > pad.chunks[pad.find_chunkidx(reading_state.row)]:
-                reading_state = dataclasses.replace(
-                    reading_state, row=pad.chunks[pad.find_chunkidx(reading_state.row)] + 1
-                )
+            # if reading_state.row + rows - 1 > pad.chunks[pad.find_chunkidx(reading_state.row)]:
+            #     reading_state = dataclasses.replace(
+            #         reading_state, row=pad.chunks[pad.find_chunkidx(reading_state.row)] + 1
+            #     )
 
             while found[sidx][0] not in list(
                 range(reading_state.row, reading_state.row + (rows - 1) * self.spread)
@@ -2047,25 +2267,23 @@ class Reader:
                     if reading_state.row < 0:
                         reading_state = dataclasses.replace(reading_state, row=0)
 
+            # formats = [InlineStyle(row=i[0], col=i[1], n_letters=i[2], attr=curses.A_REVERSE) for i in found]
+            # pad.feed_style(formats)
+            styles: List[InlineStyle] = []
             for n, i in enumerate(found):
                 attr = curses.A_REVERSE if n == sidx else curses.A_NORMAL
-                pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
+                # pad.chgat(i[0], i[1], i[2], pad.getbkgd() | attr)
+                styles.append(
+                    InlineStyle(row=i[0], col=i[1], n_letters=i[2], attr=board.getbkgd() | attr)
+                )
+            board.feed_temporary_style(tuple(styles))
 
             self.screen.clear()
             self.screen.addstr(rows - 1, 0, msg, curses.A_REVERSE)
             self.screen.refresh()
-            pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
-            if self.spread == 2:
-                if reading_state.row + rows < len(src):
-                    pad.refresh(
-                        reading_state.row + rows - 1,
-                        0,
-                        0,
-                        cols - 2 - reading_state.textwidth,
-                        rows - 2,
-                        cols - 2,
-                    )
-            s = pad.getch()
+            # pad.refresh(reading_state.row, 0, 0, x, rows - 2, x + reading_state.textwidth)
+            board.write(reading_state.row, 1)
+            s = board.getch()
 
     def speaking(self, text):
         self.is_speaking = True
@@ -2145,26 +2363,39 @@ class Reader:
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
 
-        mincols_doublespr = 2 + 22 + 3 + 22 + 2
+        mincols_doublespr = (
+            DoubleSpreadPadding.LEFT.value
+            + 22
+            + DoubleSpreadPadding.MIDDLE.value
+            + 22
+            + DoubleSpreadPadding.RIGHT.value
+        )
         if cols < mincols_doublespr:
             self.spread = 1
         if self.spread == 2:
-            reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
-
+            reading_state = dataclasses.replace(
+                reading_state,
+                textwidth=(
+                    cols
+                    - sum(
+                        [
+                            DoubleSpreadPadding.LEFT.value,
+                            DoubleSpreadPadding.MIDDLE.value,
+                            DoubleSpreadPadding.RIGHT.value,
+                        ]
+                    )
+                )
+                // 2,
+            )
         x = (cols - reading_state.textwidth) // 2
-        if self.spread == 1:
-            x = (cols - reading_state.textwidth) // 2
-        else:
-            x = 2
+        if self.spread == 2:
+            x = DoubleSpreadPadding.LEFT.value
 
         contents = self.ebook.contents
-
-        toc_secid = {}
         chpath = contents[reading_state.content_index]
         content = self.ebook.get_raw_text(chpath)
 
         parser = HTMLtoLines(set(toc_entry.section for toc_entry in self.ebook.toc_entries))
-        # parser = HTMLtoLines()
         # try:
         parser.feed(content)
         parser.close()
@@ -2183,17 +2414,13 @@ class Reader:
         else:
             reading_state = dataclasses.replace(reading_state, row=reading_state.row % totlines)
 
-        pad = Board(self.screen, totlines, reading_state.textwidth)
-        pad.feed(src_lines)
-        pad.feed_format(formatting)
-
-        # this make curses.A_REVERSE not working
-        # put before paint_text
-        if self.is_color_supported:
-            pad.bkgd()
-
-        pad.paint_text(0)
-        pad.format()
+        board = InfiniBoard(
+            screen=self.screen,
+            text=src_lines,
+            textwidth=reading_state.textwidth,
+            default_style=formatting,
+            spread=self.spread,
+        )
 
         LOCALPCTG = []
         for i in src_lines:
@@ -2201,11 +2428,9 @@ class Reader:
 
         self.screen.clear()
         self.screen.refresh()
-        # try except to be more flexible on terminal resize
-        try:
-            pad.refresh(reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth)
-        except curses.error:
-            pass
+        # try-except clause if there is issue
+        # with curses resize event
+        board.write(reading_state.row)
 
         # if reading_state.section is not None
         # then override reading_state.row to follow the section
@@ -2214,22 +2439,7 @@ class Reader:
                 reading_state, row=toc_secid.get(reading_state.section, 0)
             )
 
-        # checkpoint_row is container for visual helper
-        # when we scroll the page by more than 1 line
-        # so it's less disorienting
-        # eg. when we scroll down by 3 lines then:
-        #
-        #     ...
-        #     this line has been read
-        #     this line has been read
-        #     this line has been read
-        #     this line has been read
-        #     ------------------------------- <- the visual helper
-        #     this line has not been read yet
-        #     this line has not been read yet
-        #     this line has not been read yet
         checkpoint_row: Optional[int] = None
-
         countstring = ""
 
         try:
@@ -2356,24 +2566,12 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
+                        self.page_animation = Direction.FORWARD
                         if totlines - reading_state.row > rows * self.spread:
-                            self.page_animation = Direction.FORWARD
-                            if (
-                                reading_state.row + (rows * self.spread)
-                                > pad.chunks[pad.find_chunkidx(reading_state.row)]
-                            ):
-                                reading_state = dataclasses.replace(
-                                    reading_state,
-                                    row=pad.chunks[pad.find_chunkidx(reading_state.row)] + 1,
-                                )
-                            else:
-                                reading_state = dataclasses.replace(
-                                    reading_state, row=reading_state.row + (rows * self.spread)
-                                )
-                            # self.screen.clear()
-                            # self.screen.refresh()
+                            reading_state = dataclasses.replace(
+                                reading_state, row=reading_state.row + (rows * self.spread)
+                            )
                         elif reading_state.content_index != len(contents) - 1:
-                            self.page_animation = Direction.FORWARD
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
@@ -2573,7 +2771,8 @@ class Reader:
 
                     elif k in self.keymap.RegexSearch:
                         ret_object = self.searching(
-                            pad,
+                            # pad,
+                            board,
                             src_lines,
                             reading_state,
                             len(contents),
@@ -2618,8 +2817,8 @@ class Reader:
                                     + 1,
                                 )
                                 self.screen.refresh()
-                                safe_curs_set(1)
-                                p = pad.getch()
+                                safe_curs_set(2)
+                                p = board.getch()
                                 if p in self.keymap.ScrollDown:
                                     i += 1
                                 elif p in self.keymap.ScrollUp:
@@ -2635,7 +2834,7 @@ class Reader:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
                                     impath = dots_path(chpath, impath)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(impath)
-                                k = self.open_image(pad, imgnm, imgbstr)
+                                k = self.open_image(board, imgnm, imgbstr)
                                 continue
                             except Exception as e:
                                 self.show_win_error("Error Opening Image", str(e), tuple())
@@ -2653,7 +2852,7 @@ class Reader:
                         else:
                             count_color = count
                         self.screen.bkgd(curses.color_pair(count_color + 1))
-                        pad.format()
+                        # pad.format()
                         return ReadingState(
                             content_index=reading_state.content_index,
                             textwidth=reading_state.textwidth,
@@ -2725,7 +2924,7 @@ class Reader:
                             continue
 
                     elif k in self.keymap.MarkPosition:
-                        jumnum = pad.getch()
+                        jumnum = board.getch()
                         if jumnum in tuple(Key(i) for i in range(48, 58)):
                             self.jump_list[jumnum.char] = reading_state
                         else:
@@ -2733,7 +2932,7 @@ class Reader:
                             continue
 
                     elif k in self.keymap.JumpToPosition:
-                        jumnum = pad.getch()
+                        jumnum = board.getch()
                         if (
                             jumnum in tuple(Key(i) for i in range(48, 58))
                             and jumnum.char in self.jump_list
@@ -2786,79 +2985,30 @@ class Reader:
                     countstring = ""
 
                 if checkpoint_row:
-                    pad.chgat(
-                        checkpoint_row,
-                        0,
-                        reading_state.textwidth,
-                        self.screen.getbkgd() | curses.A_UNDERLINE,
+                    board.feed_temporary_style(
+                        (
+                            InlineStyle(
+                                row=checkpoint_row,
+                                col=0,
+                                n_letters=reading_state.textwidth,
+                                attr=curses.A_UNDERLINE,
+                            ),
+                        )
                     )
 
                 try:
-                    # NOTE: clear() will delete everything but doesnt need refresh()
-                    # while refresh() id necessary whenever a char added to scr
+                    if self.setting.PageScrollAnimation and self.page_animation:
+                        self.screen.clear()
+                        for i in range(1, reading_state.textwidth + 1):
+                            curses.napms(1)
+                            # self.screen.clear()
+                            board.write_n(reading_state.row, i, self.page_animation)
+                            self.screen.refresh()
+                        self.page_animation = None
+
                     self.screen.clear()
                     self.screen.addstr(0, 0, countstring)
-                    self.screen.refresh()
-                    if self.setting.PageScrollAnimation and self.page_animation:
-                        for i in range(reading_state.textwidth + 1):
-                            curses.napms(1)
-                            # to optimize performance
-                            if i == reading_state.textwidth:
-                                # to cleanup screen from animation residue
-                                # actually only problematic for "next" animation
-                                # but just to be safe
-                                self.screen.clear()
-                                self.screen.refresh()
-                            if self.page_animation == Direction.FORWARD:
-                                pad.refresh(
-                                    reading_state.row,
-                                    0,
-                                    0,
-                                    x + reading_state.textwidth - i,
-                                    rows - 1,
-                                    x + reading_state.textwidth,
-                                )
-                                if self.spread == 2 and reading_state.row + rows < totlines:
-                                    pad.refresh(
-                                        reading_state.row + rows,
-                                        0,
-                                        0,
-                                        cols - 2 - i,
-                                        rows - 1,
-                                        cols - 2,
-                                    )
-                            if self.page_animation == Direction.BACKWARD:
-                                pad.refresh(
-                                    reading_state.row,
-                                    reading_state.textwidth - i - 1,
-                                    0,
-                                    x,
-                                    rows - 1,
-                                    x + i,
-                                )
-                                if self.spread == 2 and reading_state.row + rows < totlines:
-                                    pad.refresh(
-                                        reading_state.row + rows,
-                                        reading_state.textwidth - i - 1,
-                                        0,
-                                        cols - 2 - reading_state.textwidth,
-                                        rows - 1,
-                                        cols - 2 - reading_state.textwidth + i,
-                                    )
-                    else:
-                        pad.refresh(
-                            reading_state.row, 0, 0, x, rows - 1, x + reading_state.textwidth
-                        )
-                        if self.spread == 2 and reading_state.row + rows < totlines:
-                            pad.refresh(
-                                reading_state.row + rows,
-                                0,
-                                0,
-                                cols - 2 - reading_state.textwidth,
-                                rows - 1,
-                                cols - 2,
-                            )
-                    self.page_animation = None
+                    board.write(reading_state.row)
 
                     # check self._process
                     if isinstance(self._process_counting_letter, multiprocessing.Process):
@@ -2886,10 +3036,12 @@ class Reader:
                     self.screen.refresh()
                 except curses.error:
                     pass
+
                 if self.is_speaking:
                     k = self.keymap.TTSToggle[0]
                     continue
-                k = pad.getch()
+
+                k = board.getch()
                 if k == Key(curses.KEY_MOUSE):
                     mouse_event = curses.getmouse()
                     if mouse_event[4] == curses.BUTTON1_CLICKED:
@@ -2911,13 +3063,9 @@ class Reader:
                         k = self.keymap.TTSToggle[0]
 
                 if checkpoint_row:
-                    pad.chgat(
-                        checkpoint_row,
-                        0,
-                        reading_state.textwidth,
-                        self.screen.getbkgd() | curses.A_NORMAL,
-                    )
+                    board.feed_temporary_style()
                     checkpoint_row = None
+
         except KeyboardInterrupt:
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
@@ -2934,14 +3082,13 @@ def preread(stdscr, filepath: str):
     reader = Reader(screen=stdscr, ebook=ebook, config=config, state=state)
 
     try:
-        reading_state = state.get_last_reading_state(reader.ebook)
+        reader.run_counting_letters()
 
+        reading_state = state.get_last_reading_state(reader.ebook)
         if reader.screen_cols <= reading_state.textwidth + 4:
             reading_state = dataclasses.replace(reading_state, textwidth=reader.screen_cols - 4)
         else:
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
-
-        reader.run_counting_letters()
 
         while True:
             reading_state = reader.read(reading_state)

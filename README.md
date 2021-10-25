@@ -28,10 +28,6 @@ a lot of new stuffs in python standard libraries starting from `python>=3.7`, so
 with older `epy` version. And if you decide to install this version you might lose
 your reading progress with older `epy`.
 
-There are no new features with this version but some bugfixes. The refactoring is
-just to keep `epy` up to date to recent python and making it easier
-for future contributors to read.
-
 ## Installation
 
 - Via PyPI
