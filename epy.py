@@ -356,13 +356,13 @@ class Epub:
         except AttributeError:
             pass
 
-    def get_raw_text(self, chpath: str) -> str:
+    def get_raw_text(self, content_path: str) -> str:
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
         while True:
             try:
-                content = self.file.open(chpath).read()
+                content = self.file.open(content_path).read()
                 break
             except:
                 continue
@@ -455,13 +455,13 @@ class Mobi(Epub):
             )
         self.toc_entries = tuple(toc_entries)
 
-    def get_raw_text(self, chpath: str) -> str:
+    def get_raw_text(self, content_path: str) -> str:
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
         while True:
             try:
-                with open(chpath) as f:
+                with open(content_path) as f:
                     content = f.read()
                 break
             except:
@@ -1299,7 +1299,7 @@ class InfiniBoard:
             )
 
     def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
-        """Reset styling if `styles` is Nont"""
+        """Reset styling if `styles` is None"""
         self.temporary_style = styles if styles else ()
 
     def render_styles(
@@ -2394,10 +2394,11 @@ class Reader:
             x = DoubleSpreadPadding.LEFT.value
 
         contents = self.ebook.contents
-        chpath = contents[reading_state.content_index]
-        content = self.ebook.get_raw_text(chpath)
+        toc_entries = self.ebook.toc_entries
+        content_path = contents[reading_state.content_index]
+        content = self.ebook.get_raw_text(content_path)
 
-        parser = HTMLtoLines(set(toc_entry.section for toc_entry in self.ebook.toc_entries))
+        parser = HTMLtoLines(set(toc_entry.section for toc_entry in toc_entries))
         # try:
         parser.feed(content)
         parser.close()
@@ -2586,33 +2587,33 @@ class Reader:
 
                     elif k in self.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
-                            self.ebook.toc_entries,
+                            toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
-                        if ntoc < len(self.ebook.toc_entries) - 1:
+                        if ntoc < len(toc_entries) - 1:
                             if (
                                 reading_state.content_index
-                                == self.ebook.toc_entries[ntoc + 1].content_index
+                                == toc_entries[ntoc + 1].content_index
                             ):
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
-                                        row=toc_secid[self.ebook.toc_entries[ntoc + 1].section],
+                                        row=toc_secid[toc_entries[ntoc + 1].section],
                                     )
                                 except KeyError:
                                     pass
                             else:
                                 return ReadingState(
-                                    content_index=self.ebook.toc_entries[ntoc + 1].content_index,
+                                    content_index=toc_entries[ntoc + 1].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=self.ebook.toc_entries[ntoc + 1].section,
+                                    section=toc_entries[ntoc + 1].section,
                                 )
 
                     elif k in self.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
-                            self.ebook.toc_entries,
+                            toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
@@ -2620,50 +2621,50 @@ class Reader:
                         if ntoc > 0:
                             if (
                                 reading_state.content_index
-                                == self.ebook.toc_entries[ntoc - 1].content_index
+                                == toc_entries[ntoc - 1].content_index
                             ):
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid.get(self.ebook.toc_entries[ntoc - 1].section, 0),
+                                    row=toc_secid.get(toc_entries[ntoc - 1].section, 0),
                                 )
                             else:
                                 return ReadingState(
-                                    content_index=self.ebook.toc_entries[ntoc - 1].content_index,
+                                    content_index=toc_entries[ntoc - 1].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=self.ebook.toc_entries[ntoc - 1].section,
+                                    section=toc_entries[ntoc - 1].section,
                                 )
 
                     elif k in self.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
-                            self.ebook.toc_entries,
+                            toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
                             reading_state = dataclasses.replace(
-                                reading_state, row=toc_secid[self.ebook.toc_entries[ntoc].section]
+                                reading_state, row=toc_secid[toc_entries[ntoc].section]
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
 
                     elif k in self.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
-                            self.ebook.toc_entries,
+                            toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
-                            if toc_secid[self.ebook.toc_entries[ntoc + 1].section] - rows >= 0:
+                            if toc_secid[toc_entries[ntoc + 1].section] - rows >= 0:
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid[self.ebook.toc_entries[ntoc + 1].section] - rows,
+                                    row=toc_secid[toc_entries[ntoc + 1].section] - rows,
                                 )
                             else:
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid[self.ebook.toc_entries[ntoc].section],
+                                    row=toc_secid[toc_entries[ntoc].section],
                                 )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(
@@ -2671,7 +2672,7 @@ class Reader:
                             )
 
                     elif k in self.keymap.TableOfContents:
-                        if not self.ebook.toc_entries:
+                        if not toc_entries:
                             k = self.show_win_error(
                                 "Table of Contents",
                                 "N/A: TableOfContents is unavailable for this book.",
@@ -2679,32 +2680,32 @@ class Reader:
                             )
                             continue
                         ntoc = find_curr_toc_id(
-                            self.ebook.toc_entries,
+                            toc_entries,
                             toc_secid,
                             reading_state.content_index,
                             reading_state.row,
                         )
-                        rettock, fllwd, _ = self.toc(self.ebook.toc_entries, ntoc)
+                        rettock, fllwd, _ = self.toc(toc_entries, ntoc)
                         if rettock is not None:  # and rettock in WINKEYS:
                             k = rettock
                             continue
                         elif fllwd is not None:
                             if (
                                 reading_state.content_index
-                                == self.ebook.toc_entries[fllwd].content_index
+                                == toc_entries[fllwd].content_index
                             ):
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
-                                        row=toc_secid[self.ebook.toc_entries[fllwd].section],
+                                        row=toc_secid[toc_entries[fllwd].section],
                                     )
                                 except KeyError:
                                     reading_state = dataclasses.replace(reading_state, row=0)
                             else:
                                 return ReadingState(
-                                    content_index=self.ebook.toc_entries[fllwd].content_index,
+                                    content_index=toc_entries[fllwd].content_index,
                                     textwidth=reading_state.textwidth,
-                                    section=self.ebook.toc_entries[fllwd].section,
+                                    section=toc_entries[fllwd].section,
                                 )
 
                     elif k in self.keymap.Metadata:
@@ -2834,7 +2835,7 @@ class Reader:
                         if impath != "":
                             try:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
-                                    impath = dots_path(chpath, impath)
+                                    impath = dots_path(content_path, impath)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(impath)
                                 k = self.open_image(board, imgnm, imgbstr)
                                 continue
