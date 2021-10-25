@@ -2593,10 +2593,7 @@ class Reader:
                             reading_state.row,
                         )
                         if ntoc < len(toc_entries) - 1:
-                            if (
-                                reading_state.content_index
-                                == toc_entries[ntoc + 1].content_index
-                            ):
+                            if reading_state.content_index == toc_entries[ntoc + 1].content_index:
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
@@ -2619,10 +2616,7 @@ class Reader:
                             reading_state.row,
                         )
                         if ntoc > 0:
-                            if (
-                                reading_state.content_index
-                                == toc_entries[ntoc - 1].content_index
-                            ):
+                            if reading_state.content_index == toc_entries[ntoc - 1].content_index:
                                 reading_state = dataclasses.replace(
                                     reading_state,
                                     row=toc_secid.get(toc_entries[ntoc - 1].section, 0),
@@ -2690,10 +2684,7 @@ class Reader:
                             k = rettock
                             continue
                         elif fllwd is not None:
-                            if (
-                                reading_state.content_index
-                                == toc_entries[fllwd].content_index
-                            ):
+                            if reading_state.content_index == toc_entries[fllwd].content_index:
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
@@ -2813,7 +2804,9 @@ class Reader:
                                     (
                                         x
                                         if idx[i] // rows == 0
-                                        else cols - 2 - reading_state.textwidth
+                                        else cols
+                                        - DoubleSpreadPadding.RIGHT.value
+                                        - reading_state.textwidth
                                     )
                                     + reading_state.textwidth // 2
                                     + len(gambar[i])
@@ -3029,7 +3022,7 @@ class Reader:
                     ):
                         reading_progress = (
                             self.letters_count.cumulative[reading_state.content_index]
-                            + sum(LOCALPCTG[: reading_state.row + rows - 1])
+                            + sum(LOCALPCTG[: reading_state.row + (rows * self.spread) - 1])
                         ) / self.letters_count.all
                         reading_progress_str = "{}%".format(int(reading_progress * 100))
                         self.screen.addstr(
