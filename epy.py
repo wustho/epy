@@ -141,10 +141,10 @@ class TextStructure:
     formatting: (InlineStyle, ...)
     """
 
-    text_lines: Tuple[str]
+    text_lines: Tuple[str, ...]
     image_maps: Mapping[int, str]
     section_rows: Mapping[str, int]
-    formatting: Tuple[InlineStyle]
+    formatting: Tuple[InlineStyle, ...]
 
 
 @dataclass(frozen=True)
@@ -2500,12 +2500,13 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
-                        self.page_animation = Direction.FORWARD
                         if totlines - reading_state.row > rows * self.spread:
+                            self.page_animation = Direction.FORWARD
                             reading_state = dataclasses.replace(
                                 reading_state, row=reading_state.row + (rows * self.spread)
                             )
                         elif reading_state.content_index != len(contents) - 1:
+                            self.page_animation = Direction.FORWARD
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
