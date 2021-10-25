@@ -74,6 +74,12 @@ class Direction(Enum):
     BACKWARD = "backward"
 
 
+class DoubleSpreadPadding(Enum):
+    LEFT = 2
+    MIDDLE = 3
+    RIGHT = 2
+
+
 @dataclass(frozen=True)
 class ReadingState:
     content_index: int = 0
@@ -1269,7 +1275,7 @@ class InfiniBoard:
     """
 
     def __init__(
-        self, screen, text: Tuple[str], textwidth: int = 80, default_style: Tuple[InlineStyle] = ()
+        self, screen, text: Tuple[str], textwidth: int = 80, default_style: Tuple[InlineStyle] = (), spread: int= 1
     ):
         self.screen = screen
         self.screen_rows, self.screen_cols = self.screen.getmaxyx()
@@ -1279,6 +1285,11 @@ class InfiniBoard:
         self.total_lines = len(text)
         self.default_style: Tuple[InlineStyle, ...] = default_style
         self.temporary_style = ()
+        self.spread = spread
+
+        if self.spread == 2:
+            self.x = DoubleSpreadPadding.LEFT.value
+            self.x_alt = DoubleSpreadPadding.LEFT.value + self.textwidth + DoubleSpreadPadding.MIDDLE.value
 
     def feed_temporary_style(self, styles: Optional[Tuple[InlineStyle, ...]] = None) -> None:
         """Reset styling if `styles` is Nont"""
@@ -1310,6 +1321,13 @@ class InfiniBoard:
                 self.screen.addstr(n_row, self.x, text_line.center(self.textwidth), curses.A_BOLD)
             else:
                 self.screen.addstr(n_row, self.x, text_line)
+
+            if self.spread == 2:
+                text_line = self.text[row + self.screen_rows - bottom_padding + n_row]
+                if re.search("\\[IMG:[0-9]+\\]", text_line):
+                    self.screen.addstr(n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD)
+                else:
+                    self.screen.addstr(n_row, self.x_alt, text_line)
 
         self.render_styles(row, self.default_style, bottom_padding)
         self.render_styles(row, self.temporary_style, bottom_padding)
@@ -1362,8 +1380,10 @@ def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
 
 
 def tuple_subtract(tuple_one: Tuple[Any, ...], tuple_two: Tuple[Any, ...]) -> Tuple[Any, ...]:
-    """Returns tuple with members in tuple_one
-    but not in tuple_two"""
+    """
+    Returns tuple with members in tuple_one
+    but not in tuple_two
+    """
     return tuple(i for i in tuple_one if i not in tuple_two)
 
 
@@ -2317,11 +2337,11 @@ class Reader:
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
 
-        mincols_doublespr = 2 + 22 + 3 + 22 + 2
+        mincols_doublespr = 22 + 22 + sum([padding.value for padding in DoubleSpreadPadding])
         if cols < mincols_doublespr:
             self.spread = 1
         if self.spread == 2:
-            reading_state = dataclasses.replace(reading_state, textwidth=(cols - 7) // 2)
+            reading_state = dataclasses.replace(reading_state, textwidth=(cols -sum([padding.value for padding in DoubleSpreadPadding])) // 2)
         x = (cols - reading_state.textwidth) // 2
         if self.spread == 2:
             x = 2
@@ -2354,6 +2374,7 @@ class Reader:
             text=src_lines,
             textwidth=reading_state.textwidth,
             default_style=formatting,
+            spread=self.spread
         )
 
         LOCALPCTG = []
