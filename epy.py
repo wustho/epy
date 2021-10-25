@@ -75,9 +75,9 @@ class Direction(Enum):
 
 
 class DoubleSpreadPadding(Enum):
-    LEFT = 2
-    MIDDLE = 3
-    RIGHT = 2
+    LEFT = 10
+    MIDDLE = 7
+    RIGHT = 10
 
 
 @dataclass(frozen=True)
@@ -2363,17 +2363,33 @@ class Reader:
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
 
-        mincols_doublespr = 22 + 22 + sum([padding.value for padding in DoubleSpreadPadding])
+        mincols_doublespr = (
+            DoubleSpreadPadding.LEFT.value
+            + 22
+            + DoubleSpreadPadding.MIDDLE.value
+            + 22
+            + DoubleSpreadPadding.RIGHT.value
+        )
         if cols < mincols_doublespr:
             self.spread = 1
         if self.spread == 2:
             reading_state = dataclasses.replace(
                 reading_state,
-                textwidth=(cols - sum([padding.value for padding in DoubleSpreadPadding])) // 2,
+                textwidth=(
+                    cols
+                    - sum(
+                        [
+                            DoubleSpreadPadding.LEFT.value,
+                            DoubleSpreadPadding.MIDDLE.value,
+                            DoubleSpreadPadding.RIGHT.value,
+                        ]
+                    )
+                )
+                // 2,
             )
         x = (cols - reading_state.textwidth) // 2
         if self.spread == 2:
-            x = 2
+            x = DoubleSpreadPadding.LEFT.value
 
         contents = self.ebook.contents
         chpath = contents[reading_state.content_index]
