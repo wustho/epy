@@ -692,6 +692,7 @@ class HTMLtoLines(HTMLParser):
         images: Mapping[int, str] = dict()  # {line_num: path/in/zip}
         sect: Mapping[str, int] = dict()  # {section_id: line_num}
         formatting: List[InlineStyle] = []
+
         tmpital = []
         for i in self.initital:
             # handle uneven markup
@@ -723,6 +724,7 @@ class HTMLtoLines(HTMLParser):
 
         if not textwidth:
             return self.text
+
         for n, i in enumerate(self.text):
             startline = len(text)
             # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
@@ -752,7 +754,13 @@ class HTMLtoLines(HTMLParser):
                 text += ["   " + j for j in wraptmp] + [""]
             elif n in self.idimgs:
                 images[len(text)] = self.imgs[n]
-                text += [i.center(textwidth)] + [""]
+                text += [i.center(textwidth)]
+                formatting += [
+                    InlineStyle(
+                        row=len(text) - 1, col=0, n_letters=len(text[-1]), attr=curses.A_BOLD
+                    )
+                ]
+                text += [""]
             else:
                 text += textwrap.wrap(i, textwidth) + [""]
 
@@ -2789,7 +2797,12 @@ class Reader:
                             reading_state = ret_object
 
                     elif k in self.keymap.OpenImage and self.image_viewer:
-                        imgs_in_screen = list(set(range(reading_state.row, reading_state.row + rows * self.spread + 1)) & set(imgs.keys()))
+                        imgs_in_screen = list(
+                            set(
+                                range(reading_state.row, reading_state.row + rows * self.spread + 1)
+                            )
+                            & set(imgs.keys())
+                        )
                         if not imgs_in_screen:
                             k = NoUpdate()
                             continue
@@ -2812,7 +2825,7 @@ class Reader:
                                         - DoubleSpreadPadding.RIGHT.value
                                         - reading_state.textwidth
                                     )
-                                    + reading_state.textwidth // 2
+                                    + reading_state.textwidth // 2,
                                 )
                                 self.screen.refresh()
                                 safe_curs_set(2)
