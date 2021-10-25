@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.23"
+__version__ = "2021.10.25"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
