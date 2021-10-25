@@ -682,7 +682,7 @@ class HTMLtoLines(HTMLParser):
             elif self.ispref:
                 self.idpref.add(len(self.text) - 1)
 
-    def get_lines(self, width=0):
+    def get_lines(self, textwidth: Optional[int] = 0):
         text: List[str] = []
         sect: Mapping[str, int] = dict()
         formatting: List[InlineStyle] = []
@@ -715,7 +715,7 @@ class HTMLtoLines(HTMLParser):
                         tmpbold.append([j, 0, len(self.text[j])])
                     tmpbold.append([i[2], 0, i[3]])
 
-        if width == 0:
+        if not textwidth:
             return self.text
         for n, i in enumerate(self.text):
             startline = len(text)
@@ -727,25 +727,25 @@ class HTMLtoLines(HTMLParser):
             if n in self.sectsindex.keys():
                 sect[self.sectsindex[n]] = len(text)
             if n in self.idhead:
-                # text += [i.rjust(width // 2 + len(i) // 2)] + [""]
-                text += [i.center(width)] + [""]
+                # text += [i.rjust(textwidth // 2 + len(i) // 2)] + [""]
+                text += [i.center(textwidth)] + [""]
                 formatting += [
                     InlineStyle(row=j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD)
                     for j in range(startline, len(text))
                 ]
             elif n in self.idinde:
-                text += ["   " + j for j in textwrap.wrap(i, width - 3)] + [""]
+                text += ["   " + j for j in textwrap.wrap(i, textwidth - 3)] + [""]
             elif n in self.idbull:
-                tmp = textwrap.wrap(i, width - 3)
+                tmp = textwrap.wrap(i, textwidth - 3)
                 text += [" - " + j if j == tmp[0] else "   " + j for j in tmp] + [""]
             elif n in self.idpref:
                 tmp = i.splitlines()
                 wraptmp = []
                 for line in tmp:
-                    wraptmp += [j for j in textwrap.wrap(line, width - 6)]
+                    wraptmp += [j for j in textwrap.wrap(line, textwidth - 6)]
                 text += ["   " + j for j in wraptmp] + [""]
             else:
-                text += textwrap.wrap(i, width) + [""]
+                text += textwrap.wrap(i, textwidth) + [""]
 
             # TODO: inline formats for indents
             endline = len(text)  # -1
@@ -865,7 +865,7 @@ class HTMLtoLines(HTMLParser):
                     )
 
         # chapter suffix
-        text += ["***".center(width)]
+        text += ["***".center(textwidth)]
 
         return tuple(text), self.imgs, sect, tuple(formatting)
 
