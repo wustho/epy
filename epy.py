@@ -554,7 +554,6 @@ class HTMLtoLines(HTMLParser):
     def __init__(self, sects={""}):
         HTMLParser.__init__(self)
         self.text = [""]
-        self.imgs = []
         self.ishead = False
         self.isinde = False
         self.isbull = False
@@ -564,10 +563,12 @@ class HTMLtoLines(HTMLParser):
         self.idinde = set()
         self.idbull = set()
         self.idpref = set()
+        self.idimgs = set()
         self.sects = sects
         self.sectsindex = {}
         self.initital = []
         self.initbold = []
+        self.imgs: Mapping[int, str] = dict()
 
     def handle_starttag(self, tag, attrs):
         if re.match("h[1-6]", tag) is not None:
@@ -590,8 +591,10 @@ class HTMLtoLines(HTMLParser):
         elif tag in {"img", "image"}:
             for i in attrs:
                 if (tag == "img" and i[0] == "src") or (tag == "image" and i[0].endswith("href")):
-                    self.text.append("[IMG:{}]".format(len(self.imgs)))
-                    self.imgs.append(unquote(i[1]))
+                    this_line = len(self.text)
+                    self.idimgs.add(this_line)
+                    self.imgs[this_line] = unquote(i[1])
+                    self.text.append("[IMAGE]")
         # formatting
         elif tag in self.ital:
             if len(self.initital) == 0 or len(self.initital[-1]) == 4:
@@ -614,8 +617,10 @@ class HTMLtoLines(HTMLParser):
                 #  if (tag == "img" and i[0] == "src")\
                 #     or (tag == "image" and i[0] == "xlink:href"):
                 if (tag == "img" and i[0] == "src") or (tag == "image" and i[0].endswith("href")):
-                    self.text.append("[IMG:{}]".format(len(self.imgs)))
-                    self.imgs.append(unquote(i[1]))
+                    this_line = len(self.text)
+                    self.idimgs.add(this_line)
+                    self.imgs[this_line] = unquote(i[1])
+                    self.text.append("[IMAGE]")
                     self.text.append("")
         # sometimes attribute "id" is inside "startendtag"
         # especially html from mobi module (kindleunpack fork)
@@ -684,7 +689,8 @@ class HTMLtoLines(HTMLParser):
 
     def get_lines(self, textwidth: Optional[int] = 0):
         text: List[str] = []
-        sect: Mapping[str, int] = dict()
+        images: Mapping[int, str] = dict()  # {line_num: path/in/zip}
+        sect: Mapping[str, int] = dict()  # {section_id: line_num}
         formatting: List[InlineStyle] = []
         tmpital = []
         for i in self.initital:
@@ -744,6 +750,9 @@ class HTMLtoLines(HTMLParser):
                 for line in tmp:
                     wraptmp += [j for j in textwrap.wrap(line, textwidth - 6)]
                 text += ["   " + j for j in wraptmp] + [""]
+            elif n in self.idimgs:
+                images[len(text)] = self.imgs[n]
+                text += [i.center(textwidth)] + [""]
             else:
                 text += textwrap.wrap(i, textwidth) + [""]
 
@@ -867,7 +876,7 @@ class HTMLtoLines(HTMLParser):
         # chapter suffix
         text += ["***".center(textwidth)]
 
-        return tuple(text), self.imgs, sect, tuple(formatting)
+        return tuple(text), images, sect, tuple(formatting)
 
 
 class AppData:
@@ -1336,10 +1345,7 @@ class InfiniBoard:
     def write(self, row: int, bottom_padding: int = 0) -> None:
         for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
             text_line = self.text[row + n_row]
-            if re.search("\\[IMG:[0-9]+\\]", text_line):
-                self.screen.addstr(n_row, self.x, text_line.center(self.textwidth), curses.A_BOLD)
-            else:
-                self.screen.addstr(n_row, self.x, text_line)
+            self.screen.addstr(n_row, self.x, text_line)
 
             if (
                 self.spread == 2
@@ -2782,35 +2788,31 @@ class Reader:
                             # y = ret_object
                             reading_state = ret_object
 
-                    elif k in self.keymap.OpenImage and self.image_viewer is not None:
-                        gambar, idx = [], []
-                        for n, i in enumerate(
-                            src_lines[reading_state.row : reading_state.row + (rows * self.spread)]
-                        ):
-                            img = re.search("(?<=\\[IMG:)[0-9]+(?=\\])", i)
-                            if img is not None:
-                                gambar.append(img.group())
-                                idx.append(n)
+                    elif k in self.keymap.OpenImage and self.image_viewer:
+                        imgs_in_screen = list(set(range(reading_state.row, reading_state.row + rows * self.spread + 1)) & set(imgs.keys()))
+                        if not imgs_in_screen:
+                            k = NoUpdate()
+                            continue
 
-                        impath = ""
-                        if len(gambar) == 1:
-                            impath = imgs[int(gambar[0])]
-                        elif len(gambar) > 1:
+                        imgs_in_screen.sort()
+                        image_path: Optional[str] = None
+                        if len(imgs_in_screen) == 1:
+                            image_path = imgs[imgs_in_screen[0]]
+                        elif len(imgs_in_screen) > 1:
+                            imgs_rel_to_row = [i - reading_state.row for i in imgs_in_screen]
                             p: Union[NoUpdate, Key] = NoUpdate()
                             i = 0
                             while p not in self.keymap.Quit and p not in self.keymap.Follow:
                                 self.screen.move(
-                                    idx[i] % rows,
+                                    imgs_rel_to_row[i] % rows,
                                     (
                                         x
-                                        if idx[i] // rows == 0
+                                        if imgs_rel_to_row[i] // rows == 0
                                         else cols
                                         - DoubleSpreadPadding.RIGHT.value
                                         - reading_state.textwidth
                                     )
                                     + reading_state.textwidth // 2
-                                    + len(gambar[i])
-                                    + 1,
                                 )
                                 self.screen.refresh()
                                 safe_curs_set(2)
@@ -2819,17 +2821,17 @@ class Reader:
                                     i += 1
                                 elif p in self.keymap.ScrollUp:
                                     i -= 1
-                                i = i % len(gambar)
+                                i = i % len(imgs_rel_to_row)
 
                             safe_curs_set(0)
                             if p in self.keymap.Follow:
-                                impath = imgs[int(gambar[i])]
+                                image_path = imgs[imgs_in_screen[i]]
 
-                        if impath != "":
+                        if image_path:
                             try:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
-                                    impath = dots_path(content_path, impath)
-                                imgnm, imgbstr = self.ebook.get_img_bytestr(impath)
+                                    image_path = dots_path(content_path, image_path)
+                                imgnm, imgbstr = self.ebook.get_img_bytestr(image_path)
                                 k = self.open_image(board, imgnm, imgbstr)
                                 continue
                             except Exception as e:
