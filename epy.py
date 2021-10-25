@@ -1589,7 +1589,9 @@ def choice_win(allowdel=False):
 
             for n, i in enumerate(ch_list):
                 # strs = "  " + str(n+1).rjust(d) + " " + i[0]
-                strs = "  " + i
+                # remove newline from choice entries
+                # mostly happens in FictionBook (.fb2) format
+                strs = "  " + i.replace("\n", " ")
                 strs = strs[0 : wi - 3]
                 pad.addstr(n, 0, strs)
                 span.append(len(strs))
