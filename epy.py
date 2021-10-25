@@ -130,6 +130,24 @@ class TocEntry:
 
 
 @dataclass(frozen=True)
+class TextStructure:
+    """
+    Object that describes how the text
+    should be displayed in screen.
+
+    text_lines: ("list of lines", "of text", ...)
+    image_maps: {line_num: path/to/image/in/ebook/zip}
+    section_rows: {section_id: line_num}
+    formatting: (InlineStyle, ...)
+    """
+
+    text_lines: Tuple[str]
+    image_maps: Mapping[int, str]
+    section_rows: Mapping[str, int]
+    formatting: Tuple[InlineStyle]
+
+
+@dataclass(frozen=True)
 class NoUpdate:
     pass
 
@@ -687,7 +705,9 @@ class HTMLtoLines(HTMLParser):
             elif self.ispref:
                 self.idpref.add(len(self.text) - 1)
 
-    def get_lines(self, textwidth: Optional[int] = 0):
+    def get_structured_text(
+        self, textwidth: Optional[int] = 0
+    ) -> Union[Tuple[str, ...], TextStructure]:
         text: List[str] = []
         images: Mapping[int, str] = dict()  # {line_num: path/in/zip}
         sect: Mapping[str, int] = dict()  # {section_id: line_num}
@@ -723,7 +743,7 @@ class HTMLtoLines(HTMLParser):
                     tmpbold.append([i[2], 0, i[3]])
 
         if not textwidth:
-            return self.text
+            return tuple(self.text)
 
         for n, i in enumerate(self.text):
             startline = len(text)
@@ -884,7 +904,12 @@ class HTMLtoLines(HTMLParser):
         # chapter suffix
         text += ["***".center(textwidth)]
 
-        return tuple(text), images, sect, tuple(formatting)
+        return TextStructure(
+            text_lines=tuple(text),
+            image_maps=images,
+            section_rows=sect,
+            formatting=tuple(formatting),
+        )
 
 
 class AppData:
@@ -1543,7 +1568,7 @@ def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
         parser.close()
         # except:
         #     pass
-        src_lines = parser.get_lines()
+        src_lines = parser.get_structured_text()
         cumulative_counts.append(sum(per_content_counts))
         per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
@@ -2419,8 +2444,9 @@ class Reader:
         # except:
         #     pass
 
-        src_lines, imgs, toc_secid, formatting = parser.get_lines(reading_state.textwidth)
-        totlines = len(src_lines) + 1  # 1 extra line for suffix
+        # src_lines, imgs, toc_secid, formatting = parser.get_structured_text(reading_state.textwidth)
+        text_structure = parser.get_structured_text(reading_state.textwidth)
+        totlines = len(text_structure.text_lines) + 1  # 1 extra line for suffix
 
         if reading_state.row < 0 and totlines <= rows * self.spread:
             reading_state = dataclasses.replace(reading_state, row=0)
@@ -2433,14 +2459,14 @@ class Reader:
 
         board = InfiniBoard(
             screen=self.screen,
-            text=src_lines,
+            text=text_structure.text_lines,
             textwidth=reading_state.textwidth,
-            default_style=formatting,
+            default_style=text_structure.formatting,
             spread=self.spread,
         )
 
         LOCALPCTG = []
-        for i in src_lines:
+        for i in text_structure.text_lines:
             LOCALPCTG.append(len(re.sub("\s", "", i)))
 
         self.screen.clear()
@@ -2453,7 +2479,7 @@ class Reader:
         # then override reading_state.row to follow the section
         if reading_state.section:
             reading_state = dataclasses.replace(
-                reading_state, row=toc_secid.get(reading_state.section, 0)
+                reading_state, row=text_structure.section_rows.get(reading_state.section, 0)
             )
 
         checkpoint_row: Optional[int] = None
@@ -2480,9 +2506,9 @@ class Reader:
                             sys.exit()
 
                     elif k in self.keymap.TTSToggle and self._tts_support:
-                        # tospeak = "\n".join(src_lines[y:y+rows-1])
+                        # tospeak = "\n".join(text_structure.text_lines[y:y+rows-1])
                         tospeak = ""
-                        for i in src_lines[
+                        for i in text_structure.text_lines[
                             reading_state.row : reading_state.row + (rows * self.spread)
                         ]:
                             if re.match(r"^\s*$", i) is not None:
@@ -2546,7 +2572,11 @@ class Reader:
                                 row=rows
                                 * self.spread
                                 * (
-                                    len(tmp_parser.get_lines(reading_state.textwidth)[0])
+                                    len(
+                                        tmp_parser.get_structured_text(
+                                            reading_state.textwidth
+                                        ).text_lines
+                                    )
                                     // (rows * self.spread)
                                 ),
                             )
@@ -2602,7 +2632,7 @@ class Reader:
                     elif k in self.keymap.NextChapter:
                         ntoc = find_curr_toc_id(
                             toc_entries,
-                            toc_secid,
+                            text_structure.section_rows,
                             reading_state.content_index,
                             reading_state.row,
                         )
@@ -2611,7 +2641,9 @@ class Reader:
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
-                                        row=toc_secid[toc_entries[ntoc + 1].section],
+                                        row=text_structure.section_rows[
+                                            toc_entries[ntoc + 1].section
+                                        ],
                                     )
                                 except KeyError:
                                     pass
@@ -2625,7 +2657,7 @@ class Reader:
                     elif k in self.keymap.PrevChapter:
                         ntoc = find_curr_toc_id(
                             toc_entries,
-                            toc_secid,
+                            text_structure.section_rows,
                             reading_state.content_index,
                             reading_state.row,
                         )
@@ -2633,7 +2665,9 @@ class Reader:
                             if reading_state.content_index == toc_entries[ntoc - 1].content_index:
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid.get(toc_entries[ntoc - 1].section, 0),
+                                    row=text_structure.section_rows.get(
+                                        toc_entries[ntoc - 1].section, 0
+                                    ),
                                 )
                             else:
                                 return ReadingState(
@@ -2645,13 +2679,14 @@ class Reader:
                     elif k in self.keymap.BeginningOfCh:
                         ntoc = find_curr_toc_id(
                             toc_entries,
-                            toc_secid,
+                            text_structure.section_rows,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
                             reading_state = dataclasses.replace(
-                                reading_state, row=toc_secid[toc_entries[ntoc].section]
+                                reading_state,
+                                row=text_structure.section_rows[toc_entries[ntoc].section],
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
@@ -2659,20 +2694,24 @@ class Reader:
                     elif k in self.keymap.EndOfCh:
                         ntoc = find_curr_toc_id(
                             toc_entries,
-                            toc_secid,
+                            text_structure.section_rows,
                             reading_state.content_index,
                             reading_state.row,
                         )
                         try:
-                            if toc_secid[toc_entries[ntoc + 1].section] - rows >= 0:
+                            if (
+                                text_structure.section_rows[toc_entries[ntoc + 1].section] - rows
+                                >= 0
+                            ):
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid[toc_entries[ntoc + 1].section] - rows,
+                                    row=text_structure.section_rows[toc_entries[ntoc + 1].section]
+                                    - rows,
                                 )
                             else:
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=toc_secid[toc_entries[ntoc].section],
+                                    row=text_structure.section_rows[toc_entries[ntoc].section],
                                 )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(
@@ -2689,7 +2728,7 @@ class Reader:
                             continue
                         ntoc = find_curr_toc_id(
                             toc_entries,
-                            toc_secid,
+                            text_structure.section_rows,
                             reading_state.content_index,
                             reading_state.row,
                         )
@@ -2702,7 +2741,7 @@ class Reader:
                                 try:
                                     reading_state = dataclasses.replace(
                                         reading_state,
-                                        row=toc_secid[toc_entries[fllwd].section],
+                                        row=text_structure.section_rows[toc_entries[fllwd].section],
                                     )
                                 except KeyError:
                                     reading_state = dataclasses.replace(reading_state, row=0)
@@ -2781,7 +2820,7 @@ class Reader:
                         ret_object = self.searching(
                             # pad,
                             board,
-                            src_lines,
+                            text_structure.text_lines,
                             reading_state,
                             len(contents),
                         )
@@ -2801,7 +2840,7 @@ class Reader:
                             set(
                                 range(reading_state.row, reading_state.row + rows * self.spread + 1)
                             )
-                            & set(imgs.keys())
+                            & set(text_structure.image_maps.keys())
                         )
                         if not imgs_in_screen:
                             k = NoUpdate()
@@ -2810,7 +2849,7 @@ class Reader:
                         imgs_in_screen.sort()
                         image_path: Optional[str] = None
                         if len(imgs_in_screen) == 1:
-                            image_path = imgs[imgs_in_screen[0]]
+                            image_path = text_structure.image_maps[imgs_in_screen[0]]
                         elif len(imgs_in_screen) > 1:
                             imgs_rel_to_row = [i - reading_state.row for i in imgs_in_screen]
                             p: Union[NoUpdate, Key] = NoUpdate()
@@ -2838,7 +2877,7 @@ class Reader:
 
                             safe_curs_set(0)
                             if p in self.keymap.Follow:
-                                image_path = imgs[imgs_in_screen[i]]
+                                image_path = text_structure.image_maps[imgs_in_screen[i]]
 
                         if image_path:
                             try:
@@ -3232,7 +3271,7 @@ def parse_cli_args() -> str:
                 parser.close()
                 # except:
                 #     pass
-                src_lines = parser.get_lines()
+                src_lines = parser.get_structured_text()
                 # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
                 for j in src_lines:
                     sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
