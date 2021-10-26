@@ -38,7 +38,7 @@ import textwrap
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Tuple, List, Mapping, Any
+from typing import Optional, Union, Tuple, List, Mapping, Set, Any
 from dataclasses import dataclass
 from difflib import SequenceMatcher as SM
 from enum import Enum
@@ -1333,6 +1333,31 @@ class InfiniBoard:
                     )
 
 
+def parse_html(
+    html_src: str, *, textwidth: Optional[int] = None, section_ids: Optional[Set[str]] = None
+) -> Union[Tuple[str, ...], TextStructure]:
+    """
+    Parse html string into TextStructure
+
+    :param html_src: html str to parse
+    :param textwidth: textwidth to count max length of returned TextStructure
+                      if None given, sequence of text as paragraph is returned
+    :param section_ids: set of section ids to look for inside html tag attr
+    :return: Tuple[str, ...] if textwidth not given else TextStructure
+    """
+    if not section_ids:
+        section_ids = set()
+
+    parser = HTMLtoLines(section_ids)
+    # try:
+    parser.feed(html_src)
+    parser.close()
+    # except:
+    #     pass
+
+    return parser.get_structured_text(textwidth)
+
+
 def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
     file_ext = os.path.splitext(filepath)[1]
     if file_ext == ".epub":
@@ -1390,10 +1415,10 @@ def truncate(teks: str, subtitution_text: str, maxlen: int, startsub: int = 0) -
     Truncate text
 
     eg.
-    teks: 'This is long silly dummy text'
-    subtitution_text:  '...'
-    maxlen: 12
-    startsub: 3
+    :param teks: 'This is long silly dummy text'
+    :param subtitution_text:  '...'
+    :param maxlen: 12
+    :param startsub: 3
     :return: 'This...ly dummy text'
     """
     if startsub > maxlen:
@@ -1449,13 +1474,7 @@ def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
     cumulative_counts: List[int] = []
     for i in ebook.contents:
         content = ebook.get_raw_text(i)
-        parser = HTMLtoLines()
-        # try:
-        parser.feed(content)
-        parser.close()
-        # except:
-        #     pass
-        src_lines = parser.get_structured_text()
+        src_lines = parse_html(content)
         cumulative_counts.append(sum(per_content_counts))
         per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
@@ -2323,17 +2342,12 @@ class Reader:
         toc_entries = self.ebook.toc_entries
         content_path = contents[reading_state.content_index]
         content = self.ebook.get_raw_text(content_path)
-
-        parser = HTMLtoLines(set(toc_entry.section for toc_entry in toc_entries))
-        # try:
-        parser.feed(content)
-        parser.close()
-        # except:
-        #     pass
-
-        # src_lines, imgs, toc_secid, formatting = parser.get_structured_text(reading_state.textwidth)
-        text_structure = parser.get_structured_text(reading_state.textwidth)
-        totlines = len(text_structure.text_lines) + 1  # 1 extra line for suffix
+        text_structure = parse_html(
+            content,
+            textwidth=reading_state.textwidth,
+            section_ids=set(toc_entry.section for toc_entry in toc_entries),
+        )
+        totlines = len(text_structure.text_lines)
 
         if reading_state.row < 0 and totlines <= rows * self.spread:
             reading_state = dataclasses.replace(reading_state, row=0)
@@ -2448,22 +2462,17 @@ class Reader:
                     elif k in self.keymap.PageUp:
                         if reading_state.row == 0 and reading_state.content_index != 0:
                             self.page_animation = Direction.BACKWARD
-                            tmp_parser = HTMLtoLines()
-                            tmp_parser.feed(
-                                self.ebook.get_raw_text(contents[reading_state.content_index - 1])
+                            text_structure_content_before = parse_html(
+                                self.ebook.get_raw_text(contents[reading_state.content_index - 1]),
+                                textwidth=reading_state.textwidth,
                             )
-                            tmp_parser.close()
                             return ReadingState(
                                 content_index=reading_state.content_index - 1,
                                 textwidth=reading_state.textwidth,
                                 row=rows
                                 * self.spread
                                 * (
-                                    len(
-                                        tmp_parser.get_structured_text(
-                                            reading_state.textwidth
-                                        ).text_lines
-                                    )
+                                    len(text_structure_content_before.text_lines)
                                     // (rows * self.spread)
                                 ),
                             )
@@ -3153,13 +3162,7 @@ def parse_cli_args() -> str:
                 sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
             for i in ebook.contents:
                 content = ebook.get_raw_text(i)
-                parser = HTMLtoLines()
-                # try:
-                parser.feed(content)
-                parser.close()
-                # except:
-                #     pass
-                src_lines = parser.get_structured_text()
+                src_lines = parse_html(content)
                 # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
                 for j in src_lines:
                     sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
