@@ -2887,6 +2887,12 @@ class Reader:
                         if image_path:
                             try:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
+                                    # SEAMLESS adjustment
+                                    if SEAMLESS:
+                                        for n, content in enumerate(self.ebook.contents):
+                                            content_path = content
+                                            if reading_state.row < sum(totlines_per_content[:n]):
+                                                break
                                     image_path = dots_path(content_path, image_path)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(image_path)
                                 k = self.open_image(board, imgnm, imgbstr)
