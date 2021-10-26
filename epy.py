@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.25"
+__version__ = "2021.10.26"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -54,6 +54,8 @@ try:
 except ModuleNotFoundError:
     MOBI_SUPPORT = False
 
+SEAMLESS = True
+import uuid
 
 # add image viewers here
 # sorted by most widely used
@@ -706,7 +708,7 @@ class HTMLtoLines(HTMLParser):
                 self.idpref.add(len(self.text) - 1)
 
     def get_structured_text(
-        self, textwidth: Optional[int] = 0
+        self, textwidth: Optional[int] = 0, starting_line: int = 0
     ) -> Union[Tuple[str, ...], TextStructure]:
         text: List[str] = []
         images: Mapping[int, str] = dict()  # {line_num: path/in/zip}
@@ -753,12 +755,14 @@ class HTMLtoLines(HTMLParser):
             # # i = i.replace(" (#" + findsect.group() + ") ", " "*(5+len(findsect.group())))
             # sect[findsect.group()] = len(text)
             if n in self.sectsindex.keys():
-                sect[self.sectsindex[n]] = len(text)
+                sect[self.sectsindex[n]] = starting_line + len(text)
             if n in self.idhead:
                 # text += [i.rjust(textwidth // 2 + len(i) // 2)] + [""]
                 text += [i.center(textwidth)] + [""]
                 formatting += [
-                    InlineStyle(row=j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD)
+                    InlineStyle(
+                        row=starting_line + j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD
+                    )
                     for j in range(startline, len(text))
                 ]
             elif n in self.idinde:
@@ -773,11 +777,14 @@ class HTMLtoLines(HTMLParser):
                     wraptmp += [j for j in textwrap.wrap(line, textwidth - 6)]
                 text += ["   " + j for j in wraptmp] + [""]
             elif n in self.idimgs:
-                images[len(text)] = self.imgs[n]
+                images[starting_line + len(text)] = self.imgs[n]
                 text += [i.center(textwidth)]
                 formatting += [
                     InlineStyle(
-                        row=len(text) - 1, col=0, n_letters=len(text[-1]), attr=curses.A_BOLD
+                        row=starting_line + len(text) - 1,
+                        col=0,
+                        n_letters=len(text[-1]),
+                        attr=curses.A_BOLD,
                     )
                 ]
                 text += [""]
@@ -806,7 +813,7 @@ class HTMLtoLines(HTMLParser):
                 if tmp_start[0] == tmp_end[0]:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=tmp_end[1] - tmp_start[1],
                             attr=curses.A_ITALIC,
@@ -815,7 +822,7 @@ class HTMLtoLines(HTMLParser):
                 elif tmp_start[0] == tmp_end[0] - 1:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
                             attr=curses.A_ITALIC,
@@ -823,14 +830,17 @@ class HTMLtoLines(HTMLParser):
                     )
                     formatting.append(
                         InlineStyle(
-                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                            row=starting_line + tmp_end[0],
+                            col=0,
+                            n_letters=tmp_end[1],
+                            attr=curses.A_ITALIC,
                         )
                     )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
                             attr=curses.A_ITALIC,
@@ -838,11 +848,19 @@ class HTMLtoLines(HTMLParser):
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
                         formatting.append(
-                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_ITALIC)
+                            InlineStyle(
+                                row=starting_line + l,
+                                col=0,
+                                n_letters=len(text[l]),
+                                attr=curses.A_ITALIC,
+                            )
                         )
                     formatting.append(
                         InlineStyle(
-                            row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_ITALIC
+                            row=starting_line + tmp_end[0],
+                            col=0,
+                            n_letters=tmp_end[1],
+                            attr=curses.A_ITALIC,
                         )
                     )
             tmp_filtered = [j for j in tmpbold if j[0] == n]
@@ -865,7 +883,7 @@ class HTMLtoLines(HTMLParser):
                 if tmp_start[0] == tmp_end[0]:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=tmp_end[1] - tmp_start[1],
                             attr=curses.A_BOLD,
@@ -874,20 +892,25 @@ class HTMLtoLines(HTMLParser):
                 elif tmp_start[0] == tmp_end[0] - 1:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
                             attr=curses.A_BOLD,
                         )
                     )
                     formatting.append(
-                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                        InlineStyle(
+                            row=starting_line + tmp_end[0],
+                            col=0,
+                            n_letters=tmp_end[1],
+                            attr=curses.A_BOLD,
+                        )
                     )
                 # elif tmp_start[0]-tmp_end[1] > 1:
                 else:
                     formatting.append(
                         InlineStyle(
-                            row=tmp_start[0],
+                            row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
                             attr=curses.A_BOLD,
@@ -895,10 +918,20 @@ class HTMLtoLines(HTMLParser):
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
                         formatting.append(
-                            InlineStyle(row=l, col=0, n_letters=len(text[l]), attr=curses.A_BOLD)
+                            InlineStyle(
+                                row=starting_line + l,
+                                col=0,
+                                n_letters=len(text[l]),
+                                attr=curses.A_BOLD,
+                            )
                         )
                     formatting.append(
-                        InlineStyle(row=tmp_end[0], col=0, n_letters=tmp_end[1], attr=curses.A_BOLD)
+                        InlineStyle(
+                            row=starting_line + tmp_end[0],
+                            col=0,
+                            n_letters=tmp_end[1],
+                            attr=curses.A_BOLD,
+                        )
                     )
 
         # chapter suffix
@@ -1334,7 +1367,11 @@ class InfiniBoard:
 
 
 def parse_html(
-    html_src: str, *, textwidth: Optional[int] = None, section_ids: Optional[Set[str]] = None
+    html_src: str,
+    *,
+    textwidth: Optional[int] = None,
+    section_ids: Optional[Set[str]] = None,
+    starting_line: int = 0,
 ) -> Union[Tuple[str, ...], TextStructure]:
     """
     Parse html string into TextStructure
@@ -1355,7 +1392,18 @@ def parse_html(
     # except:
     #     pass
 
-    return parser.get_structured_text(textwidth)
+    return parser.get_structured_text(textwidth, starting_line)
+
+
+def merge_text_structures(
+    text_structure_first: TextStructure, text_structure_second: TextStructure
+) -> TextStructure:
+    return TextStructure(
+        text_lines=text_structure_first.text_lines + text_structure_second.text_lines,
+        image_maps={**text_structure_first.image_maps, **text_structure_second.image_maps},
+        section_rows={**text_structure_first.section_rows, **text_structure_second.section_rows},
+        formatting=text_structure_first.formatting + text_structure_second.formatting,
+    )
 
 
 def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
@@ -2340,13 +2388,69 @@ class Reader:
 
         contents = self.ebook.contents
         toc_entries = self.ebook.toc_entries
-        content_path = contents[reading_state.content_index]
-        content = self.ebook.get_raw_text(content_path)
-        text_structure = parse_html(
-            content,
-            textwidth=reading_state.textwidth,
-            section_ids=set(toc_entry.section for toc_entry in toc_entries),
-        )
+        if SEAMLESS:
+            text_structure: TextStructure = TextStructure(
+                text_lines=tuple(), image_maps=dict(), section_rows=dict(), formatting=tuple()
+            )
+            toc_entries_tmp: List[TocEntry] = []
+            section_rows_tmp: Mapping[str, int] = dict()
+            totlines_per_content: List[int] = []  # only defined when Seamless==True
+            for n, content in enumerate(contents):
+                starting_line = sum(totlines_per_content)
+                text_structure_tmp = parse_html(
+                    self.ebook.get_raw_text(content),
+                    textwidth=reading_state.textwidth,
+                    section_ids=set(toc_entry.section for toc_entry in toc_entries),
+                    starting_line=starting_line,
+                )
+                totlines_per_content.append(len(text_structure_tmp.text_lines))
+
+                for toc_entry in toc_entries:
+                    if toc_entry.content_index == n:
+                        if toc_entry.section:
+                            toc_entries_tmp.append(dataclasses.replace(toc_entry, content_index=0))
+                        else:
+                            section_id_tmp = str(uuid.uuid4())
+                            toc_entries_tmp.append(
+                                TocEntry(
+                                    label=toc_entry.label, content_index=0, section=section_id_tmp
+                                )
+                            )
+                            section_rows_tmp[section_id_tmp] = starting_line
+
+                text_structure = merge_text_structures(text_structure, text_structure_tmp)
+
+            # adjustment
+            contents = contents[0]
+            toc_entries = toc_entries_tmp
+            text_structure = TextStructure(
+                text_lines=text_structure.text_lines,
+                image_maps=text_structure.image_maps,
+                section_rows={**text_structure.section_rows, **section_rows_tmp},
+                formatting=text_structure.formatting,
+            )
+            reading_state = dataclasses.replace(
+                reading_state,
+                content_index=0,
+                row=reading_state.row + sum(totlines_per_content[: reading_state.content_index]),
+                rel_pctg=reading_state.row
+                + (
+                    sum(totlines_per_content[: reading_state.content_index])
+                    / len(text_structure.text_lines)
+                )
+                if reading_state.rel_pctg
+                else None,
+            )
+
+        else:
+            content_path = contents[reading_state.content_index]
+            content = self.ebook.get_raw_text(content_path)
+            text_structure = parse_html(
+                content,
+                textwidth=reading_state.textwidth,
+                section_ids=set(toc_entry.section for toc_entry in toc_entries),
+            )
+
         totlines = len(text_structure.text_lines)
 
         if reading_state.row < 0 and totlines <= rows * self.spread:
@@ -2399,6 +2503,7 @@ class Reader:
                         if k == Key(27) and countstring != "":
                             countstring = ""
                         else:
+                            # TODO: adjust with SEAMLESS
                             self.savestate(
                                 dataclasses.replace(
                                     reading_state, rel_pctg=reading_state.row / totlines
@@ -2509,6 +2614,9 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
+                        # TODO: adjust with SEAMLESS feature
+                        # when SEAMLESS==True and reach the end of ebook
+                        # and page down pressed, it cycled back to start of index
                         if totlines - reading_state.row > rows * self.spread:
                             self.page_animation = Direction.FORWARD
                             reading_state = dataclasses.replace(
@@ -2901,6 +3009,7 @@ class Reader:
                         self.show_reading_progress = not self.show_reading_progress
 
                     elif k == Key(curses.KEY_RESIZE):
+                        # TODO: adjust with SEAMLESS
                         self.savestate(
                             dataclasses.replace(
                                 reading_state, rel_pctg=reading_state.row / totlines
@@ -3014,6 +3123,7 @@ class Reader:
                     checkpoint_row = None
 
         except KeyboardInterrupt:
+            # TODO: adjust with SEAMLESS
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
             )
