@@ -19,13 +19,15 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
 - Text-to-Speech (with additional setup, read [below](#text-to-speech))
 - [Double Spread](#double-spread)
+- Seamless (disabled by default, read [below](#reading-tips-using-epy))
 
 ## Note on `v2021.10.23` and beyond
 
 There happened major refactoring for `epy` in version `v2021.10.23` which harness
 a lot of new stuffs in python standard libraries starting from `python>=3.7`, so
 `epy` won't be compatible with older python version and won't be backward compatible
-with older `epy` version. And if you decide to install this version you might lose
+with older `epy` configuration and reading states.
+So if you decide to install this version, you will lose
 your reading progress with older `epy`.
 
 ## Installation
@@ -51,15 +53,23 @@ your reading progress with older `epy`.
 ## Reading Tips Using Epy
 
 When reading using `epy` you might occasionally find triple asteriks `***`.
-That means you reach the end of some section in your ebook and the next line (right after those three asteriks, which is in new section) will start at the top of the page.
-This might be disorienting, so the best way to get seamless reading experience is by using next-page control (`space`, `l` or `Right`) instead of next-line control (`j` or `Down`).
+That means you reach the end of some section in your ebook
+and the next line (right after those three asteriks, which is in new section)
+will start at the top of the page.
+This might be disorienting, so the best way to get seamless reading experience
+is by using next-page control (`space`, `l` or `Right`)
+instead of next-line control (`j` or `Down`).
+
+If you really want to get seamless reading experience, you can set `SeamlessBetweenChapters`
+to `true` in configuration file. But it has its drawback with more memory usage, that's why
+it's disabled by default.
 
 ## Configuration File
 
 Config file is available in json format which is located at:
 
-- Linux: `~/.config/epy/config.json` or `~/.epy/config.json`
-- Windows: `%USERPROFILE%\.epy\config.json`
+- Linux: `~/.config/epy/configuration.json` or `~/.epy/configuration.json`
+- Windows: `%USERPROFILE%\.epy\configuration.json`
 
 Although, there are not many stuffs to configure.
 

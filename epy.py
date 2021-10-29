@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.26"
+__version__ = "2021.10.29"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -35,10 +35,11 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Tuple, List, Mapping, Set, Any
+from typing import Optional, Union, Sequence, Tuple, List, Mapping, Set, Any
 from dataclasses import dataclass
 from difflib import SequenceMatcher as SM
 from enum import Enum
@@ -53,9 +54,6 @@ try:
     MOBI_SUPPORT = True
 except ModuleNotFoundError:
     MOBI_SUPPORT = False
-
-SEAMLESS = True
-import uuid
 
 # add image viewers here
 # sorted by most widely used
@@ -84,9 +82,22 @@ class DoubleSpreadPadding(Enum):
 
 @dataclass(frozen=True)
 class ReadingState:
-    content_index: int = 0
-    textwidth: int = 80
-    row: int = 0
+    """
+    Data model for reading state.
+
+    `row` has to be explicitly assigned with value
+    because Seamless feature needs it to adjust from
+    relative (to book's content index) row to absolute
+    (to book's entire content) row.
+
+    `rel_pctg` and `section` default to None and if
+    either of them is assigned with value, then it
+    will be overriding the `row` value.
+    """
+
+    content_index: int
+    textwidth: int
+    row: int
     rel_pctg: Optional[float] = None
     section: Optional[str] = None
 
@@ -189,6 +200,7 @@ class Settings:
     DarkColorBG: int = 235
     LightColorFG: int = 238
     LightColorBG: int = 253
+    SeamlessBetweenChapters: bool = False
 
 
 @dataclass(frozen=True)
@@ -199,8 +211,8 @@ class CfgDefaultKeymaps:
     PageDown: str = "l"
     # HalfScreenUp: str = "h"
     # HalfScreenDown: str
-    NextChapter: str = "n"
-    PrevChapter: str = "p"
+    NextChapter: str = "L"
+    PrevChapter: str = "H"
     BeginningOfCh: str = "g"
     EndOfCh: str = "G"
     Shrink: str = "-"
@@ -289,8 +301,8 @@ class Epub:
         self.root_filepath: str
         self.root_dirpath: str
         self.toc_path: str
-        self.contents: Tuple[str] = ()
-        self.toc_entries: Tuple[TocEntry] = ()
+        self.contents: Tuple[str, ...] = tuple()
+        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         meta: List[Tuple[str, str]] = []
@@ -1104,8 +1116,8 @@ class State(AppData):
             if result:
                 result = dict(result)
                 del result["filepath"]
-                return ReadingState(**result)
-            return ReadingState()
+                return ReadingState(**result, section=None)
+            return ReadingState(content_index=0, textwidth=80, row=0, rel_pctg=None, section=None)
         finally:
             conn.close()
 
@@ -1406,6 +1418,31 @@ def merge_text_structures(
     )
 
 
+def construct_relative_reading_state(
+    abs_reading_state: ReadingState, totlines_per_content: Sequence[int]
+) -> ReadingState:
+    """
+    :param abs_reading_state: ReadingState absolute to whole book when Setting.Seamless==True
+    :param totlines_per_content: sequence of total lines per book content
+    :return: new ReadingState relative to per content of the book
+    """
+    cumulative_contents_lines = 0
+    all_contents_lines = sum(totlines_per_content)
+    for n, content_lines in enumerate(totlines_per_content):
+        cumulative_contents_lines += content_lines
+        if cumulative_contents_lines > abs_reading_state.row:
+            return ReadingState(
+                content_index=n,
+                textwidth=abs_reading_state.textwidth,
+                row=abs_reading_state.row - cumulative_contents_lines + content_lines,
+                rel_pctg=abs_reading_state.rel_pctg
+                - ((cumulative_contents_lines - content_lines) / all_contents_lines)
+                if abs_reading_state.rel_pctg
+                else None,
+                section=abs_reading_state.section,
+            )
+
+
 def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
     file_ext = os.path.splitext(filepath)[1]
     if file_ext == ".epub":
@@ -1506,7 +1543,7 @@ def dots_path(curr, tofi):
     return "/".join(candir + tofi)
 
 
-def find_curr_toc_id(
+def find_current_content_index(
     toc_entries: Tuple[TocEntry], toc_secid: Mapping[str, int], index: int, y: int
 ) -> int:
     ntoc = 0
@@ -1772,6 +1809,8 @@ class Reader:
         self.keymap = config.keymap
         # to build help menu text
         self.keymap_user_dict = config.keymap_user_dict
+
+        self.seamless = self.setting.SeamlessBetweenChapters
 
         # keys that will make
         # windows exit and return the said key
@@ -2080,9 +2119,8 @@ class Reader:
             return NoUpdate()
 
     def searching(
-        self, board: InfiniBoard, src, reading_state: ReadingState, tot
+        self, board: InfiniBoard, src: Sequence[str], reading_state: ReadingState, tot
     ) -> Union[NoUpdate, ReadingState, Key]:
-        # TODO: annotate this
 
         rows, cols = self.screen.getmaxyx()
         # unnecessary
@@ -2120,13 +2158,17 @@ class Reader:
                 and reading_state.content_index + 1 < tot
             ):
                 return ReadingState(
-                    content_index=reading_state.content_index + 1, textwidth=reading_state.textwidth
+                    content_index=reading_state.content_index + 1,
+                    textwidth=reading_state.textwidth,
+                    row=0,
                 )
             elif (
                 self.search_data.direction == Direction.BACKWARD and reading_state.content_index > 0
             ):
                 return ReadingState(
-                    content_index=reading_state.content_index - 1, textwidth=reading_state.textwidth
+                    content_index=reading_state.content_index - 1,
+                    textwidth=reading_state.textwidth,
+                    row=0,
                 )
             else:
                 s = 0
@@ -2144,6 +2186,7 @@ class Reader:
                         return ReadingState(
                             content_index=reading_state.content_index + 1,
                             textwidth=reading_state.textwidth,
+                            row=0,
                         )
                     elif s == Key("N") and reading_state.content_index + 1 == tot:
                         self.search_data = dataclasses.replace(
@@ -2152,6 +2195,7 @@ class Reader:
                         return ReadingState(
                             content_index=reading_state.content_index - 1,
                             textwidth=reading_state.textwidth,
+                            row=0,
                         )
 
                     self.screen.clear()
@@ -2169,7 +2213,9 @@ class Reader:
         if self.search_data.direction == Direction.FORWARD:
             if reading_state.row > found[-1][0]:
                 return ReadingState(
-                    content_index=reading_state.content_index + 1, textwidth=reading_state.textwidth
+                    content_index=reading_state.content_index + 1,
+                    textwidth=reading_state.textwidth,
+                    row=0,
                 )
             for n, i in enumerate(found):
                 if i[0] >= reading_state.row:
@@ -2203,6 +2249,7 @@ class Reader:
                         return ReadingState(
                             content_index=reading_state.content_index + 1,
                             textwidth=reading_state.textwidth,
+                            row=0,
                         )
                     else:
                         s = 0
@@ -2226,6 +2273,7 @@ class Reader:
                         return ReadingState(
                             content_index=reading_state.content_index - 1,
                             textwidth=reading_state.textwidth,
+                            row=0,
                         )
                     else:
                         s = 0
@@ -2338,6 +2386,8 @@ class Reader:
         return k
 
     def savestate(self, reading_state: ReadingState) -> None:
+        if self.seamless:
+            reading_state = Reader.adjust_seamless_reading_state(reading_state)
         self.state.set_last_read(self.ebook)
         self.state.set_last_reading_state(self.ebook, reading_state)
 
@@ -2388,13 +2438,13 @@ class Reader:
 
         contents = self.ebook.contents
         toc_entries = self.ebook.toc_entries
-        if SEAMLESS:
+        if self.seamless:
             text_structure: TextStructure = TextStructure(
                 text_lines=tuple(), image_maps=dict(), section_rows=dict(), formatting=tuple()
             )
             toc_entries_tmp: List[TocEntry] = []
             section_rows_tmp: Mapping[str, int] = dict()
-            totlines_per_content: List[int] = []  # only defined when Seamless==True
+            totlines_per_content: Sequence[int] = []  # only defined when Seamless==True
             for n, content in enumerate(contents):
                 starting_line = sum(totlines_per_content)
                 text_structure_tmp = parse_html(
@@ -2421,25 +2471,28 @@ class Reader:
                 text_structure = merge_text_structures(text_structure, text_structure_tmp)
 
             # adjustment
-            contents = contents[0]
+            contents = [contents[0]]
             toc_entries = toc_entries_tmp
-            text_structure = TextStructure(
-                text_lines=text_structure.text_lines,
-                image_maps=text_structure.image_maps,
-                section_rows={**text_structure.section_rows, **section_rows_tmp},
-                formatting=text_structure.formatting,
+            text_structure = dataclasses.replace(
+                text_structure, section_rows={**text_structure.section_rows, **section_rows_tmp}
             )
             reading_state = dataclasses.replace(
                 reading_state,
                 content_index=0,
                 row=reading_state.row + sum(totlines_per_content[: reading_state.content_index]),
-                rel_pctg=reading_state.row
-                + (
-                    sum(totlines_per_content[: reading_state.content_index])
-                    / len(text_structure.text_lines)
+                rel_pctg=(
+                    reading_state.row + sum(totlines_per_content[: reading_state.content_index])
                 )
+                / len(text_structure.text_lines)
                 if reading_state.rel_pctg
                 else None,
+            )
+            # objects that only exist when Setting.Seamless==True
+            totlines_per_content = tuple(totlines_per_content)
+            Reader.adjust_seamless_reading_state = staticmethod(
+                lambda reading_state: construct_relative_reading_state(
+                    reading_state, totlines_per_content
+                )
             )
 
         else:
@@ -2503,7 +2556,6 @@ class Reader:
                         if k == Key(27) and countstring != "":
                             countstring = ""
                         else:
-                            # TODO: adjust with SEAMLESS
                             self.savestate(
                                 dataclasses.replace(
                                     reading_state, rel_pctg=reading_state.row / totlines
@@ -2540,6 +2592,7 @@ class Reader:
                         return ReadingState(
                             content_index=reading_state.content_index,
                             textwidth=reading_state.textwidth,
+                            row=reading_state.row,
                             rel_pctg=reading_state.row / totlines,
                         )
 
@@ -2609,14 +2662,12 @@ class Reader:
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
+                                row=0,
                             )
                         else:
                             reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
-                        # TODO: adjust with SEAMLESS feature
-                        # when SEAMLESS==True and reach the end of ebook
-                        # and page down pressed, it cycled back to start of index
                         if totlines - reading_state.row > rows * self.spread:
                             self.page_animation = Direction.FORWARD
                             reading_state = dataclasses.replace(
@@ -2627,6 +2678,7 @@ class Reader:
                             return ReadingState(
                                 content_index=reading_state.content_index + 1,
                                 textwidth=reading_state.textwidth,
+                                row=0,
                             )
 
                     # elif k in K["HalfScreenUp"] | K["HalfScreenDown"]:
@@ -2635,7 +2687,7 @@ class Reader:
                     #     continue
 
                     elif k in self.keymap.NextChapter:
-                        ntoc = find_curr_toc_id(
+                        ntoc = find_current_content_index(
                             toc_entries,
                             text_structure.section_rows,
                             reading_state.content_index,
@@ -2656,11 +2708,12 @@ class Reader:
                                 return ReadingState(
                                     content_index=toc_entries[ntoc + 1].content_index,
                                     textwidth=reading_state.textwidth,
+                                    row=0,
                                     section=toc_entries[ntoc + 1].section,
                                 )
 
                     elif k in self.keymap.PrevChapter:
-                        ntoc = find_curr_toc_id(
+                        ntoc = find_current_content_index(
                             toc_entries,
                             text_structure.section_rows,
                             reading_state.content_index,
@@ -2678,11 +2731,12 @@ class Reader:
                                 return ReadingState(
                                     content_index=toc_entries[ntoc - 1].content_index,
                                     textwidth=reading_state.textwidth,
+                                    row=0,
                                     section=toc_entries[ntoc - 1].section,
                                 )
 
                     elif k in self.keymap.BeginningOfCh:
-                        ntoc = find_curr_toc_id(
+                        ntoc = find_current_content_index(
                             toc_entries,
                             text_structure.section_rows,
                             reading_state.content_index,
@@ -2697,7 +2751,7 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, row=0)
 
                     elif k in self.keymap.EndOfCh:
-                        ntoc = find_curr_toc_id(
+                        ntoc = find_current_content_index(
                             toc_entries,
                             text_structure.section_rows,
                             reading_state.content_index,
@@ -2731,7 +2785,7 @@ class Reader:
                                 self.keymap.TableOfContents,
                             )
                             continue
-                        ntoc = find_curr_toc_id(
+                        ntoc = find_current_content_index(
                             toc_entries,
                             text_structure.section_rows,
                             reading_state.content_index,
@@ -2754,6 +2808,7 @@ class Reader:
                                 return ReadingState(
                                     content_index=toc_entries[fllwd].content_index,
                                     textwidth=reading_state.textwidth,
+                                    row=0,
                                     section=toc_entries[fllwd].section,
                                 )
 
@@ -2772,12 +2827,9 @@ class Reader:
                         and (reading_state.textwidth + count) < cols - 4
                         and self.spread == 1
                     ):
-                        reading_state = dataclasses.replace(
-                            reading_state, textwidth=reading_state.textwidth + count
-                        )
-                        return ReadingState(
-                            content_index=reading_state.content_index,
-                            textwidth=reading_state.textwidth,
+                        return dataclasses.replace(
+                            reading_state,
+                            textwidth=reading_state.textwidth + count,
                             rel_pctg=reading_state.row / totlines,
                         )
 
@@ -2786,12 +2838,9 @@ class Reader:
                         and reading_state.textwidth >= 22
                         and self.spread == 1
                     ):
-                        reading_state = dataclasses.replace(
-                            reading_state, textwidth=reading_state.textwidth - count
-                        )
-                        return ReadingState(
-                            content_index=reading_state.content_index,
-                            textwidth=reading_state.textwidth,
+                        return dataclasses.replace(
+                            reading_state,
+                            textwidth=reading_state.textwidth - count,
                             rel_pctg=reading_state.row / totlines,
                         )
 
@@ -2801,12 +2850,15 @@ class Reader:
                             if reading_state.textwidth != 80 and cols - 4 >= 80:
                                 return ReadingState(
                                     content_index=reading_state.content_index,
+                                    textwidth=80,
+                                    row=reading_state.row,
                                     rel_pctg=reading_state.row / totlines,
                                 )
                             else:
                                 return ReadingState(
                                     content_index=reading_state.content_index,
                                     textwidth=cols - 4,
+                                    row=reading_state.row,
                                     rel_pctg=reading_state.row / totlines,
                                 )
                         else:
@@ -2815,15 +2867,16 @@ class Reader:
                             reading_state = dataclasses.replace(reading_state, textwidth=20)
                         elif reading_state.textwidth >= cols - 4:
                             reading_state = dataclasses.replace(reading_state, textwidth=cols - 4)
+
                         return ReadingState(
                             content_index=reading_state.content_index,
                             textwidth=reading_state.textwidth,
+                            row=reading_state.row,
                             rel_pctg=reading_state.row / totlines,
                         )
 
                     elif k in self.keymap.RegexSearch:
                         ret_object = self.searching(
-                            # pad,
                             board,
                             text_structure.text_lines,
                             reading_state,
@@ -2887,12 +2940,18 @@ class Reader:
                         if image_path:
                             try:
                                 if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
-                                    # SEAMLESS adjustment
-                                    if SEAMLESS:
-                                        for n, content in enumerate(self.ebook.contents):
-                                            content_path = content
-                                            if reading_state.row < sum(totlines_per_content[:n]):
-                                                break
+                                    # self.seamless adjustment
+                                    if self.seamless:
+                                        content_path = self.ebook.contents[
+                                            Reader.adjust_seamless_reading_state(
+                                                reading_state
+                                            ).content_index
+                                        ]
+                                        # for n, content in enumerate(self.ebook.contents):
+                                        #     content_path = content
+                                        #     if reading_state.row < sum(totlines_per_content[:n]):
+                                        #         break
+
                                     image_path = dots_path(content_path, image_path)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(image_path)
                                 k = self.open_image(board, imgnm, imgbstr)
@@ -3015,7 +3074,6 @@ class Reader:
                         self.show_reading_progress = not self.show_reading_progress
 
                     elif k == Key(curses.KEY_RESIZE):
-                        # TODO: adjust with SEAMLESS
                         self.savestate(
                             dataclasses.replace(
                                 reading_state, rel_pctg=reading_state.row / totlines
@@ -3035,6 +3093,7 @@ class Reader:
                             return ReadingState(
                                 content_index=reading_state.content_index,
                                 textwidth=cols - 4,
+                                row=0,
                                 rel_pctg=reading_state.row / totlines,
                             )
                         else:
@@ -3129,7 +3188,6 @@ class Reader:
                     checkpoint_row = None
 
         except KeyboardInterrupt:
-            # TODO: adjust with SEAMLESS
             self.savestate(
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
             )
@@ -3156,6 +3214,8 @@ def preread(stdscr, filepath: str):
         while True:
             reading_state = reader.read(reading_state)
             reader.show_loader()
+            if reader.seamless:
+                reading_state = Reader.adjust_seamless_reading_state(reading_state)
     finally:
         reader.cleanup()
 
