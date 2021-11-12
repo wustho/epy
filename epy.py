@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.10.29"
+__version__ = "2021.11.12"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -3093,7 +3093,7 @@ class Reader:
                             return ReadingState(
                                 content_index=reading_state.content_index,
                                 textwidth=cols - 4,
-                                row=0,
+                                row=reading_state.row,
                                 rel_pctg=reading_state.row / totlines,
                             )
                         else:
