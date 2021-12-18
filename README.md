@@ -44,12 +44,6 @@ your reading progress with older `epy`.
   $ pip3 install git+https://github.com/wustho/epy
   ```
 
-- Via AUR
-
-  ```shell
-  $ yay -S epy-git
-  ```
-
 ## Reading Tips Using Epy
 
 When reading using `epy` you might occasionally find triple asteriks `***`.
