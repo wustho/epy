@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.11.12"
+__version__ = "2021.12.18"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -584,6 +584,15 @@ class HTMLtoLines(HTMLParser):
     bold = {"b", "strong"}
     # hide = {"script", "style", "head", ", "sub}
 
+    attr_bold = curses.A_BOLD
+    try:
+        attr_italic = curses.A_ITALIC
+    except AttributeError:
+        try:
+            attr_italic = curses.A_UNDERLINE
+        except AttributeError:
+            attr_italic = curses.A_NORMAL
+
     def __init__(self, sects={""}):
         HTMLParser.__init__(self)
         self.text = [""]
@@ -774,7 +783,7 @@ class HTMLtoLines(HTMLParser):
                 text += [i.center(textwidth)] + [""]
                 formatting += [
                     InlineStyle(
-                        row=starting_line + j, col=0, n_letters=len(text[j]), attr=curses.A_BOLD
+                        row=starting_line + j, col=0, n_letters=len(text[j]), attr=self.attr_bold
                     )
                     for j in range(startline, len(text))
                 ]
@@ -797,7 +806,7 @@ class HTMLtoLines(HTMLParser):
                         row=starting_line + len(text) - 1,
                         col=0,
                         n_letters=len(text[-1]),
-                        attr=curses.A_BOLD,
+                        attr=self.attr_bold,
                     )
                 ]
                 text += [""]
@@ -829,7 +838,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=tmp_end[1] - tmp_start[1],
-                            attr=curses.A_ITALIC,
+                            attr=self.attr_italic,
                         )
                     )
                 elif tmp_start[0] == tmp_end[0] - 1:
@@ -838,7 +847,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=curses.A_ITALIC,
+                            attr=self.attr_italic,
                         )
                     )
                     formatting.append(
@@ -846,7 +855,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_end[0],
                             col=0,
                             n_letters=tmp_end[1],
-                            attr=curses.A_ITALIC,
+                            attr=self.attr_italic,
                         )
                     )
                 # elif tmp_start[0]-tmp_end[1] > 1:
@@ -856,7 +865,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=curses.A_ITALIC,
+                            attr=self.attr_italic,
                         )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
@@ -865,7 +874,7 @@ class HTMLtoLines(HTMLParser):
                                 row=starting_line + l,
                                 col=0,
                                 n_letters=len(text[l]),
-                                attr=curses.A_ITALIC,
+                                attr=self.attr_italic,
                             )
                         )
                     formatting.append(
@@ -873,7 +882,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_end[0],
                             col=0,
                             n_letters=tmp_end[1],
-                            attr=curses.A_ITALIC,
+                            attr=self.attr_italic,
                         )
                     )
             tmp_filtered = [j for j in tmpbold if j[0] == n]
@@ -899,7 +908,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=tmp_end[1] - tmp_start[1],
-                            attr=curses.A_BOLD,
+                            attr=self.attr_bold,
                         )
                     )
                 elif tmp_start[0] == tmp_end[0] - 1:
@@ -908,7 +917,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=curses.A_BOLD,
+                            attr=self.attr_bold,
                         )
                     )
                     formatting.append(
@@ -916,7 +925,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_end[0],
                             col=0,
                             n_letters=tmp_end[1],
-                            attr=curses.A_BOLD,
+                            attr=self.attr_bold,
                         )
                     )
                 # elif tmp_start[0]-tmp_end[1] > 1:
@@ -926,7 +935,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_start[0],
                             col=tmp_start[1],
                             n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=curses.A_BOLD,
+                            attr=self.attr_bold,
                         )
                     )
                     for l in range(tmp_start[0] + 1, tmp_end[0]):
@@ -935,7 +944,7 @@ class HTMLtoLines(HTMLParser):
                                 row=starting_line + l,
                                 col=0,
                                 n_letters=len(text[l]),
-                                attr=curses.A_BOLD,
+                                attr=self.attr_bold,
                             )
                         )
                     formatting.append(
@@ -943,7 +952,7 @@ class HTMLtoLines(HTMLParser):
                             row=starting_line + tmp_end[0],
                             col=0,
                             n_letters=tmp_end[1],
-                            attr=curses.A_BOLD,
+                            attr=self.attr_bold,
                         )
                     )
 

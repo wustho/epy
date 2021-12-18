@@ -1,2 +1,4 @@
 __pycache__/*
 epy_reader.egg-info/*
+.venv
+.idea
