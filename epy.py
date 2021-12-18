@@ -195,6 +195,7 @@ class Settings:
     MouseSupport: bool = False
     StartWithDoubleSpread: bool = False
     TTSSpeed: int = 1
+    TTSLang: str = "en-US"
     # -1 is default terminal fg/bg colors
     DarkColorFG: int = 252
     DarkColorBG: int = 235
@@ -2336,7 +2337,7 @@ class Reader:
         try:
             _, path = tempfile.mkstemp(suffix=".wav")
             subprocess.call(
-                ["pico2wave", "-w", path, text],
+                ["pico2wave", f"--lang={self.setting.TTSLang}", "-w", path, text],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
