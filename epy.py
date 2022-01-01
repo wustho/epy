@@ -1881,7 +1881,7 @@ class Reader:
         self.jump_list: Mapping[str, ReadingState] = dict()
 
         # TTS speaker utils
-        self._tts_support: bool = any([shutil.which("pico2wave"), shutil.which("play")])
+        self._tts_support: bool = any([shutil.which("mimic")])
         self.is_speaking: bool = False
 
         # multi process & progress percentage
@@ -2344,19 +2344,16 @@ class Reader:
         self.screen.refresh()
         self.screen.timeout(1)
         try:
-            _, path = tempfile.mkstemp(suffix=".wav")
-            subprocess.call(
-                ["pico2wave", f"--lang={self.setting.TTSLang}", "-w", path, text],
+            spk = subprocess.Popen(
+                ["mimic"], text=True,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT,
             )
-            speaker = subprocess.Popen(
-                ["play", path, "tempo", str(self.setting.TTSSpeed)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+            spk.stdin.write(text)
+            spk.stdin.close()
             while True:
-                if speaker.poll() is not None:
+                if spk.poll() is not None:
                     k = self.keymap.PageDown[0]
                     break
                 tmp = self.screen.getch()
@@ -2383,12 +2380,11 @@ class Reader:
                     + self.keymap.ScrollDown
                     + (curses.KEY_RESIZE,)
                 ):
-                    speaker.terminate()
+                    spk.terminate()
                     # speaker.kill()
                     break
         finally:
             self.screen.timeout(-1)
-            os.remove(path)
 
         if k in self.keymap.Quit:
             self.is_speaking = False

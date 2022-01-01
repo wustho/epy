@@ -87,21 +87,19 @@ But you can enable it by setting `MouseSupport` to `true` in config file.
 
 To get Text-to-Speech (TTS) support, you need to install these external dependencies:
 
-- `pico2wave` (from `libttspico-utils` package (Ubuntu) or `svox-pico-bin` package (AUR))
-- `play` (from `sox` package)
+- `mimic` package (AUR))
 
 eg.
 
 ```shell
 $ # Ubuntu
-$ apt install libttspico-utils sox
+$ apt install mimic
 
 $ # Arch
-$ yay -S svox-pico-bin
-$ pacman -S sox
+$ pacman -S mimic
 ```
 
-And then make sure `pico2wave` and `play` is in `$PATH`.
+And then make sure `mimic` is in `$PATH`.
 
 ## Double Spread
 
