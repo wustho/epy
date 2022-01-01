@@ -36,6 +36,7 @@ import sys
 import tempfile
 import textwrap
 import uuid
+import xml.etree.ElementTree
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -49,11 +50,17 @@ from html.parser import HTMLParser
 from urllib.parse import unquote
 
 try:
-    import mobi
+    import mobi  # type: ignore
 
     MOBI_SUPPORT = True
 except ModuleNotFoundError:
     MOBI_SUPPORT = False
+
+
+try:
+    DEBUG = int(str(os.getenv("DEBUG"))) == 1
+except ValueError:
+    DEBUG = False
 
 
 # ----------------------- MODELS ---------------------------
@@ -116,6 +123,7 @@ class SpeakerMimic(SpeakerBaseModel):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
         )
+        assert self.process.stdin
         self.process.stdin.write(text)
         self.process.stdin.close()
 
@@ -383,18 +391,18 @@ class Epub:
 
     def __init__(self, fileepub: str):
         self.path: str = os.path.abspath(fileepub)
-        self.file: zipfile.ZipFile = zipfile.ZipFile(fileepub, "r")
+        self.file: Union[zipfile.ZipFile, str] = zipfile.ZipFile(fileepub, "r")
 
-        # populate these attribute
+        # populate these attributes
         # by calling self.initialize()
-        self.version: str
         self.root_filepath: str
         self.root_dirpath: str
-        self.toc_path: str
         self.contents: Tuple[str, ...] = tuple()
         self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
+        assert isinstance(self.file, zipfile.ZipFile)
+
         meta: List[Tuple[str, str]] = []
         # why self.file.read(self.root_filepath) problematic
         cont = ET.fromstring(self.file.open(self.root_filepath).read())
@@ -404,74 +412,104 @@ class Epub:
         return tuple(meta)
 
     def initialize(self) -> None:
-        cont = ET.parse(self.file.open("META-INF/container.xml"))
-        self.root_filepath = cont.find("CONT:rootfiles/CONT:rootfile", self.NS).attrib["full-path"]
+        assert isinstance(self.file, zipfile.ZipFile)
+
+        container = ET.parse(self.file.open("META-INF/container.xml"))
+        rootfile_elem = container.find("CONT:rootfiles/CONT:rootfile", self.NS)
+        assert rootfile_elem is not None
+        self.root_filepath = rootfile_elem.attrib["full-path"]
         self.root_dirpath = (
             os.path.dirname(self.root_filepath) + "/"
             if os.path.dirname(self.root_filepath) != ""
             else ""
         )
-        cont = ET.parse(self.file.open(self.root_filepath))
+
         # EPUB3
-        self.version = cont.getroot().get("version")
-        if self.version == "2.0":
+        content_opf = ET.parse(self.file.open(self.root_filepath))
+        version = content_opf.getroot().get("version")
+        if version == "2.0":
             # "OPF:manifest/*[@id='ncx']"
-            self.toc_path = self.root_dirpath + cont.find(
+            relative_toc = content_opf.find(
                 "OPF:manifest/*[@media-type='application/x-dtbncx+xml']", self.NS
-            ).get("href")
-        elif self.version == "3.0":
-            self.toc_path = self.root_dirpath + cont.find(
-                "OPF:manifest/*[@properties='nav']", self.NS
-            ).get("href")
+            )
+        elif version == "3.0":
+            relative_toc = content_opf.find("OPF:manifest/*[@properties='nav']", self.NS)
+        assert relative_toc is not None
+        relative_toc_path = relative_toc.get("href")
+        assert relative_toc_path is not None
+        toc_path = self.root_dirpath + relative_toc_path
 
         # cont = ET.parse(self.file.open(self.root_filepath)).getroot()
-        manifest = []
-        for i in cont.findall("OPF:manifest/*", self.NS):
+        manifests: List[Tuple[str, str]] = []
+        for manifest_elem in content_opf.findall("OPF:manifest/*", self.NS):
             # EPUB3
-            # if i.get("id") != "ncx" and i.get("properties") != "nav":
-            if i.get("media-type") != "application/x-dtbncx+xml" and i.get("properties") != "nav":
-                manifest.append([i.get("id"), i.get("href")])
+            # if manifest_elem.get("id") != "ncx" and manifest_elem.get("properties") != "nav":
+            if (
+                manifest_elem.get("media-type") != "application/x-dtbncx+xml"
+                and manifest_elem.get("properties") != "nav"
+            ):
+                manifest_id = manifest_elem.get("id")
+                assert manifest_id is not None
+                manifest_href = manifest_elem.get("href")
+                assert manifest_href is not None
+                manifests.append((manifest_id, manifest_href))
 
         book_contents: List[str] = []
-        spine: List[str] = []
+        spines: List[str] = []
         contents: List[str] = []
-        for i in cont.findall("OPF:spine/*", self.NS):
-            spine.append(i.get("idref"))
-        for i in spine:
-            for j in manifest:
-                if i == j[0]:
-                    book_contents.append(self.root_dirpath + unquote(j[1]))
-                    contents.append(unquote(j[1]))
-                    manifest.remove(j)
+        for spine_elem in content_opf.findall("OPF:spine/*", self.NS):
+            idref = spine_elem.get("idref")
+            assert idref is not None
+            spines.append(idref)
+        for spine in spines:
+            for manifest in manifests:
+                if spine == manifest[0]:
+                    book_contents.append(self.root_dirpath + unquote(manifest[1]))
+                    contents.append(unquote(manifest[1]))
+                    manifests.remove(manifest)
                     # TODO: test is break necessary
                     break
         self.contents = tuple(book_contents)
 
         try:
-            toc = ET.parse(self.file.open(self.toc_path)).getroot()
+            toc = ET.parse(self.file.open(toc_path)).getroot()
             # EPUB3
-            if self.version == "2.0":
+            if version == "2.0":
                 navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
-            elif self.version == "3.0":
+            elif version == "3.0":
                 navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", self.NS)
 
             toc_entries: List[TocEntry] = []
-            for i in navPoints:
-                if self.version == "2.0":
-                    src = i.find("DAISY:content", self.NS).get("src")
-                    name = i.find("DAISY:navLabel/DAISY:text", self.NS).text
-                elif self.version == "3.0":
-                    src = i.get("href")
-                    name = "".join(list(i.itertext()))
-                src = src.split("#")
+            for navPoint in navPoints:
+                if version == "2.0":
+                    src_elem = navPoint.find("DAISY:content", self.NS)
+                    assert src_elem is not None
+                    src = src_elem.get("src")
+
+                    name_elem = navPoint.find("DAISY:navLabel/DAISY:text", self.NS)
+                    assert name_elem is not None
+                    name = name_elem.text
+                elif version == "3.0":
+                    src_elem = navPoint
+                    assert src_elem is not None
+                    src = src_elem.get("href")
+
+                    name = "".join(list(navPoint.itertext()))
+
+                assert src is not None
+                src_id = src.split("#")
+
                 try:
-                    idx = contents.index(unquote(src[0]))
+                    idx = contents.index(unquote(src_id[0]))
                 except ValueError:
                     continue
 
+                assert name is not None
                 toc_entries.append(
                     TocEntry(
-                        label=name, content_index=idx, section=src[1] if len(src) == 2 else None
+                        label=name,
+                        content_index=idx,
+                        section=src_id[1] if len(src_id) == 2 else None,
                     )
                 )
             self.toc_entries = tuple(toc_entries)
@@ -479,6 +517,8 @@ class Epub:
             pass
 
     def get_raw_text(self, content_path: str) -> str:
+        assert isinstance(self.file, zipfile.ZipFile)
+
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
@@ -491,6 +531,7 @@ class Epub:
         return content.decode("utf-8")
 
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
+        assert isinstance(self.file, zipfile.ZipFile)
         return impath, self.file.read(impath)
 
     def cleanup(self) -> None:
@@ -504,12 +545,11 @@ class Mobi(Epub):
 
         # populate these attribute
         # by calling self.initialize()
-        self.version: str
         self.root_filepath: str
         self.root_dirpath: str
         self.toc_path: str
-        self.contents: Tuple[str] = ()
-        self.toc_entries: Tuple[TocEntry] = ()
+        self.contents: Tuple[str, ...] = tuple()
+        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         meta: List[Tuple[str, str]] = []
@@ -522,30 +562,42 @@ class Mobi(Epub):
         return tuple(meta)
 
     def initialize(self) -> None:
+        assert isinstance(self.file, str)
+
         self.root_dirpath = os.path.join(self.file, "mobi7")
         self.toc_path = os.path.join(self.root_dirpath, "toc.ncx")
-        self.version = "2.0"
+        version = "2.0"
 
         with open(os.path.join(self.root_dirpath, "content.opf")) as f:
             cont = ET.parse(f).getroot()
-        manifest = []
-        for i in cont.findall("OPF:manifest/*", self.NS):
+
+        manifests: List[Tuple[str, str]] = []
+        for manifest_elem in cont.findall("OPF:manifest/*", self.NS):
             # EPUB3
-            # if i.get("id") != "ncx" and i.get("properties") != "nav":
-            if i.get("media-type") != "application/x-dtbncx+xml" and i.get("properties") != "nav":
-                manifest.append([i.get("id"), i.get("href")])
+            # if manifest_elem.get("id") != "ncx" and manifest_elem.get("properties") != "nav":
+            if (
+                manifest_elem.get("media-type") != "application/x-dtbncx+xml"
+                and manifest_elem.get("properties") != "nav"
+            ):
+                manifest_id = manifest_elem.get("id")
+                assert manifest_id is not None
+                manifest_href = manifest_elem.get("href")
+                assert manifest_href is not None
+                manifests.append((manifest_id, manifest_href))
 
         book_contents: List[str] = []
-        spine: List[str] = []
+        spines: List[str] = []
         contents: List[str] = []
-        for i in cont.findall("OPF:spine/*", self.NS):
-            spine.append(i.get("idref"))
-        for i in spine:
-            for j in manifest:
-                if i == j[0]:
-                    book_contents.append(os.path.join(self.root_dirpath, unquote(j[1])))
-                    contents.append(unquote(j[1]))
-                    manifest.remove(j)
+        for spine_elem in cont.findall("OPF:spine/*", self.NS):
+            idref = spine_elem.get("idref")
+            assert idref is not None
+            spines.append(idref)
+        for spine in spines:
+            for manifest in manifests:
+                if spine == manifest[0]:
+                    book_contents.append(os.path.join(self.root_dirpath, unquote(manifest[1])))
+                    contents.append(unquote(manifest[1]))
+                    manifests.remove(manifest)
                     # TODO: test is break necessary
                     break
         self.contents = tuple(book_contents)
@@ -553,27 +605,41 @@ class Mobi(Epub):
         with open(self.toc_path) as f:
             toc = ET.parse(f).getroot()
         # EPUB3
-        if self.version == "2.0":
+        if version == "2.0":
             navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", self.NS)
-        elif self.version == "3.0":
+        elif version == "3.0":
             navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", self.NS)
 
         toc_entries: List[TocEntry] = []
-        for i in navPoints:
-            if self.version == "2.0":
-                src = i.find("DAISY:content", self.NS).get("src")
-                name = i.find("DAISY:navLabel/DAISY:text", self.NS).text
-            elif self.version == "3.0":
-                src = i.get("href")
-                name = "".join(list(i.itertext()))
-            src = src.split("#")
+        for navPoint in navPoints:
+            if version == "2.0":
+                src_elem = navPoint.find("DAISY:content", self.NS)
+                assert src_elem is not None
+                src = src_elem.get("src")
+
+                name_elem = navPoint.find("DAISY:navLabel/DAISY:text", self.NS)
+                assert name_elem is not None
+                name = name_elem.text
+            elif version == "3.0":
+                src_elem = navPoint
+                assert src_elem is not None
+                src = src_elem.get("href")
+
+                name = "".join(list(navPoint.itertext()))
+
+            assert src is not None
+            src_id = src.split("#")
+
             try:
-                idx = contents.index(unquote(src[0]))
+                idx = contents.index(unquote(src_id[0]))
             except ValueError:
                 continue
 
+            assert name is not None
             toc_entries.append(
-                TocEntry(label=name, content_index=idx, section=src[1] if len(src) == 2 else None)
+                TocEntry(
+                    label=name, content_index=idx, section=src_id[1] if len(src_id) == 2 else None
+                )
             )
         self.toc_entries = tuple(toc_entries)
 
@@ -599,6 +665,7 @@ class Mobi(Epub):
         return impath, src
 
     def cleanup(self) -> None:
+        assert isinstance(self.file, str)
         shutil.rmtree(self.file)
         return
 
@@ -623,12 +690,13 @@ class FictionBook:
 
         # populate these attribute
         # by calling self.initialize()
-        self.root: str
-        self.contents: Tuple[str] = ()
-        self.toc_entries: Tuple[TocEntry] = ()
+        self.root: xml.etree.ElementTree.Element
+        self.contents: Tuple[xml.etree.ElementTree.Element, ...] = tuple()
+        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         desc = self.root.find("FB2:description", self.NS)
+        assert desc is not None
         alltags = desc.findall("*/*")
         return tuple((re.sub("{.*?}", "", i.tag), " ".join(i.itertext())) for i in alltags)
 
@@ -648,16 +716,21 @@ class FictionBook:
                 )
         self.toc_entries = tuple(toc_entries)
 
-    def get_raw_text(self, node) -> str:
+    def get_raw_text(self, node: xml.etree.ElementTree.Element) -> str:
         ET.register_namespace("", "http://www.gribuser.ru/xml/fictionbook/2.0")
         # sys.exit(ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:",""))
         return ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:", "")
 
     def get_img_bytestr(self, imgid: str) -> Tuple[str, bytes]:
+        # TODO: test if image works
         imgid = imgid.replace("#", "")
-        img = self.root.find("*[@id='{}']".format(imgid))
-        imgtype = img.get("content-type").split("/")[1]
-        return imgid + "." + imgtype, base64.b64decode(img.text)
+        img_elem = self.root.find("*[@id='{}']".format(imgid))
+        assert img_elem is not None
+        imgtype = img_elem.get("content-type")
+        img_elem_text = img_elem.text
+        assert imgtype is not None
+        assert img_elem_text is not None
+        return imgid + "." + imgtype.split("/")[1], base64.b64decode(img_elem_text)
 
     def cleanup(self) -> None:
         return
@@ -1969,7 +2042,10 @@ class Reader:
         try:
             self.ebook.initialize()
         except Exception as e:
-            sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
+            if DEBUG:
+                raise e
+            else:
+                sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
 
         # state
         self.state = state
