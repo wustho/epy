@@ -85,21 +85,12 @@ But you can enable it by setting `MouseSupport` to `true` in config file.
 
 ## Text-to-Speech
 
-To get Text-to-Speech (TTS) support, you need to install these external dependencies:
+To get Text-to-Speech (TTS) support, external TTS engine is necessary.
 
-- `mimic` package (AUR))
+List of supported engines:
 
-eg.
-
-```shell
-$ # Ubuntu
-$ apt install mimic
-
-$ # Arch
-$ pacman -S mimic
-```
-
-And then make sure `mimic` is in `$PATH`.
+- `mimic`
+- `pico2wave`
 
 ## Double Spread
 

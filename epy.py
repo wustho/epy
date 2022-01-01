@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2021.12.18"
+__version__ = "2022.1.1"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -39,8 +39,8 @@ import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Sequence, Tuple, List, Mapping, Set, Any
-from dataclasses import dataclass
+from typing import Optional, Union, Sequence, Tuple, List, Mapping, Set, Type, Any
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher as SM
 from enum import Enum
 from functools import wraps
@@ -54,6 +54,10 @@ try:
     MOBI_SUPPORT = True
 except ModuleNotFoundError:
     MOBI_SUPPORT = False
+
+
+# ----------------------- MODELS ---------------------------
+
 
 # add image viewers here
 # sorted by most widely used
@@ -78,6 +82,91 @@ class DoubleSpreadPadding(Enum):
     LEFT = 10
     MIDDLE = 7
     RIGHT = 10
+
+
+class SpeakerBaseModel:
+    cmd: str = "tts_engine_binary"
+    available: bool = False
+
+    def __init__(self, args: List[str] = []):
+        self.args = args
+
+    def speak(self, text: str) -> None:
+        raise NotImplementedError("Speaker.speak() not implemented")
+
+    def is_done(self) -> bool:
+        raise NotImplementedError("Speaker.is_done() not implemented")
+
+    def stop(self) -> None:
+        raise NotImplementedError("Speaker.stop() not implemented")
+
+    def cleanup(self) -> None:
+        raise NotImplementedError("Speaker.cleanup() not implemented")
+
+
+class SpeakerMimic(SpeakerBaseModel):
+    cmd = "mimic"
+    available = bool(shutil.which("mimic"))
+
+    def speak(self, text: str) -> None:
+        self.process = subprocess.Popen(
+            [self.cmd, *self.args],
+            text=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        self.process.stdin.write(text)
+        self.process.stdin.close()
+
+    def is_done(self) -> bool:
+        return self.process.poll() is not None
+
+    def stop(self) -> None:
+        self.process.terminate()
+        # self.process.kill()
+
+    def cleanup(self) -> None:
+        pass
+
+
+class SpeakerPico(SpeakerBaseModel):
+    cmd = "pico2wave"
+    available = all([shutil.which(dep) for dep in ["pico2wave", "play"]])
+
+    def speak(self, text: str) -> None:
+        _, self.tmp_path = tempfile.mkstemp(suffix=".wav")
+
+        try:
+            subprocess.run(
+                [self.cmd, *self.args, "-w", self.tmp_path, text],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if "invalid pointer" not in e.output:
+                sys.exit(e.output)
+
+        self.process = subprocess.Popen(
+            ["play", self.tmp_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def is_done(self) -> bool:
+        return self.process.poll() is not None
+
+    def stop(self) -> None:
+        self.process.terminate()
+        # self.process.kill()
+
+    def cleanup(self) -> None:
+        os.remove(self.tmp_path)
+
+
+SPEAKERS: List[Type[SpeakerBaseModel]] = [SpeakerMimic, SpeakerPico]
 
 
 @dataclass(frozen=True)
@@ -194,14 +283,14 @@ class Settings:
     PageScrollAnimation: bool = True
     MouseSupport: bool = False
     StartWithDoubleSpread: bool = False
-    TTSSpeed: int = 1
-    TTSLang: str = "en-US"
     # -1 is default terminal fg/bg colors
     DarkColorFG: int = 252
     DarkColorBG: int = 235
     LightColorFG: int = 238
     LightColorBG: int = 253
     SeamlessBetweenChapters: bool = False
+    PreferredTTSEngine: Optional[str] = None
+    TTSEngineArgs: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -1388,6 +1477,23 @@ class InfiniBoard:
                     )
 
 
+# ----------------------- HELPERS --------------------------
+
+
+def construct_speaker(
+    preferred: Optional[str] = None, args: List[str] = []
+) -> Optional[Type[SpeakerBaseModel]]:
+    speakers = (
+        sorted(SPEAKERS, key=lambda x: int(x.cmd == preferred), reverse=True)
+        if preferred
+        else SPEAKERS
+    )
+    speaker: Optional[Type[SpeakerBaseModel]] = next(
+        (speaker for speaker in speakers if speaker.available), None
+    )
+    return speaker(args) if speaker else None
+
+
 def parse_html(
     html_src: str,
     *,
@@ -1810,6 +1916,9 @@ def text_win(textfunc):
     return wrapper
 
 
+# ----------------------- MAIN -----------------------------
+
+
 class Reader:
     def __init__(
         self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], config: Config, state: State
@@ -1881,7 +1990,10 @@ class Reader:
         self.jump_list: Mapping[str, ReadingState] = dict()
 
         # TTS speaker utils
-        self._tts_support: bool = any([shutil.which("mimic")])
+        self._tts_speaker: Optional[Type[SpeakerBaseModel]] = construct_speaker(
+            self.setting.PreferredTTSEngine, self.setting.TTSEngineArgs
+        )
+        self._tts_support: bool = bool(self._tts_speaker)
         self.is_speaking: bool = False
 
         # multi process & progress percentage
@@ -2344,16 +2456,10 @@ class Reader:
         self.screen.refresh()
         self.screen.timeout(1)
         try:
-            spk = subprocess.Popen(
-                ["mimic"], text=True,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
-            spk.stdin.write(text)
-            spk.stdin.close()
+            self._tts_speaker.speak(text)
+
             while True:
-                if spk.poll() is not None:
+                if self._tts_speaker.is_done():
                     k = self.keymap.PageDown[0]
                     break
                 tmp = self.screen.getch()
@@ -2380,11 +2486,11 @@ class Reader:
                     + self.keymap.ScrollDown
                     + (curses.KEY_RESIZE,)
                 ):
-                    spk.terminate()
-                    # speaker.kill()
+                    self._tts_speaker.stop()
                     break
         finally:
             self.screen.timeout(-1)
+            self._tts_speaker.cleanup()
 
         if k in self.keymap.Quit:
             self.is_speaking = False
@@ -2570,7 +2676,6 @@ class Reader:
                             sys.exit()
 
                     elif k in self.keymap.TTSToggle and self._tts_support:
-                        # tospeak = "\n".join(text_structure.text_lines[y:y+rows-1])
                         tospeak = ""
                         for i in text_structure.text_lines[
                             reading_state.row : reading_state.row + (rows * self.spread)
@@ -2578,7 +2683,7 @@ class Reader:
                             if re.match(r"^\s*$", i) is not None:
                                 tospeak += "\n. \n"
                             else:
-                                tospeak += re.sub(r"\[IMG:[0-9]+\]", "Image", i) + " "
+                                tospeak += i + " "
                         k = self.speaking(tospeak)
                         if (
                             totlines - reading_state.row <= rows
