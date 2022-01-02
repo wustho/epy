@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """\
 Usages:
-    epy             read last epub
-    epy EPUBFILE    read EPUBFILE
+    epy             read last ebook
+    epy EBOOKFILE   read EBOOKFILE
     epy STRINGS     read matched STRINGS from history
     epy NUMBER      read file from history
                     with associated NUMBER
@@ -10,7 +10,8 @@ Usages:
 Options:
     -r              print reading history
     -d              dump epub
-    -h, --help      print short, long help
+    -h, --help      print help
+    -v, --version   print version
 """
 
 
@@ -3505,9 +3506,6 @@ def parse_cli_args() -> str:
 
     if len({"-v", "--version", "-V"} & set(args)) != 0:
         print("v" + __version__)
-        print(__license__, "License")
-        print("Copyright (c) 2019", __author__)
-        print(__url__)
         sys.exit()
 
     app_state = State()
