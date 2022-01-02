@@ -36,11 +36,10 @@ import sys
 import tempfile
 import textwrap
 import uuid
-import xml.etree.ElementTree
 import xml.etree.ElementTree as ET
 import zipfile
 
-from typing import Optional, Union, Sequence, Tuple, List, Mapping, Set, Type, Any
+from typing import Optional, Union, Sequence, Tuple, List, Dict, Mapping, Set, Type, Any
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher as SM
 from enum import Enum
@@ -380,7 +379,43 @@ class Keymap:
     TableOfContents: Tuple[Key, ...]
 
 
-class Epub:
+class Ebook:
+    def __init__(self, fileepub: str):
+        raise NotImplementedError("Ebook.__init__() not implemented")
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @path.setter
+    def path(self, value: str) -> None:
+        self._path = value
+
+    @property
+    def contents(self) -> Union[Tuple[str, ...], Tuple[ET.Element, ...]]:
+        return self._contents
+
+    @contents.setter
+    def contents(self, value: Union[Tuple[str, ...], Tuple[ET.Element, ...]]):
+        self._contents = value
+
+    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
+        raise NotImplementedError("Ebook.get_meta() not implemented")
+
+    def initialize(self) -> None:
+        raise NotImplementedError("Ebook.initialize() not implemented")
+
+    def get_raw_text(self, content: Union[str, ET.Element]) -> str:
+        raise NotImplementedError("Ebook.get_raw_text() not implemented")
+
+    def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
+        raise NotImplementedError("Ebook.get_img_bytestr() not implemented")
+
+    def cleanup(self) -> None:
+        raise NotImplementedError("Ebook.cleanup() not implemented")
+
+
+class Epub(Ebook):
     NS = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
         "OPF": "http://www.idpf.org/2007/opf",
@@ -397,7 +432,6 @@ class Epub:
         # by calling self.initialize()
         self.root_filepath: str
         self.root_dirpath: str
-        self.contents: Tuple[str, ...] = tuple()
         self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
@@ -516,8 +550,9 @@ class Epub:
         except AttributeError:
             pass
 
-    def get_raw_text(self, content_path: str) -> str:
+    def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
         assert isinstance(self.file, zipfile.ZipFile)
+        assert isinstance(content_path, str)
 
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
@@ -535,7 +570,7 @@ class Epub:
         return impath, self.file.read(impath)
 
     def cleanup(self) -> None:
-        return
+        pass
 
 
 class Mobi(Epub):
@@ -548,7 +583,6 @@ class Mobi(Epub):
         self.root_filepath: str
         self.root_dirpath: str
         self.toc_path: str
-        self.contents: Tuple[str, ...] = tuple()
         self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
@@ -643,7 +677,8 @@ class Mobi(Epub):
             )
         self.toc_entries = tuple(toc_entries)
 
-    def get_raw_text(self, content_path: str) -> str:
+    def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
+        assert isinstance(content_path, str)
         # using try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
@@ -681,7 +716,7 @@ class Azw3(Epub):
         return
 
 
-class FictionBook:
+class FictionBook(Ebook):
     NS = {"FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"}
 
     def __init__(self, filefb: str):
@@ -690,8 +725,7 @@ class FictionBook:
 
         # populate these attribute
         # by calling self.initialize()
-        self.root: xml.etree.ElementTree.Element
-        self.contents: Tuple[xml.etree.ElementTree.Element, ...] = tuple()
+        self.root: ET.Element
         self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
@@ -716,7 +750,8 @@ class FictionBook:
                 )
         self.toc_entries = tuple(toc_entries)
 
-    def get_raw_text(self, node: xml.etree.ElementTree.Element) -> str:
+    def get_raw_text(self, node: Union[str, ET.Element]) -> str:
+        assert isinstance(node, ET.Element)
         ET.register_namespace("", "http://www.gribuser.ru/xml/fictionbook/2.0")
         # sys.exit(ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:",""))
         return ET.tostring(node, encoding="utf8", method="html").decode("utf-8").replace("ns1:", "")
@@ -894,12 +929,16 @@ class HTMLtoLines(HTMLParser):
     def get_structured_text(
         self, textwidth: Optional[int] = 0, starting_line: int = 0
     ) -> Union[Tuple[str, ...], TextStructure]:
+        # reusable loop indices
+        i: Any
+        j: Any
+
         text: List[str] = []
-        images: Mapping[int, str] = dict()  # {line_num: path/in/zip}
-        sect: Mapping[str, int] = dict()  # {section_id: line_num}
+        images: Dict[int, str] = dict()  # {line_num: path/in/zip}
+        sect: Dict[str, int] = dict()  # {section_id: line_num}
         formatting: List[InlineStyle] = []
 
-        tmpital = []
+        tmpital: List[List[int]] = []
         for i in self.initital:
             # handle uneven markup
             # like <i> but no </i>
@@ -932,6 +971,7 @@ class HTMLtoLines(HTMLParser):
             return tuple(self.text)
 
         for n, i in enumerate(self.text):
+
             startline = len(text)
             # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
             # if findsect is not None and findsect.group() in self.sects:
@@ -1240,13 +1280,13 @@ class State(AppData):
     def filepath(self) -> str:
         return os.path.join(self.prefix, "states.db") if self.prefix else os.devnull
 
-    def get_from_history(self) -> Tuple[str]:
+    def get_from_history(self) -> Tuple[str, ...]:
         try:
             conn = sqlite3.connect(self.filepath)
             cur = conn.cursor()
             cur.execute("SELECT filepath FROM reading_states")
             results = cur.fetchall()
-            return tuple(i[0] for i in results)
+            return tuple(i[0] for i in results)  # type: ignore
         finally:
             conn.close()
 
@@ -1270,7 +1310,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def set_last_read(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> None:
+    def set_last_read(self, ebook: Ebook) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.execute("INSERT OR REPLACE INTO last_read VALUES (0, ?)", (ebook.path,))
@@ -1278,7 +1318,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def get_last_reading_state(self, ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> ReadingState:
+    def get_last_reading_state(self, ebook: Ebook) -> ReadingState:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.row_factory = sqlite3.Row
@@ -1293,9 +1333,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def set_last_reading_state(
-        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], reading_state: ReadingState
-    ) -> None:
+    def set_last_reading_state(self, ebook: Ebook, reading_state: ReadingState) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.execute(
@@ -1309,9 +1347,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def insert_bookmark(
-        self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str, reading_state: ReadingState
-    ) -> None:
+    def insert_bookmark(self, ebook: Ebook, name: str, reading_state: ReadingState) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.execute(
@@ -1330,7 +1366,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def delete_bookmark(self, ebook: Union[Epub, Mobi, Azw3, FictionBook], name: str) -> None:
+    def delete_bookmark(self, ebook: Ebook, name: str) -> None:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.execute("DELETE FROM bookmarks WHERE filepath=? AND name=?", (ebook.path, name))
@@ -1346,9 +1382,7 @@ class State(AppData):
         finally:
             conn.close()
 
-    def get_bookmarks(
-        self, ebook: Union[Epub, Mobi, Azw3, FictionBook]
-    ) -> List[Tuple[str, ReadingState]]:
+    def get_bookmarks(self, ebook: Ebook) -> List[Tuple[str, ReadingState]]:
         try:
             conn = sqlite3.connect(self.filepath)
             conn.row_factory = sqlite3.Row
@@ -1423,9 +1457,9 @@ class InfiniBoard:
     def __init__(
         self,
         screen,
-        text: Tuple[str],
+        text: Tuple[str, ...],
         textwidth: int = 80,
-        default_style: Tuple[InlineStyle] = (),
+        default_style: Tuple[InlineStyle, ...] = tuple(),
         spread: int = 1,
     ):
         self.screen = screen
@@ -1435,7 +1469,7 @@ class InfiniBoard:
         self.text = text
         self.total_lines = len(text)
         self.default_style: Tuple[InlineStyle, ...] = default_style
-        self.temporary_style = ()
+        self.temporary_style: Tuple[InlineStyle, ...] = ()
         self.spread = spread
 
         if self.spread == 2:
@@ -1489,6 +1523,7 @@ class InfiniBoard:
                 and row + self.screen_rows - bottom_padding + n_row < self.total_lines
             ):
                 text_line = self.text[row + self.screen_rows - bottom_padding + n_row]
+                # TODO: clean this up
                 if re.search("\\[IMG:[0-9]+\\]", text_line):
                     self.screen.addstr(
                         n_row, self.x_alt, text_line.center(self.textwidth), curses.A_BOLD
@@ -1555,15 +1590,13 @@ class InfiniBoard:
 
 def construct_speaker(
     preferred: Optional[str] = None, args: List[str] = []
-) -> Optional[Type[SpeakerBaseModel]]:
+) -> Optional[SpeakerBaseModel]:
     speakers = (
         sorted(SPEAKERS, key=lambda x: int(x.cmd == preferred), reverse=True)
         if preferred
         else SPEAKERS
     )
-    speaker: Optional[Type[SpeakerBaseModel]] = next(
-        (speaker for speaker in speakers if speaker.available), None
-    )
+    speaker = next((speaker for speaker in speakers if speaker.available), None)
     return speaker(args) if speaker else None
 
 
@@ -1632,7 +1665,7 @@ def construct_relative_reading_state(
             )
 
 
-def get_ebook_obj(filepath: str) -> Union[Epub, Mobi, Azw3, FictionBook]:
+def get_ebook_obj(filepath: str) -> Ebook:
     file_ext = os.path.splitext(filepath)[1]
     if file_ext == ".epub":
         return Epub(filepath)
@@ -1718,7 +1751,7 @@ def safe_curs_set(state: int) -> None:
         return
 
 
-def dots_path(curr, tofi):
+def dots_path(curr, tofi) -> str:
     candir = curr.split("/")
     tofi = tofi.split("/")
     alld = tofi.count("..")
@@ -1733,29 +1766,31 @@ def dots_path(curr, tofi):
 
 
 def find_current_content_index(
-    toc_entries: Tuple[TocEntry], toc_secid: Mapping[str, int], index: int, y: int
+    toc_entries: Tuple[TocEntry, ...], toc_secid: Mapping[str, int], index: int, y: int
 ) -> int:
     ntoc = 0
     for n, toc_entry in enumerate(toc_entries):
         if toc_entry.content_index <= index:
-            if y >= toc_secid.get(toc_entry.section, 0):
+            if y >= toc_secid.get(toc_entry.section, 0):  # type: ignore
                 ntoc = n
     return ntoc
 
 
-def count_letters(ebook: Union[Epub, Mobi, Azw3, FictionBook]) -> LettersCount:
+def count_letters(ebook: Ebook) -> LettersCount:
     per_content_counts: List[int] = []
     cumulative_counts: List[int] = []
+    # assert isinstance(ebook.contents, tuple)
     for i in ebook.contents:
         content = ebook.get_raw_text(i)
         src_lines = parse_html(content)
+        assert isinstance(src_lines, tuple)
         cumulative_counts.append(sum(per_content_counts))
         per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
 
     return LettersCount(all=sum(per_content_counts), cumulative=tuple(cumulative_counts))
 
 
-def count_letters_parallel(ebook: Union[Epub, Mobi, Azw3, FictionBook], child_conn) -> None:
+def count_letters_parallel(ebook: Ebook, child_conn) -> None:
     child_conn.send(count_letters(ebook))
     child_conn.close()
 
@@ -1993,9 +2028,7 @@ def text_win(textfunc):
 
 
 class Reader:
-    def __init__(
-        self, screen, ebook: Union[Epub, Mobi, Azw3, FictionBook], config: Config, state: State
-    ):
+    def __init__(self, screen, ebook: Ebook, config: Config, state: State):
 
         self.setting = config.setting
         self.keymap = config.keymap
@@ -2066,7 +2099,7 @@ class Reader:
         self.jump_list: Mapping[str, ReadingState] = dict()
 
         # TTS speaker utils
-        self._tts_speaker: Optional[Type[SpeakerBaseModel]] = construct_speaker(
+        self._tts_speaker: Optional[SpeakerBaseModel] = construct_speaker(
             self.setting.PreferredTTSEngine, self.setting.TTSEngineArgs
         )
         self._tts_support: bool = bool(self._tts_speaker)
@@ -2076,6 +2109,11 @@ class Reader:
         self._multiprocess_support: bool = False if multiprocessing.cpu_count() == 1 else True
         self._process_counting_letter: Optional[multiprocessing.Process] = None
         self.letters_count: Optional[LettersCount] = None
+
+    @staticmethod
+    def adjust_seamless_reading_state(reading_state: ReadingState) -> ReadingState:
+        """Only implement this when seamless=True"""
+        raise NotImplementedError("Reader.adjust_seamless_reading_state() not implemented")
 
     def run_counting_letters(self):
         if self._multiprocess_support:
@@ -2120,7 +2158,7 @@ class Reader:
         return self._ext_dict_app
 
     @property
-    def image_viewer(self) -> str:
+    def image_viewer(self) -> Optional[str]:
         self._image_viewer: Optional[str] = None
 
         if shutil.which(self.setting.DefaultViewer.split()[0]) is not None:
@@ -2248,6 +2286,12 @@ class Reader:
                 return retk, idx
 
     def input_prompt(self, prompt: str) -> Union[NoUpdate, Key, str]:
+        """
+        :param prompt: prompt text
+        :return: NoUpdate if cancelled or interrupted
+                 Key if curses.KEY_RESIZE triggered
+                 str for successful input
+        """
         # prevent pad hole when prompting for input while
         # other window is active
         # pad.refresh(y, 0, 0, x, rows-2, x+width)
@@ -2256,7 +2300,7 @@ class Reader:
         if self.is_color_supported:
             stat.bkgd(self.screen.getbkgd())
         stat.keypad(True)
-        curses.echo(1)
+        curses.echo(True)
         safe_curs_set(2)
 
         init_text = ""
@@ -2278,13 +2322,13 @@ class Reader:
                 if ipt == Key(27):
                     stat.clear()
                     stat.refresh()
-                    curses.echo(0)
+                    curses.echo(False)
                     safe_curs_set(0)
                     return NoUpdate()
                 elif ipt == Key(10):
                     stat.clear()
                     stat.refresh()
-                    curses.echo(0)
+                    curses.echo(False)
                     safe_curs_set(0)
                     return init_text
                 elif ipt in (Key(8), Key(127), Key(curses.KEY_BACKSPACE)):
@@ -2292,7 +2336,7 @@ class Reader:
                 elif ipt == Key(curses.KEY_RESIZE):
                     stat.clear()
                     stat.refresh()
-                    curses.echo(0)
+                    curses.echo(False)
                     safe_curs_set(0)
                     return Key(curses.KEY_RESIZE)
                 # elif len(init_text) <= maxlen:
@@ -2312,13 +2356,16 @@ class Reader:
         except KeyboardInterrupt:
             stat.clear()
             stat.refresh()
-            curses.echo(0)
+            curses.echo(False)
             safe_curs_set(0)
             return NoUpdate()
 
     def searching(
         self, board: InfiniBoard, src: Sequence[str], reading_state: ReadingState, tot
     ) -> Union[NoUpdate, ReadingState, Key]:
+        # reusable loop indices
+        i: Any
+        j: Any
 
         rows, cols = self.screen.getmaxyx()
         # unnecessary
@@ -2333,9 +2380,11 @@ class Reader:
 
         if not self.search_data:
             candidate_text = self.input_prompt(" Regex:")
+            # if isinstance(candidate_text, str) and candidate_text != "":
             if isinstance(candidate_text, str) and candidate_text:
                 self.search_data = SearchData(value=candidate_text)
             else:
+                assert isinstance(candidate_text, NoUpdate) or isinstance(candidate_text, Key)
                 return candidate_text
 
         found = []
@@ -2369,7 +2418,7 @@ class Reader:
                     row=0,
                 )
             else:
-                s = 0
+                s: Union[NoUpdate, Key] = NoUpdate()
                 while True:
                     if s in self.keymap.Quit:
                         self.search_data = None
@@ -2420,7 +2469,7 @@ class Reader:
                     sidx = n
                     break
 
-        s = 0
+        s = NoUpdate()
         msg = (
             " Searching: "
             + self.search_data.value
@@ -2450,7 +2499,7 @@ class Reader:
                             row=0,
                         )
                     else:
-                        s = 0
+                        s = NoUpdate()
                         msg = " Finished searching: " + self.search_data.value + " "
                         continue
                 else:
@@ -2474,7 +2523,7 @@ class Reader:
                             row=0,
                         )
                     else:
-                        s = 0
+                        s = NoUpdate()
                         msg = " Finished searching: " + self.search_data.value + " "
                         continue
                 else:
@@ -2631,8 +2680,8 @@ class Reader:
                 text_lines=tuple(), image_maps=dict(), section_rows=dict(), formatting=tuple()
             )
             toc_entries_tmp: List[TocEntry] = []
-            section_rows_tmp: Mapping[str, int] = dict()
-            totlines_per_content: Sequence[int] = []  # only defined when Seamless==True
+            section_rows_tmp: Dict[str, int] = dict()
+            totlines_per_content: List[int] = []  # only defined when Seamless==True
             for n, content in enumerate(contents):
                 starting_line = sum(totlines_per_content)
                 text_structure_tmp = parse_html(
@@ -2641,6 +2690,7 @@ class Reader:
                     section_ids=set(toc_entry.section for toc_entry in toc_entries),
                     starting_line=starting_line,
                 )
+                assert isinstance(text_structure_tmp, TextStructure)
                 totlines_per_content.append(len(text_structure_tmp.text_lines))
 
                 for toc_entry in toc_entries:
@@ -2811,6 +2861,7 @@ class Reader:
                                 self.ebook.get_raw_text(contents[reading_state.content_index - 1]),
                                 textwidth=reading_state.textwidth,
                             )
+                            assert isinstance(text_structure_content_before, TextStructure)
                             return ReadingState(
                                 content_index=reading_state.content_index - 1,
                                 textwidth=reading_state.textwidth,
@@ -3501,7 +3552,8 @@ def parse_cli_args() -> str:
             dig = len(str(len(reading_history) + 1))
             tcols = termc - dig - 2
             for n, i in enumerate(reading_history):
-                p = i.replace(os.getenv("HOME"), "~") if os.getenv("HOME") else i
+                homedir = os.getenv("HOME")
+                p = i.replace(homedir, "~") if homedir else i
                 print(
                     "{}{} {}".format(
                         str(n + 1).rjust(dig),
@@ -3526,6 +3578,7 @@ def parse_cli_args() -> str:
             for i in ebook.contents:
                 content = ebook.get_raw_text(i)
                 src_lines = parse_html(content)
+                assert isinstance(src_lines, tuple)
                 # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
                 for j in src_lines:
                     sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
