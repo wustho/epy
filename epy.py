@@ -440,7 +440,6 @@ class Epub(Ebook):
         # by calling self.initialize()
         self.root_filepath: str
         self.root_dirpath: str
-        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         assert isinstance(self.file, zipfile.ZipFile)
@@ -469,6 +468,8 @@ class Epub(Ebook):
         # EPUB3
         content_opf = ET.parse(self.file.open(self.root_filepath))
         version = content_opf.getroot().get("version")
+        if version not in {"2.0", "3.0"}:
+            raise RuntimeError(f"Unsuppoerted Epub version: {version}")
         if version == "2.0":
             # "OPF:manifest/*[@id='ncx']"
             relative_toc = content_opf.find(
@@ -591,7 +592,6 @@ class Mobi(Epub):
         self.root_filepath: str
         self.root_dirpath: str
         self.toc_path: str
-        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         meta: List[Tuple[str, str]] = []
@@ -734,7 +734,6 @@ class FictionBook(Ebook):
         # populate these attribute
         # by calling self.initialize()
         self.root: ET.Element
-        self.toc_entries: Tuple[TocEntry, ...] = tuple()
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         desc = self.root.find("FB2:description", self.NS)
@@ -815,7 +814,7 @@ class HTMLtoLines(HTMLParser):
         self.sectsindex = {}
         self.initital = []
         self.initbold = []
-        self.imgs: Mapping[int, str] = dict()
+        self.imgs: Dict[int, str] = dict()
 
     def handle_starttag(self, tag, attrs):
         if re.match("h[1-6]", tag) is not None:
