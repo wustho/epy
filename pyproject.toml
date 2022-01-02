@@ -1,0 +1,6 @@
+[tool.mypy]
+strict_optional = false
+
+[tool.black]
+line-length = 100
+target-version = ['py38']

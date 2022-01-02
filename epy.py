@@ -14,7 +14,7 @@ Options:
 """
 
 
-__version__ = "2022.1.1"
+__version__ = "2022.1.2"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -396,8 +396,16 @@ class Ebook:
         return self._contents
 
     @contents.setter
-    def contents(self, value: Union[Tuple[str, ...], Tuple[ET.Element, ...]]):
+    def contents(self, value: Union[Tuple[str, ...], Tuple[ET.Element, ...]]) -> None:
         self._contents = value
+
+    @property
+    def toc_entries(self) -> Tuple[TocEntry, ...]:
+        return self._toc_entries
+
+    @toc_entries.setter
+    def toc_entries(self, value: Tuple[TocEntry, ...]) -> None:
+        self._toc_entries = value
 
     def get_meta(self) -> Tuple[Tuple[str, str], ...]:
         raise NotImplementedError("Ebook.get_meta() not implemented")
@@ -1648,21 +1656,30 @@ def construct_relative_reading_state(
     :param totlines_per_content: sequence of total lines per book content
     :return: new ReadingState relative to per content of the book
     """
+    index = 0
     cumulative_contents_lines = 0
     all_contents_lines = sum(totlines_per_content)
-    for n, content_lines in enumerate(totlines_per_content):
+    # for n, content_lines in enumerate(totlines_per_content):
+    #     cumulative_contents_lines += content_lines
+    #     if cumulative_contents_lines > abs_reading_state.row:
+    #         return
+    while True:
+        content_lines = totlines_per_content[index]
         cumulative_contents_lines += content_lines
         if cumulative_contents_lines > abs_reading_state.row:
-            return ReadingState(
-                content_index=n,
-                textwidth=abs_reading_state.textwidth,
-                row=abs_reading_state.row - cumulative_contents_lines + content_lines,
-                rel_pctg=abs_reading_state.rel_pctg
-                - ((cumulative_contents_lines - content_lines) / all_contents_lines)
-                if abs_reading_state.rel_pctg
-                else None,
-                section=abs_reading_state.section,
-            )
+            break
+        index += 1
+
+    return ReadingState(
+        content_index=index,
+        textwidth=abs_reading_state.textwidth,
+        row=abs_reading_state.row - cumulative_contents_lines + content_lines,
+        rel_pctg=abs_reading_state.rel_pctg
+        - ((cumulative_contents_lines - content_lines) / all_contents_lines)
+        if abs_reading_state.rel_pctg
+        else None,
+        section=abs_reading_state.section,
+    )
 
 
 def get_ebook_obj(filepath: str) -> Ebook:
@@ -1771,7 +1788,7 @@ def find_current_content_index(
     ntoc = 0
     for n, toc_entry in enumerate(toc_entries):
         if toc_entry.content_index <= index:
-            if y >= toc_secid.get(toc_entry.section, 0):  # type: ignore
+            if y >= toc_secid.get(toc_entry.section, 0):
                 ntoc = n
     return ntoc
 
@@ -2028,6 +2045,14 @@ def text_win(textfunc):
 
 
 class Reader:
+
+    # Only implement this when seamless=True
+    adjust_seamless_reading_state = staticmethod(
+        lambda reading_state: (_ for _ in ()).throw(
+            NotImplementedError("Reader.adjust_seamless_reading_state() not implemented")
+        )
+    )
+
     def __init__(self, screen, ebook: Ebook, config: Config, state: State):
 
         self.setting = config.setting
@@ -2096,7 +2121,7 @@ class Reader:
         self.spread = 2 if self.setting.StartWithDoubleSpread else 1
 
         # jumps marker container
-        self.jump_list: Mapping[str, ReadingState] = dict()
+        self.jump_list: Dict[str, ReadingState] = dict()
 
         # TTS speaker utils
         self._tts_speaker: Optional[SpeakerBaseModel] = construct_speaker(
@@ -2109,11 +2134,6 @@ class Reader:
         self._multiprocess_support: bool = False if multiprocessing.cpu_count() == 1 else True
         self._process_counting_letter: Optional[multiprocessing.Process] = None
         self.letters_count: Optional[LettersCount] = None
-
-    @staticmethod
-    def adjust_seamless_reading_state(reading_state: ReadingState) -> ReadingState:
-        """Only implement this when seamless=True"""
-        raise NotImplementedError("Reader.adjust_seamless_reading_state() not implemented")
 
     def run_counting_letters(self):
         if self._multiprocess_support:
@@ -2213,7 +2233,7 @@ class Reader:
         return title, msg, key
 
     @choice_win()
-    def toc(self, toc_entries: Tuple[TocEntry], index: int):
+    def toc(self, toc_entries: Tuple[TocEntry, ...], index: int):
         return (
             "Table of Contents",
             [i.label for i in toc_entries],
@@ -2641,6 +2661,8 @@ class Reader:
                 self._process_counting_letter.close()
 
     def read(self, reading_state: ReadingState) -> ReadingState:
+        # reusable loop indices
+        i: Any
 
         k = self.keymap.RegexSearch[0] if self.search_data else NoUpdate()
         rows, cols = self.screen.getmaxyx()
@@ -2681,9 +2703,10 @@ class Reader:
             )
             toc_entries_tmp: List[TocEntry] = []
             section_rows_tmp: Dict[str, int] = dict()
-            totlines_per_content: List[int] = []  # only defined when Seamless==True
+            totlines_per_content: Tuple[int, ...] = tuple()  # only defined when Seamless==True
             for n, content in enumerate(contents):
                 starting_line = sum(totlines_per_content)
+                assert isinstance(content, str) or isinstance(content, ET.Element)
                 text_structure_tmp = parse_html(
                     self.ebook.get_raw_text(content),
                     textwidth=reading_state.textwidth,
@@ -2691,7 +2714,8 @@ class Reader:
                     starting_line=starting_line,
                 )
                 assert isinstance(text_structure_tmp, TextStructure)
-                totlines_per_content.append(len(text_structure_tmp.text_lines))
+                # totlines_per_content.append(len(text_structure_tmp.text_lines))
+                totlines_per_content += (len(text_structure_tmp.text_lines),)
 
                 for toc_entry in toc_entries:
                     if toc_entry.content_index == n:
@@ -2709,8 +2733,8 @@ class Reader:
                 text_structure = merge_text_structures(text_structure, text_structure_tmp)
 
             # adjustment
-            contents = [contents[0]]
-            toc_entries = toc_entries_tmp
+            contents = (contents[0],)
+            toc_entries = tuple(toc_entries_tmp)
             text_structure = dataclasses.replace(
                 text_structure, section_rows={**text_structure.section_rows, **section_rows_tmp}
             )
@@ -2736,7 +2760,7 @@ class Reader:
         else:
             content_path = contents[reading_state.content_index]
             content = self.ebook.get_raw_text(content_path)
-            text_structure = parse_html(
+            text_structure = parse_html(  # type: ignore
                 content,
                 textwidth=reading_state.textwidth,
                 section_ids=set(toc_entry.section for toc_entry in toc_entries),
@@ -3283,16 +3307,19 @@ class Reader:
 
                     elif k in self.keymap.MarkPosition:
                         jumnum = board.getch()
-                        if jumnum in tuple(Key(i) for i in range(48, 58)):
+                        if isinstance(jumnum, Key) and jumnum in tuple(
+                            Key(i) for i in range(48, 58)
+                        ):
                             self.jump_list[jumnum.char] = reading_state
                         else:
-                            k = jumnum
+                            k = NoUpdate()
                             continue
 
                     elif k in self.keymap.JumpToPosition:
                         jumnum = board.getch()
                         if (
-                            jumnum in tuple(Key(i) for i in range(48, 58))
+                            isinstance(jumnum, Key)
+                            and jumnum in tuple(Key(i) for i in range(48, 58))
                             and jumnum.char in self.jump_list
                         ):
                             marked_reading_state = self.jump_list[jumnum.char]
@@ -3463,6 +3490,10 @@ def parse_cli_args() -> str:
     Try parsing cli args and return filepath of ebook to read
     or quitting based on args and app state
     """
+    # reusable loop indices
+    i: Any
+    j: Any
+
     termc, termr = shutil.get_terminal_size()
 
     args = []
