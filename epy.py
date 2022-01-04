@@ -572,15 +572,10 @@ class Epub(Ebook):
         assert isinstance(self.file, zipfile.ZipFile)
         assert isinstance(content_path, str)
 
-        # using try-except block to catch
+        # use try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
         # caused by forking PROC_COUNTLETTERS
-        while True:
-            try:
-                content = self.file.open(content_path).read()
-                break
-            except:
-                continue
+        content = self.file.open(content_path).read()
         return content.decode("utf-8")
 
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
@@ -630,16 +625,8 @@ class Mobi(Epub):
 
     def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
         assert isinstance(content_path, str)
-        # using try-except block to catch
-        # zlib.error: Error -3 while decompressing data: invalid distance too far back
-        # caused by forking PROC_COUNTLETTERS
-        while True:
-            try:
-                with open(content_path) as f:
-                    content = f.read()
-                break
-            except:
-                continue
+        with open(content_path) as f:
+            content = f.read()
         # return content.decode("utf-8")
         return content
 
