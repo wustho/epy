@@ -1,0 +1,6 @@
+# for development purpose, not build
+mobi
+mypy
+black
+pytest
+pynvim
