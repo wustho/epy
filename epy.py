@@ -47,7 +47,7 @@ from enum import Enum
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import unquote
+from urllib.parse import unquote, urljoin
 
 try:
     import mobi  # type: ignore
@@ -491,14 +491,14 @@ class Epub(Ebook):
     def get_tocs(toc: ET.Element, version: str, contents: Sequence[str]) -> Tuple[TocEntry, ...]:
         try:
             # EPUB3
-            if version == "2.0":
+            if version in {"1.0", "2.0"}:
                 navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", Epub.NS)
             elif version == "3.0":
                 navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", Epub.NS)
 
             toc_entries: List[TocEntry] = []
             for navPoint in navPoints:
-                if version == "2.0":
+                if version in {"1.0", "2.0"}:
                     src_elem = navPoint.find("DAISY:content", Epub.NS)
                     assert src_elem is not None
                     src = src_elem.get("src")
@@ -554,7 +554,7 @@ class Epub(Ebook):
         contents = Epub.get_contents(content_opf)
         self.contents = tuple(self.root_dirpath + content for content in contents)
 
-        if version == "2.0":
+        if version in {"1.0", "2.0"}:
             # "OPF:manifest/*[@id='ncx']"
             relative_toc = content_opf.find(
                 "OPF:manifest/*[@media-type='application/x-dtbncx+xml']", self.NS
@@ -572,10 +572,21 @@ class Epub(Ebook):
         assert isinstance(self.file, zipfile.ZipFile)
         assert isinstance(content_path, str)
 
+        max_tries: Optional[int] = None  # 1 if DEBUG else None
+
         # use try-except block to catch
         # zlib.error: Error -3 while decompressing data: invalid distance too far back
-        # caused by forking PROC_COUNTLETTERS
-        content = self.file.open(content_path).read()
+        # seems like caused by multiprocessing
+        tries = 0
+        while True:
+            try:
+                content = self.file.open(content_path).read()
+                break
+            except Exception as e:
+                tries += 1
+                if max_tries is not None and tries >= max_tries:
+                    raise e
+
         return content.decode("utf-8")
 
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
@@ -1697,18 +1708,13 @@ def safe_curs_set(state: int) -> None:
         return
 
 
-def dots_path(curr, tofi) -> str:
-    candir = curr.split("/")
-    tofi = tofi.split("/")
-    alld = tofi.count("..")
-    t = len(candir)
-    candir = candir[0 : t - alld - 1]
-    try:
-        while True:
-            tofi.remove("..")
-    except ValueError:
-        pass
-    return "/".join(candir + tofi)
+def resolve_path(current_dir: str, relative_path: str) -> str:
+    """
+    Resolve path containing dots
+    eg. '/foo/bar/book.html' + '../img.png' = '/foo/img.png'
+    NOTE: '/' suffix is important to tell that current dir in 'bar'
+    """
+    return urljoin(current_dir, relative_path)
 
 
 def find_current_content_index(
@@ -1731,7 +1737,7 @@ def count_letters(ebook: Ebook) -> LettersCount:
         src_lines = parse_html(content)
         assert isinstance(src_lines, tuple)
         cumulative_counts.append(sum(per_content_counts))
-        per_content_counts.append(sum([len(re.sub("\s", "", j)) for j in src_lines]))
+        per_content_counts.append(sum([len(re.sub(r"\s", "", j)) for j in src_lines]))
 
     return LettersCount(all=sum(per_content_counts), cumulative=tuple(cumulative_counts))
 
@@ -2716,7 +2722,7 @@ class Reader:
 
         LOCALPCTG = []
         for i in text_structure.text_lines:
-            LOCALPCTG.append(len(re.sub("\s", "", i)))
+            LOCALPCTG.append(len(re.sub(r"\s", "", i)))
 
         self.screen.clear()
         self.screen.refresh()
@@ -3130,7 +3136,8 @@ class Reader:
 
                         if image_path:
                             try:
-                                if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
+                                # if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
+                                if isinstance(self.ebook, (Epub, Mobi, Azw3)):
                                     # self.seamless adjustment
                                     if self.seamless:
                                         content_path = self.ebook.contents[
@@ -3143,7 +3150,8 @@ class Reader:
                                         #     if reading_state.row < sum(totlines_per_content[:n]):
                                         #         break
 
-                                    image_path = dots_path(content_path, image_path)
+                                    assert isinstance(content_path, str)
+                                    image_path = resolve_path(content_path, image_path)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(image_path)
                                 k = self.open_image(board, imgnm, imgbstr)
                                 continue
