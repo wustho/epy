@@ -644,7 +644,9 @@ class Mobi(Epub):
     def get_img_bytestr(self, impath: str) -> Tuple[str, bytes]:
         # TODO: test on windows
         # if impath "Images/asdf.png" is problematic
-        with open(os.path.join(self.root_dirpath, impath), "rb") as f:
+        image_abspath = os.path.join(self.root_dirpath, impath)
+        image_abspath = os.path.normpath(image_abspath)  # handle crossplatform path
+        with open(image_abspath, "rb") as f:
             src = f.read()
         return impath, src
 
@@ -1714,6 +1716,8 @@ def resolve_path(current_dir: str, relative_path: str) -> str:
     eg. '/foo/bar/book.html' + '../img.png' = '/foo/img.png'
     NOTE: '/' suffix is important to tell that current dir in 'bar'
     """
+    # can also using os.path.normpath()
+    # but if the image in zipfile then posix path is mandatory
     return urljoin(current_dir, relative_path)
 
 

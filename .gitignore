@@ -4,3 +4,4 @@ epy_reader.egg-info/*
 .idea
 build
 dist
+tmp/
