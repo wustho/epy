@@ -50,14 +50,3 @@ def test_count_marked_text():
     assert count_marked_text_len(text, 2, 3, 5, 2) == 77
 
 
-def test_construct_wrapped_line_marks():
-    #    "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur rutrum massa"
-    # 1st:       |col:7     |n:11
-
-    wrapped_line = [
-        "Lorem ipsum dolor sit amet,",
-        "consectetur adipiscing elit.",
-        "Curabitur rutrum massa",
-    ]
-
-    assert construct_wrapped_line_marks(wrapped_line, TextMark(row=0, col=7, n_letters=11)) == [TextMark(row=0, col=7, n_letters=11)]

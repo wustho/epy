@@ -1,3 +1,26 @@
+[tool.poetry]
+name = "epy-reader"
+version = "2022.1.2"
+description = "CLI Ebook Reader"
+authors = ["Benawi Adha <benawiadha@gmail.com>"]
+license = "GPL-3.0"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+mobi = "^0.3.2"
+
+[tool.poetry.dev-dependencies]
+pynvim = "^0.4.3"
+mypy = "^0.930"
+black = "^21.12b0"
+pytest = "^6.2.5"
+twine = "^3.7.1"
+wheel = "^0.37.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.mypy]
 strict_optional = false
 
