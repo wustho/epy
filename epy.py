@@ -521,14 +521,16 @@ class Epub(Ebook):
                 except ValueError:
                     continue
 
-                assert name is not None
-                toc_entries.append(
-                    TocEntry(
-                        label=name,
-                        content_index=idx,
-                        section=src_id[1] if len(src_id) == 2 else None,
+                # assert name is not None
+                # NOTE: skip empty label
+                if name is not None:
+                    toc_entries.append(
+                        TocEntry(
+                            label=name,
+                            content_index=idx,
+                            section=src_id[1] if len(src_id) == 2 else None,
+                        )
                     )
-                )
         except AttributeError as e:
             if DEBUG:
                 raise e
