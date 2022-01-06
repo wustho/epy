@@ -915,10 +915,10 @@ class HTMLtoLines(HTMLParser):
         return spans
 
     @staticmethod
-    def _group_span_by_row(
-        blocks: Sequence[Union[TextMark, TextSpan]]
-    ) -> Mapping[int, List[Union[TextMark, TextSpan]]]:
-        groups: Dict[int, List[Union[TextMark, TextSpan]]] = {}
+    def _group_spans_by_row(
+        blocks: Sequence[TextSpan]
+    ) -> Mapping[int, List[TextSpan]]:
+        groups: Dict[int, List[TextSpan]] = {}
         for block in blocks:
             row = block.start.row
             if row in groups:
@@ -1080,6 +1080,8 @@ class HTMLtoLines(HTMLParser):
 
         italic_spans: List[TextSpan] = HTMLtoLines._mark_to_spans(self.text, self.italic_marks)
         bold_spans: List[TextSpan] = HTMLtoLines._mark_to_spans(self.text, self.bold_marks)
+        italic_groups = HTMLtoLines._group_spans_by_row(italic_spans)
+        bold_groups = HTMLtoLines._group_spans_by_row(bold_spans)
 
         for n, line in enumerate(self.text):
 
@@ -1130,39 +1132,36 @@ class HTMLtoLines(HTMLParser):
 
             left_adjustment = 3 if n in self.idbull | self.idinde else 0
 
-            # TODO: inefficient
-            tmp_filtered = [i for i in italic_spans if i.start.row == n]
-            for i in tmp_filtered:
+            for spans in italic_groups.get(n, []):
                 italics = HTMLtoLines._adjust_wrapped_spans(
                     text[startline:endline],
-                    i,
+                    spans,
                     line_adjustment=startline,
                     left_adjustment=left_adjustment,
                 )
-                for k in italics:
+                for span in italics:
                     formatting.append(
                         InlineStyle(
-                            row=starting_line + k.start.row,
-                            col=k.start.col,
-                            n_letters=k.n_letters,
+                            row=starting_line + span.start.row,
+                            col=span.start.col,
+                            n_letters=span.n_letters,
                             attr=self.attr_italic,
                         )
                     )
 
-            tmp_filtered = [i for i in bold_spans if i.start.row == n]
-            for i in tmp_filtered:
+            for spans in bold_groups.get(n, []):
                 bolds = HTMLtoLines._adjust_wrapped_spans(
                     text[startline:endline],
-                    i,
+                    spans,
                     line_adjustment=startline,
                     left_adjustment=left_adjustment,
                 )
-                for k in bolds:
+                for span in bolds:
                     formatting.append(
                         InlineStyle(
-                            row=starting_line + k.start.row,
-                            col=k.start.col,
-                            n_letters=k.n_letters,
+                            row=starting_line + span.start.row,
+                            col=span.start.col,
+                            n_letters=span.n_letters,
                             attr=self.attr_bold,
                         )
                     )
