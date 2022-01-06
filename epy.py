@@ -1142,7 +1142,7 @@ class HTMLtoLines(HTMLParser):
                 for k in italics:
                     formatting.append(
                         InlineStyle(
-                            row=k.start.row,
+                            row=starting_line + k.start.row,
                             col=k.start.col,
                             n_letters=k.n_letters,
                             attr=self.attr_italic,
@@ -1160,7 +1160,7 @@ class HTMLtoLines(HTMLParser):
                 for k in bolds:
                     formatting.append(
                         InlineStyle(
-                            row=k.start.row,
+                            row=starting_line + k.start.row,
                             col=k.start.col,
                             n_letters=k.n_letters,
                             attr=self.attr_bold,
