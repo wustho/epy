@@ -914,6 +914,19 @@ class HTMLtoLines(HTMLParser):
 
         return spans
 
+    @staticmethod
+    def _group_span_by_row(
+        blocks: Sequence[Union[TextMark, TextSpan]]
+    ) -> Mapping[int, List[Union[TextMark, TextSpan]]]:
+        groups: Dict[int, List[Union[TextMark, TextSpan]]] = {}
+        for block in blocks:
+            row = block.start.row
+            if row in groups:
+                groups[row].append(block)
+            else:
+                groups[row] = [block]
+        return groups
+
     def __init__(self, sects={""}):
         HTMLParser.__init__(self)
         self.text = [""]
