@@ -16,13 +16,14 @@ black = "^21.12b0"
 pytest = "^6.2.5"
 twine = "^3.7.1"
 wheel = "^0.37.1"
+ipdb = "^0.13.9"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
-strict_optional = false
+strict_optional = true
 
 [tool.black]
 line-length = 100
