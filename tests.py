@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from epy import TextMark, resolve_path, count_marked_text_len, construct_wrapped_line_marks
+from epy import CharPos, TextMark, TextSpan, resolve_path, HTMLtoLines
 
 
 def test_resolve_path():
@@ -22,14 +22,14 @@ def test_resolve_path():
         assert resolve_path(input.current_dir, input.relative_path) == expected
 
 
-def test_count_marked_text():
+def test_mark_to_span():
     text = [
         "Lorem ipsum dolor sit amet,",
         "consectetur adipiscing elit.",
-        "Curabitur rutrum massa",  #2
-        "pretium, pulvinar ligula a,",  #3
-        "aliquam est. Proin ut lectus",  #4
-        "ac massa fermentum commodo.",  #5
+        "Curabitur rutrum massa",  # 2
+        "pretium, pulvinar ligula a,",  # 3
+        "aliquam est. Proin ut lectus",  # 4
+        "ac massa fermentum commodo.",  # 5
         "Duis ac urna a felis mollis",
         "laoreet. Nullam finibus nibh",
         "convallis, commodo nisl sit",
@@ -45,8 +45,60 @@ def test_count_marked_text():
         "facilisis.",
     ]
 
-    assert count_marked_text_len(text, 2, 3, 2, 19) == 17
-    assert count_marked_text_len(text, 2, 3, 3, 5) == 25
-    assert count_marked_text_len(text, 2, 3, 5, 2) == 77
+    assert HTMLtoLines._mark_to_spans(
+        text, [TextMark(start=CharPos(row=2, col=3), end=CharPos(row=2, col=19))]
+    ) == [TextSpan(start=CharPos(row=2, col=3), n_letters=16)]
+
+    assert HTMLtoLines._mark_to_spans(
+        text,
+        [
+            TextMark(start=CharPos(row=2, col=3), end=CharPos(row=3, col=5)),
+        ],
+    ) == [
+        TextSpan(start=CharPos(row=2, col=3), n_letters=19),
+        TextSpan(start=CharPos(row=3, col=0), n_letters=5),
+    ]
+
+    assert HTMLtoLines._mark_to_spans(
+        text,
+        [
+            TextMark(start=CharPos(row=2, col=3), end=CharPos(row=5, col=3)),
+        ],
+    ) == [
+        TextSpan(start=CharPos(row=2, col=3), n_letters=19),
+        TextSpan(start=CharPos(row=3, col=0), n_letters=27),
+        TextSpan(start=CharPos(row=4, col=0), n_letters=28),
+        TextSpan(start=CharPos(row=5, col=0), n_letters=3),
+    ]
 
 
+def test_span_adjustment():
+    # 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur rutrum massa.'
+
+    text = [
+        "Lorem ipsum dolor",
+        "sit amet,",
+        "consectetur",
+        "adipiscing elit.",
+        "Curabitur rutrum",
+        "massa.",
+    ]
+
+    assert HTMLtoLines._adjust_wrapped_spans(
+        text, TextSpan(start=CharPos(row=0, col=2), n_letters=5)
+    ) == [TextSpan(start=CharPos(row=0, col=2), n_letters=5)]
+
+    assert HTMLtoLines._adjust_wrapped_spans(
+        text, TextSpan(start=CharPos(row=0, col=15), n_letters=2)
+    ) == [TextSpan(start=CharPos(row=0, col=15), n_letters=2)]
+
+    assert HTMLtoLines._adjust_wrapped_spans(
+        text, TextSpan(start=CharPos(row=0, col=14), n_letters=7)
+    ) == [
+        TextSpan(start=CharPos(row=0, col=14), n_letters=3),
+        TextSpan(start=CharPos(row=1, col=0), n_letters=4),
+    ]
+
+    # assert HTMLtoLines._adjust_wrapped_spans(
+    #     text, TextSpan(start=CharPos(row=1, col=7), n_letters=20)
+    # ) == [TextSpan(start=CharPos(row=0, col=14), n_letters=3), TextSpan(start=CharPos(row=1, col=0), n_letters=4)]

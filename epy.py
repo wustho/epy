@@ -58,7 +58,26 @@ except ModuleNotFoundError:
 
 
 try:
+    # Debug swith
+    # $ DEBUG=1 ./epy.py
+
     DEBUG = int(str(os.getenv("DEBUG"))) == 1
+    STDSCR: Optional[curses.window] = None
+
+    def debug(context: int = 5) -> None:
+        if not isinstance(STDSCR, curses.window):
+            raise RuntimeError("STDSCR not set")
+        curses.nocbreak()
+        STDSCR.keypad(False)
+        curses.echo()
+        curses.endwin()
+        try:
+            import ipdb  # type: ignore
+
+            ipdb.set_trace(context=context)
+        except ModuleNotFoundError:
+            breakpoint()
+
 except ValueError:
     DEBUG = False
 
@@ -218,6 +237,54 @@ class LettersCount:
 
     all: int
     cumulative: Tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class CharPos:
+    """
+    Describes character position in text.
+    eg. ["Lorem ipsum dolor sit amet,",  # row=0
+         "consectetur adipiscing elit."]  # row=1
+             ^CharPos(row=1, col=3)
+    """
+
+    row: int
+    col: int
+
+
+@dataclass(frozen=True)
+class TextMark:
+    """
+    Describes marking in text.
+    eg. Interval [CharPos(row=0, col=3), CharPos(row=1, col=4)]
+    notice the marking inclusive [] for both side instead of right exclusive [)
+    """
+
+    start: CharPos
+    end: Optional[CharPos] = None
+
+    def is_valid(self) -> bool:
+        """
+        Assert validity and check if the mark is unterminated
+        eg. <div><i>This is italic text</div>
+        Missing </i> tag
+        """
+        if self.end is not None:
+            assert self.start.row <= self.end.row
+            if self.start.row <= self.end.row:
+                assert self.start.col <= self.end.col
+
+        return self.end is not None
+
+
+@dataclass(frozen=True)
+class TextSpan:
+    """
+    Like TextMark but using span of letters (n_letters)
+    """
+
+    start: CharPos
+    n_letters: int
 
 
 @dataclass(frozen=True)
@@ -563,6 +630,8 @@ class Epub(Ebook):
             )
         elif version == "3.0":
             relative_toc = content_opf.find("OPF:manifest/*[@properties='nav']", self.NS)
+        else:
+            raise RuntimeError(f"Unsupported Epub version: {version}")
         assert relative_toc is not None
         relative_toc_path = relative_toc.get("href")
         assert relative_toc_path is not None
@@ -742,6 +811,109 @@ class HTMLtoLines(HTMLParser):
         except AttributeError:
             attr_italic = curses.A_NORMAL
 
+    @staticmethod
+    def _mark_to_spans(text: Sequence[str], marks: Sequence[TextMark]) -> List[TextSpan]:
+        """
+        Convert text marks in line of text to per line text span.
+        Keeping duplicate spans.
+        """
+        spans: List[TextSpan] = []
+        for mark in marks:
+            if mark.is_valid():
+                # mypy issue, should be handled by mark.is_valid()
+                assert mark.end is not None
+                if mark.start.row == mark.end.row:
+                    spans.append(
+                        TextSpan(start=mark.start, n_letters=mark.end.col - mark.start.col)
+                    )
+                else:
+                    spans.append(
+                        TextSpan(
+                            start=mark.start, n_letters=len(text[mark.start.row]) - mark.start.col
+                        )
+                    )
+                    for nth_line in range(mark.start.row + 1, mark.end.row):
+                        spans.append(
+                            TextSpan(
+                                start=CharPos(row=nth_line, col=0), n_letters=len(text[nth_line])
+                            )
+                        )
+                    spans.append(
+                        TextSpan(start=CharPos(row=mark.end.row, col=0), n_letters=mark.end.col)
+                    )
+
+        return spans  # list(set(spans))
+
+    @staticmethod
+    def _adjust_wrapped_spans(
+        wrapped_lines: Sequence[str],
+        span: TextSpan,
+        *,
+        line_adjustment: int = 0,
+        left_adjustment: int = 0,
+    ) -> List[TextSpan]:
+        """
+        Adjust text span to wrapped lines.
+        Not perfect, but should be good enough considering
+        the limitation on commandline interface.
+        """
+
+        # current_row = span.start.row + line_adjustment
+        current_row = line_adjustment
+        start_col = span.start.col
+        end_col = start_col + span.n_letters
+
+        prev = 0  # chars length before current line
+        spans: List[TextSpan] = []
+        for n, line in enumerate(wrapped_lines):
+            # + 1 compensates textwrap.wrap(*args, replace_whitespace=True, drop_whitespace=True)
+            line_len = len(line) + 1
+            current = prev + line_len  # chars length before next line
+
+            # -:unmarked *:marked
+            # |------*****--------|
+            if start_col in range(prev, current) and end_col in range(prev, current):
+                spans.append(
+                    TextSpan(
+                        start=CharPos(row=current_row + n, col=start_col - prev + left_adjustment),
+                        n_letters=span.n_letters,
+                    )
+                )
+
+            # |----------*********|
+            elif start_col in range(prev, current):
+                spans.append(
+                    TextSpan(
+                        start=CharPos(row=current_row + n, col=start_col - prev + left_adjustment),
+                        n_letters=current - start_col - 1,  # -1: dropped whitespace
+                    )
+                )
+
+            # |********-----------|
+            elif end_col in range(prev, current):
+                spans.append(
+                    TextSpan(
+                        start=CharPos(row=current_row + n, col=0 + left_adjustment),
+                        n_letters=end_col - prev + 1,  # +1: dropped whitespace
+                    )
+                )
+
+            # |*******************|
+            elif prev in range(start_col, end_col) and current in range(start_col, end_col):
+                spans.append(
+                    TextSpan(
+                        start=CharPos(row=current_row + n, col=0 + left_adjustment),
+                        n_letters=line_len - 1,  # -1: dropped whitespace
+                    )
+                )
+
+            elif prev > end_col:
+                break
+
+            prev = current
+
+        return spans
+
     def __init__(self, sects={""}):
         HTMLParser.__init__(self)
         self.text = [""]
@@ -757,8 +929,8 @@ class HTMLtoLines(HTMLParser):
         self.idimgs = set()
         self.sects = sects
         self.sectsindex = {}
-        self.initital = []
-        self.initbold = []
+        self.italic_marks: List[TextMark] = []
+        self.bold_marks: List[TextMark] = []
         self.imgs: Dict[int, str] = dict()
 
     def handle_starttag(self, tag, attrs):
@@ -788,11 +960,13 @@ class HTMLtoLines(HTMLParser):
                     self.text.append("[IMAGE]")
         # formatting
         elif tag in self.ital:
-            if len(self.initital) == 0 or len(self.initital[-1]) == 4:
-                self.initital.append([len(self.text) - 1, len(self.text[-1])])
+            if len(self.italic_marks) == 0 or self.italic_marks[-1].is_valid():
+                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+                self.italic_marks.append(TextMark(start=char_pos))
         elif tag in self.bold:
-            if len(self.initbold) == 0 or len(self.initbold[-1]) == 4:
-                self.initbold.append([len(self.text) - 1, len(self.text[-1])])
+            if len(self.bold_marks) == 0 or self.bold_marks[-1].is_valid():
+                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+                self.bold_marks.append(TextMark(start=char_pos))
         if self.sects != {""}:
             for i in attrs:
                 if i[0] == "id" and i[1] in self.sects:
@@ -848,15 +1022,13 @@ class HTMLtoLines(HTMLParser):
             self.text.append("")
         # formatting
         elif tag in self.ital:
-            if len(self.initital[-1]) == 2:
-                self.initital[-1] += [len(self.text) - 1, len(self.text[-1])]
-            elif len(self.initital[-1]) == 4:
-                self.initital[-1][2:4] = [len(self.text) - 1, len(self.text[-1])]
+            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+            last_mark = self.italic_marks[-1]
+            self.italic_marks[-1] = dataclasses.replace(last_mark, end=char_pos)
         elif tag in self.bold:
-            if len(self.initbold[-1]) == 2:
-                self.initbold[-1] += [len(self.text) - 1, len(self.text[-1])]
-            elif len(self.initbold[-1]) == 4:
-                self.initbold[-1][2:4] = [len(self.text) - 1, len(self.text[-1])]
+            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+            last_mark = self.bold_marks[-1]
+            self.bold_marks[-1] = dataclasses.replace(last_mark, end=char_pos)
 
     def handle_data(self, raw):
         if raw and not self.ishidden:
@@ -881,80 +1053,54 @@ class HTMLtoLines(HTMLParser):
     def get_structured_text(
         self, textwidth: Optional[int] = 0, starting_line: int = 0
     ) -> Union[Tuple[str, ...], TextStructure]:
+
+        if not textwidth:
+            return tuple(self.text)
+
         # reusable loop indices
         i: Any
-        j: Any
 
         text: List[str] = []
         images: Dict[int, str] = dict()  # {line_num: path/in/zip}
         sect: Dict[str, int] = dict()  # {section_id: line_num}
         formatting: List[InlineStyle] = []
 
-        tmpital: List[List[int]] = []
-        for i in self.initital:
-            # handle uneven markup
-            # like <i> but no </i>
-            if len(i) == 4:
-                if i[0] == i[2]:
-                    tmpital.append([i[0], i[1], i[3] - i[1]])
-                elif i[0] == i[2] - 1:
-                    tmpital.append([i[0], i[1], len(self.text[i[0]]) - i[1]])
-                    tmpital.append([i[2], 0, i[3]])
-                elif i[2] - i[0] > 1:
-                    tmpital.append([i[0], i[1], len(self.text[i[0]]) - i[1]])
-                    for j in range(i[0] + 1, i[2]):
-                        tmpital.append([j, 0, len(self.text[j])])
-                    tmpital.append([i[2], 0, i[3]])
-        tmpbold = []
-        for i in self.initbold:
-            if len(i) == 4:
-                if i[0] == i[2]:
-                    tmpbold.append([i[0], i[1], i[3] - i[1]])
-                elif i[0] == i[2] - 1:
-                    tmpbold.append([i[0], i[1], len(self.text[i[0]]) - i[1]])
-                    tmpbold.append([i[2], 0, i[3]])
-                elif i[2] - i[0] > 1:
-                    tmpbold.append([i[0], i[1], len(self.text[i[0]]) - i[1]])
-                    for j in range(i[0] + 1, i[2]):
-                        tmpbold.append([j, 0, len(self.text[j])])
-                    tmpbold.append([i[2], 0, i[3]])
+        italic_spans: List[TextSpan] = HTMLtoLines._mark_to_spans(self.text, self.italic_marks)
+        bold_spans: List[TextSpan] = HTMLtoLines._mark_to_spans(self.text, self.bold_marks)
 
-        if not textwidth:
-            return tuple(self.text)
-
-        for n, i in enumerate(self.text):
+        for n, line in enumerate(self.text):
 
             startline = len(text)
-            # findsect = re.search(r"(?<= \(#).*?(?=\) )", i)
+            # findsect = re.search(r"(?<= \(#).*?(?=\) )", line)
             # if findsect is not None and findsect.group() in self.sects:
-            # i = i.replace(" (#" + findsect.group() + ") ", "")
-            # # i = i.replace(" (#" + findsect.group() + ") ", " "*(5+len(findsect.group())))
+            # line = line.replace(" (#" + findsect.group() + ") ", "")
+            # # line = line.replace(" (#" + findsect.group() + ") ", " "*(5+len(findsect.group())))
             # sect[findsect.group()] = len(text)
             if n in self.sectsindex.keys():
                 sect[self.sectsindex[n]] = starting_line + len(text)
             if n in self.idhead:
-                # text += [i.rjust(textwidth // 2 + len(i) // 2)] + [""]
-                text += [i.center(textwidth)] + [""]
+                # text += [line.rjust(textwidth // 2 + len(line) // 2)] + [""]
+                text += [line.center(textwidth)] + [""]
                 formatting += [
                     InlineStyle(
-                        row=starting_line + j, col=0, n_letters=len(text[j]), attr=self.attr_bold
+                        row=starting_line + i, col=0, n_letters=len(text[i]), attr=self.attr_bold
                     )
-                    for j in range(startline, len(text))
+                    for i in range(startline, len(text))
                 ]
             elif n in self.idinde:
-                text += ["   " + j for j in textwrap.wrap(i, textwidth - 3)] + [""]
+                text += ["   " + i for i in textwrap.wrap(line, textwidth - 3)] + [""]
             elif n in self.idbull:
-                tmp = textwrap.wrap(i, textwidth - 3)
-                text += [" - " + j if j == tmp[0] else "   " + j for j in tmp] + [""]
+                tmp = textwrap.wrap(line, textwidth - 3)
+                text += [" - " + i if i == tmp[0] else "   " + i for i in tmp] + [""]
             elif n in self.idpref:
-                tmp = i.splitlines()
+                tmp = line.splitlines()
                 wraptmp = []
-                for line in tmp:
-                    wraptmp += [j for j in textwrap.wrap(line, textwidth - 6)]
-                text += ["   " + j for j in wraptmp] + [""]
+                for tmp_line in tmp:
+                    wraptmp += [i for i in textwrap.wrap(tmp_line, textwidth - 6)]
+                text += ["   " + i for i in wraptmp] + [""]
             elif n in self.idimgs:
                 images[starting_line + len(text)] = self.imgs[n]
-                text += [i.center(textwidth)]
+                text += [line.center(textwidth)]
                 formatting += [
                     InlineStyle(
                         row=starting_line + len(text) - 1,
@@ -965,147 +1111,45 @@ class HTMLtoLines(HTMLParser):
                 ]
                 text += [""]
             else:
-                text += textwrap.wrap(i, textwidth) + [""]
+                text += textwrap.wrap(line, textwidth) + [""]
 
-            # TODO: inline formats for indents
             endline = len(text)  # -1
-            tmp_filtered = [j for j in tmpital if j[0] == n]
-            for j in tmp_filtered:
-                tmp_count = 0
-                # for k in text[startline:endline]:
-                for k in range(startline, endline):
-                    if n in self.idbull | self.idinde:
-                        if tmp_count <= j[1]:
-                            tmp_start = [k, j[1] - tmp_count + 3]
-                        if tmp_count <= j[1] + j[2]:
-                            tmp_end = [k, j[1] + j[2] - tmp_count + 3]
-                        tmp_count += len(text[k]) - 2
-                    else:
-                        if tmp_count <= j[1]:
-                            tmp_start = [k, j[1] - tmp_count]
-                        if tmp_count <= j[1] + j[2]:
-                            tmp_end = [k, j[1] + j[2] - tmp_count]
-                        tmp_count += len(text[k]) + 1
-                if tmp_start[0] == tmp_end[0]:
+
+            left_adjustment = 3 if n in self.idbull | self.idinde else 0
+
+            # TODO: inefficient
+            tmp_filtered = [i for i in italic_spans if i.start.row == n]
+            for i in tmp_filtered:
+                italics = HTMLtoLines._adjust_wrapped_spans(
+                    text[startline:endline],
+                    i,
+                    line_adjustment=startline,
+                    left_adjustment=left_adjustment,
+                )
+                for k in italics:
                     formatting.append(
                         InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=tmp_end[1] - tmp_start[1],
+                            row=k.start.row,
+                            col=k.start.col,
+                            n_letters=k.n_letters,
                             attr=self.attr_italic,
                         )
                     )
-                elif tmp_start[0] == tmp_end[0] - 1:
+
+            tmp_filtered = [i for i in bold_spans if i.start.row == n]
+            for i in tmp_filtered:
+                bolds = HTMLtoLines._adjust_wrapped_spans(
+                    text[startline:endline],
+                    i,
+                    line_adjustment=startline,
+                    left_adjustment=left_adjustment,
+                )
+                for k in bolds:
                     formatting.append(
                         InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=self.attr_italic,
-                        )
-                    )
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_end[0],
-                            col=0,
-                            n_letters=tmp_end[1],
-                            attr=self.attr_italic,
-                        )
-                    )
-                # elif tmp_start[0]-tmp_end[1] > 1:
-                else:
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=self.attr_italic,
-                        )
-                    )
-                    for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting.append(
-                            InlineStyle(
-                                row=starting_line + l,
-                                col=0,
-                                n_letters=len(text[l]),
-                                attr=self.attr_italic,
-                            )
-                        )
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_end[0],
-                            col=0,
-                            n_letters=tmp_end[1],
-                            attr=self.attr_italic,
-                        )
-                    )
-            tmp_filtered = [j for j in tmpbold if j[0] == n]
-            for j in tmp_filtered:
-                tmp_count = 0
-                # for k in text[startline:endline]:
-                for k in range(startline, endline):
-                    if n in self.idbull | self.idinde:
-                        if tmp_count <= j[1]:
-                            tmp_start = [k, j[1] - tmp_count + 3]
-                        if tmp_count <= j[1] + j[2]:
-                            tmp_end = [k, j[1] + j[2] - tmp_count + 3]
-                        tmp_count += len(text[k]) - 2
-                    else:
-                        if tmp_count <= j[1]:
-                            tmp_start = [k, j[1] - tmp_count]
-                        if tmp_count <= j[1] + j[2]:
-                            tmp_end = [k, j[1] + j[2] - tmp_count]
-                        tmp_count += len(text[k]) + 1
-                if tmp_start[0] == tmp_end[0]:
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=tmp_end[1] - tmp_start[1],
-                            attr=self.attr_bold,
-                        )
-                    )
-                elif tmp_start[0] == tmp_end[0] - 1:
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=self.attr_bold,
-                        )
-                    )
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_end[0],
-                            col=0,
-                            n_letters=tmp_end[1],
-                            attr=self.attr_bold,
-                        )
-                    )
-                # elif tmp_start[0]-tmp_end[1] > 1:
-                else:
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_start[0],
-                            col=tmp_start[1],
-                            n_letters=len(text[tmp_start[0]]) - tmp_start[1] + 1,
-                            attr=self.attr_bold,
-                        )
-                    )
-                    for l in range(tmp_start[0] + 1, tmp_end[0]):
-                        formatting.append(
-                            InlineStyle(
-                                row=starting_line + l,
-                                col=0,
-                                n_letters=len(text[l]),
-                                attr=self.attr_bold,
-                            )
-                        )
-                    formatting.append(
-                        InlineStyle(
-                            row=starting_line + tmp_end[0],
-                            col=0,
-                            n_letters=tmp_end[1],
+                            row=k.start.row,
+                            col=k.start.col,
+                            n_letters=k.n_letters,
                             attr=self.attr_bold,
                         )
                     )
@@ -1729,7 +1773,7 @@ def find_current_content_index(
     ntoc = 0
     for n, toc_entry in enumerate(toc_entries):
         if toc_entry.content_index <= index:
-            if y >= toc_secid.get(toc_entry.section, 0):
+            if y >= toc_secid.get(toc_entry.section, 0):  # type: ignore
                 ntoc = n
     return ntoc
 
@@ -2651,7 +2695,7 @@ class Reader:
                 text_structure_tmp = parse_html(
                     self.ebook.get_raw_text(content),
                     textwidth=reading_state.textwidth,
-                    section_ids=set(toc_entry.section for toc_entry in toc_entries),
+                    section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
                     starting_line=starting_line,
                 )
                 assert isinstance(text_structure_tmp, TextStructure)
@@ -2704,7 +2748,7 @@ class Reader:
             text_structure = parse_html(  # type: ignore
                 content,
                 textwidth=reading_state.textwidth,
-                section_ids=set(toc_entry.section for toc_entry in toc_entries),
+                section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
             )
 
         totlines = len(text_structure.text_lines)
@@ -2902,7 +2946,7 @@ class Reader:
                                     reading_state = dataclasses.replace(
                                         reading_state,
                                         row=text_structure.section_rows[
-                                            toc_entries[ntoc + 1].section
+                                            toc_entries[ntoc + 1].section  # type: ignore
                                         ],
                                     )
                                 except KeyError:
@@ -2927,7 +2971,7 @@ class Reader:
                                 reading_state = dataclasses.replace(
                                     reading_state,
                                     row=text_structure.section_rows.get(
-                                        toc_entries[ntoc - 1].section, 0
+                                        toc_entries[ntoc - 1].section, 0  # type: ignore
                                     ),
                                 )
                             else:
@@ -2948,7 +2992,7 @@ class Reader:
                         try:
                             reading_state = dataclasses.replace(
                                 reading_state,
-                                row=text_structure.section_rows[toc_entries[ntoc].section],
+                                row=text_structure.section_rows[toc_entries[ntoc].section],  # type: ignore
                             )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(reading_state, row=0)
@@ -2962,18 +3006,18 @@ class Reader:
                         )
                         try:
                             if (
-                                text_structure.section_rows[toc_entries[ntoc + 1].section] - rows
+                                text_structure.section_rows[toc_entries[ntoc + 1].section] - rows  # type: ignore
                                 >= 0
                             ):
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=text_structure.section_rows[toc_entries[ntoc + 1].section]
+                                    row=text_structure.section_rows[toc_entries[ntoc + 1].section]  # type: ignore
                                     - rows,
                                 )
                             else:
                                 reading_state = dataclasses.replace(
                                     reading_state,
-                                    row=text_structure.section_rows[toc_entries[ntoc].section],
+                                    row=text_structure.section_rows[toc_entries[ntoc].section],  # type: ignore
                                 )
                         except (KeyError, IndexError):
                             reading_state = dataclasses.replace(
@@ -3402,7 +3446,10 @@ class Reader:
             sys.exit()
 
 
-def preread(stdscr, filepath: str):
+def preread(stdscr: curses.window, filepath: str):
+    global STDSCR
+    if DEBUG:
+        STDSCR = stdscr
 
     ebook = get_ebook_obj(filepath)
     state = State()
