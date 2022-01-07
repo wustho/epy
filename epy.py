@@ -2158,7 +2158,7 @@ class Reader:
         self._tts_speaker: Optional[SpeakerBaseModel] = construct_speaker(
             self.setting.PreferredTTSEngine, self.setting.TTSEngineArgs
         )
-        self._tts_support: bool = bool(self._tts_speaker)
+        self.tts_support: bool = bool(self._tts_speaker)
         self.is_speaking: bool = False
 
         # multi process & progress percentage
@@ -2859,7 +2859,7 @@ class Reader:
                             )
                             sys.exit()
 
-                    elif k in self.keymap.TTSToggle and self._tts_support:
+                    elif k in self.keymap.TTSToggle and self.tts_support:
                         tospeak = ""
                         for i in text_structure.text_lines[
                             reading_state.row : reading_state.row + (rows * self.spread)
