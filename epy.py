@@ -2143,7 +2143,8 @@ class Reader:
         self.page_animation: Optional[Direction] = None
 
         # show reading progress
-        self.show_reading_progress = self.setting.ShowProgressIndicator
+        self.show_reading_progress: bool = self.setting.ShowProgressIndicator
+        self.reading_progress: Optional[float] = None  # calculate after count_letters()
 
         # search storage
         self.search_data: Optional[SearchData] = None
@@ -3441,19 +3442,20 @@ class Reader:
                             self._process_counting_letter.close()
                             self._process_counting_letter = None
 
-                    if (
-                        self.show_reading_progress
-                        and (cols - reading_state.textwidth - 2) // 2 > 3
-                        and self.letters_count
-                    ):
-                        reading_progress = (
+                    # reading progress
+                    if self.letters_count:
+                        self.reading_progress = (
                             self.letters_count.cumulative[reading_state.content_index]
                             + sum(LOCALPCTG[: reading_state.row + (rows * self.spread) - 1])
                         ) / self.letters_count.all
-                        reading_progress_str = "{}%".format(int(reading_progress * 100))
-                        self.screen.addstr(
-                            0, cols - len(reading_progress_str), reading_progress_str
-                        )
+                        if (
+                            self.show_reading_progress
+                            and (cols - reading_state.textwidth - 2) // 2 > 3
+                        ):
+                            reading_progress_str = "{}%".format(int(self.reading_progress * 100))
+                            self.screen.addstr(
+                                0, cols - len(reading_progress_str), reading_progress_str
+                            )
 
                     self.screen.refresh()
                 except curses.error:
