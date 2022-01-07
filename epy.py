@@ -801,6 +801,8 @@ class HTMLtoLines(HTMLParser):
     ital = {"i", "em"}
     bold = {"b", "strong"}
     # hide = {"script", "style", "head", ", "sub}
+    sup_lookup = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+    sub_lookup = "₀₁₂₃₄₅₆₇₈₉"
 
     attr_bold = curses.A_BOLD
     try:
