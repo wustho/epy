@@ -197,6 +197,19 @@ SPEAKERS: List[Type[SpeakerBaseModel]] = [SpeakerMimic, SpeakerPico]
 
 
 @dataclass(frozen=True)
+class BookMetadata:
+    title: Optional[str] = None
+    creator: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    date: Optional[str] = None
+    language: Optional[str] = None
+    format: Optional[str] = None
+    identifier: Optional[str] = None
+    source: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class ReadingState:
     """
     Data model for reading state.
@@ -475,7 +488,7 @@ class Ebook:
     def toc_entries(self, value: Tuple[TocEntry, ...]) -> None:
         self._toc_entries = value
 
-    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
+    def get_meta(self) -> BookMetadata:
         raise NotImplementedError("Ebook.get_meta() not implemented")
 
     def initialize(self) -> None:
@@ -492,12 +505,14 @@ class Ebook:
 
 
 class Epub(Ebook):
-    NS = {
+    NAMESPACE = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
         "OPF": "http://www.idpf.org/2007/opf",
         "CONT": "urn:oasis:names:tc:opendocument:xmlns:container",
         "XHTML": "http://www.w3.org/1999/xhtml",
         "EPUB": "http://www.idpf.org/2007/ops",
+        # Dublin Core
+        "DC": "http://purl.org/dc/elements/1.1/",
     }
 
     def __init__(self, fileepub: str):
@@ -509,22 +524,28 @@ class Epub(Ebook):
         self.root_filepath: str
         self.root_dirpath: str
 
-    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
+    def get_meta(self) -> BookMetadata:
         assert isinstance(self.file, zipfile.ZipFile)
-
-        meta: List[Tuple[str, str]] = []
         # why self.file.read(self.root_filepath) problematic
-        cont = ET.fromstring(self.file.open(self.root_filepath).read())
-        for i in cont.findall("OPF:metadata/*", self.NS):
-            if i.text is not None:
-                meta.append((re.sub("{.*?}", "", i.tag), i.text))
-        return tuple(meta)
+        # content_opf = ET.fromstring(self.file.open(self.root_filepath).read())
+        content_opf = ET.parse(self.file.open(self.root_filepath))
+        return Epub._get_metadata(content_opf)
 
     @staticmethod
-    def get_contents(content_opf: ET.ElementTree) -> Tuple[str, ...]:
+    def _get_metadata(content_opf: ET.ElementTree) -> BookMetadata:
+        metadata: Dict[str, Optional[str]] = {}
+        for field in dataclasses.fields(BookMetadata):
+            element = content_opf.find(f".//DC:{field.name}", Epub.NAMESPACE)
+            if element is not None:
+                metadata[field.name] = element.text
+
+        return BookMetadata(**metadata)
+
+    @staticmethod
+    def _get_contents(content_opf: ET.ElementTree) -> Tuple[str, ...]:
         # cont = ET.parse(self.file.open(self.root_filepath)).getroot()
         manifests: List[Tuple[str, str]] = []
-        for manifest_elem in content_opf.findall("OPF:manifest/*", Epub.NS):
+        for manifest_elem in content_opf.findall("OPF:manifest/*", Epub.NAMESPACE):
             # EPUB3
             # if manifest_elem.get("id") != "ncx" and manifest_elem.get("properties") != "nav":
             if (
@@ -539,7 +560,7 @@ class Epub(Ebook):
 
         spines: List[str] = []
         contents: List[str] = []
-        for spine_elem in content_opf.findall("OPF:spine/*", Epub.NS):
+        for spine_elem in content_opf.findall("OPF:spine/*", Epub.NAMESPACE):
             idref = spine_elem.get("idref")
             assert idref is not None
             spines.append(idref)
@@ -555,22 +576,24 @@ class Epub(Ebook):
         return tuple(contents)
 
     @staticmethod
-    def get_tocs(toc: ET.Element, version: str, contents: Sequence[str]) -> Tuple[TocEntry, ...]:
+    def _get_tocs(toc: ET.Element, version: str, contents: Sequence[str]) -> Tuple[TocEntry, ...]:
         try:
             # EPUB3
             if version in {"1.0", "2.0"}:
-                navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", Epub.NS)
+                navPoints = toc.findall("DAISY:navMap//DAISY:navPoint", Epub.NAMESPACE)
             elif version == "3.0":
-                navPoints = toc.findall("XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", Epub.NS)
+                navPoints = toc.findall(
+                    "XHTML:body//XHTML:nav[@EPUB:type='toc']//XHTML:a", Epub.NAMESPACE
+                )
 
             toc_entries: List[TocEntry] = []
             for navPoint in navPoints:
                 if version in {"1.0", "2.0"}:
-                    src_elem = navPoint.find("DAISY:content", Epub.NS)
+                    src_elem = navPoint.find("DAISY:content", Epub.NAMESPACE)
                     assert src_elem is not None
                     src = src_elem.get("src")
 
-                    name_elem = navPoint.find("DAISY:navLabel/DAISY:text", Epub.NS)
+                    name_elem = navPoint.find("DAISY:navLabel/DAISY:text", Epub.NAMESPACE)
                     assert name_elem is not None
                     name = name_elem.text
                 elif version == "3.0":
@@ -608,7 +631,7 @@ class Epub(Ebook):
         assert isinstance(self.file, zipfile.ZipFile)
 
         container = ET.parse(self.file.open("META-INF/container.xml"))
-        rootfile_elem = container.find("CONT:rootfiles/CONT:rootfile", self.NS)
+        rootfile_elem = container.find("CONT:rootfiles/CONT:rootfile", Epub.NAMESPACE)
         assert rootfile_elem is not None
         self.root_filepath = rootfile_elem.attrib["full-path"]
         self.root_dirpath = (
@@ -620,16 +643,16 @@ class Epub(Ebook):
         content_opf = ET.parse(self.file.open(self.root_filepath))
         version = content_opf.getroot().get("version")
 
-        contents = Epub.get_contents(content_opf)
+        contents = Epub._get_contents(content_opf)
         self.contents = tuple(self.root_dirpath + content for content in contents)
 
         if version in {"1.0", "2.0"}:
             # "OPF:manifest/*[@id='ncx']"
             relative_toc = content_opf.find(
-                "OPF:manifest/*[@media-type='application/x-dtbncx+xml']", self.NS
+                "OPF:manifest/*[@media-type='application/x-dtbncx+xml']", Epub.NAMESPACE
             )
         elif version == "3.0":
-            relative_toc = content_opf.find("OPF:manifest/*[@properties='nav']", self.NS)
+            relative_toc = content_opf.find("OPF:manifest/*[@properties='nav']", Epub.NAMESPACE)
         else:
             raise RuntimeError(f"Unsupported Epub version: {version}")
         assert relative_toc is not None
@@ -637,7 +660,7 @@ class Epub(Ebook):
         assert relative_toc_path is not None
         toc_path = self.root_dirpath + relative_toc_path
         toc = ET.parse(self.file.open(toc_path)).getroot()
-        self.toc_entries = Epub.get_tocs(toc, version, contents)  # *self.contents (absolute path)
+        self.toc_entries = Epub._get_tocs(toc, version, contents)  # *self.contents (absolute path)
 
     def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
         assert isinstance(self.file, zipfile.ZipFile)
@@ -678,15 +701,11 @@ class Mobi(Epub):
         self.root_filepath: str
         self.root_dirpath: str
 
-    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
-        meta: List[Tuple[str, str]] = []
+    def get_meta(self) -> BookMetadata:
         # why self.file.read(self.root_filepath) problematic
         with open(os.path.join(self.root_dirpath, "content.opf")) as f:
-            cont = ET.parse(f).getroot()
-        for i in cont.findall("OPF:metadata/*", self.NS):
-            if i.text is not None:
-                meta.append((re.sub("{.*?}", "", i.tag), i.text))
-        return tuple(meta)
+            content_opf = ET.parse(f)  # .getroot()
+        return Epub._get_metadata(content_opf)
 
     def initialize(self) -> None:
         assert isinstance(self.file, str)
@@ -698,12 +717,12 @@ class Mobi(Epub):
         with open(os.path.join(self.root_dirpath, "content.opf")) as f:
             content_opf = ET.parse(f)  # .getroot()
 
-        contents = Epub.get_contents(content_opf)
+        contents = Epub._get_contents(content_opf)
         self.contents = tuple(os.path.join(self.root_dirpath, content) for content in contents)
 
         with open(self.toc_path) as f:
             toc = ET.parse(f).getroot()
-        self.toc_entries = Epub.get_tocs(toc, version, contents)  # *self.contents (absolute path)
+        self.toc_entries = Epub._get_tocs(toc, version, contents)  # *self.contents (absolute path)
 
     def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
         assert isinstance(content_path, str)
@@ -739,7 +758,7 @@ class Azw3(Epub):
 
 
 class FictionBook(Ebook):
-    NS = {"FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"}
+    NAMESPACE = {"FB2": "http://www.gribuser.ru/xml/fictionbook/2.0"}
 
     def __init__(self, filefb: str):
         self.path = os.path.abspath(filefb)
@@ -749,22 +768,37 @@ class FictionBook(Ebook):
         # by calling self.initialize()
         self.root: ET.Element
 
-    def get_meta(self) -> Tuple[Tuple[str, str], ...]:
-        desc = self.root.find("FB2:description", self.NS)
-        assert desc is not None
-        alltags = desc.findall("*/*")
-        return tuple((re.sub("{.*?}", "", i.tag), " ".join(i.itertext())) for i in alltags)
+    def get_meta(self) -> BookMetadata:
+        title_elem = self.root.find(".//FB2:book-title", FictionBook.NAMESPACE)
+        first_name_elem = self.root.find(".//FB2:first-name", FictionBook.NAMESPACE)
+        last_name_elem = self.root.find(".//FB2:last-name", FictionBook.NAMESPACE)
+        date_elem = self.root.find(".//FB2:date", FictionBook.NAMESPACE)
+        identifier_elem = self.root.find(".//FB2:id", FictionBook.NAMESPACE)
+
+        author = first_name_elem.text if first_name_elem is not None else None
+        if last_name_elem is not None:
+            if author is not None and author != "":
+                author += f" {last_name_elem.text}"
+            else:
+                author = last_name_elem.text
+
+        return BookMetadata(
+            title=title_elem.text if title_elem is not None else None,
+            creator=author,
+            date=date_elem.text if date_elem is not None else None,
+            identifier=identifier_elem.text if identifier_elem is not None else None,
+        )
 
     def initialize(self) -> None:
         cont = ET.parse(self.file)
         self.root = cont.getroot()
 
-        self.contents = tuple(self.root.findall("FB2:body/*", self.NS))
+        self.contents = tuple(self.root.findall("FB2:body/*", FictionBook.NAMESPACE))
 
         # TODO
         toc_entries: List[TocEntry] = []
         for n, i in enumerate(self.contents):
-            title = i.find("FB2:title", self.NS)
+            title = i.find("FB2:title", FictionBook.NAMESPACE)
             if title is not None:
                 toc_entries.append(
                     TocEntry(label="".join(title.itertext()), content_index=n, section=None)
@@ -801,8 +835,8 @@ class HTMLtoLines(HTMLParser):
     ital = {"i", "em"}
     bold = {"b", "strong"}
     # hide = {"script", "style", "head", ", "sub}
-    sup_lookup = "⁰¹²³⁴⁵⁶⁷⁸⁹"
-    sub_lookup = "₀₁₂₃₄₅₆₇₈₉"
+    # sup_lookup = "⁰¹²³⁴⁵⁶⁷⁸⁹"
+    # sub_lookup = "₀₁₂₃₄₅₆₇₈₉"
 
     attr_bold = curses.A_BOLD
     try:
@@ -917,9 +951,7 @@ class HTMLtoLines(HTMLParser):
         return spans
 
     @staticmethod
-    def _group_spans_by_row(
-        blocks: Sequence[TextSpan]
-    ) -> Mapping[int, List[TextSpan]]:
+    def _group_spans_by_row(blocks: Sequence[TextSpan]) -> Mapping[int, List[TextSpan]]:
         groups: Dict[int, List[TextSpan]] = {}
         for block in blocks:
             row = block.start.row
@@ -1685,7 +1717,7 @@ def construct_relative_reading_state(
 
 
 def get_ebook_obj(filepath: str) -> Ebook:
-    file_ext = os.path.splitext(filepath)[1]
+    file_ext = os.path.splitext(filepath)[1].lower()
     if file_ext == ".epub":
         return Epub(filepath)
     elif file_ext == ".fb2":
@@ -2245,11 +2277,14 @@ class Reader:
         mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
             self.ebook.path, round(os.path.getsize(self.ebook.path) / 1024 ** 2, 2)
         )
-        for i in self.ebook.get_meta():
-            data = re.sub("<[^>]*>", "", i[1])
-            mdata += i[0].upper() + ": " + data + "\n"
-            # data = re.sub("\t", "", data)
-            # mdata += textwrap.wrap(i[0].upper() + ": " + data, wi - 6)
+
+        book_metadata = self.ebook.get_meta()
+        for field in dataclasses.fields(book_metadata):
+            value = getattr(book_metadata, field.name)
+            if value:
+                value = unescape(re.sub("<[^>]*>", "", value))
+                mdata += f"{field.name.title()}: {value}\n"
+
         return "Metadata", mdata, self.keymap.Metadata
 
     @text_win

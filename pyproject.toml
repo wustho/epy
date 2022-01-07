@@ -4,6 +4,9 @@ version = "2022.1.2"
 description = "CLI Ebook Reader"
 authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
+packages = [
+    { include = "epy.py" },
+]
 
 [tool.poetry.dependencies]
 python = "^3.7"

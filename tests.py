@@ -85,6 +85,10 @@ def test_span_adjustment():
     ]
 
     assert HTMLtoLines._adjust_wrapped_spans(
+        text, TextSpan(start=CharPos(row=0, col=2), n_letters=0)
+    ) == [TextSpan(start=CharPos(row=0, col=2), n_letters=0)]
+
+    assert HTMLtoLines._adjust_wrapped_spans(
         text, TextSpan(start=CharPos(row=0, col=2), n_letters=5)
     ) == [TextSpan(start=CharPos(row=0, col=2), n_letters=5)]
 
@@ -114,7 +118,7 @@ def test_group_blocks():
         TextSpan(start=CharPos(row=15, col=0), n_letters=4),
     ]
 
-    assert HTMLtoLines._group_span_by_row(block_list) == {
+    assert HTMLtoLines._group_spans_by_row(block_list) == {
         0: [TextSpan(start=CharPos(row=0, col=0), n_letters=4)],
         1: [TextSpan(start=CharPos(row=1, col=0), n_letters=4)],
         3: [
