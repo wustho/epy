@@ -403,6 +403,8 @@ class Settings:
     MouseSupport: bool = False
     StartWithDoubleSpread: bool = False
     # -1 is default terminal fg/bg colors
+    DefaultColorFG: int = -1
+    DefaultColorBG: int = -1
     DarkColorFG: int = 252
     DarkColorBG: int = 235
     LightColorFG: int = 238
@@ -2166,9 +2168,10 @@ class Reader:
         self.is_color_supported: bool = False
         try:
             curses.use_default_colors()
-            curses.init_pair(1, -1, -1)
+            curses.init_pair(1, self.setting.DefaultColorFG, self.setting.DefaultColorBG)
             curses.init_pair(2, self.setting.DarkColorFG, self.setting.DarkColorBG)
             curses.init_pair(3, self.setting.LightColorFG, self.setting.LightColorBG)
+            self.screen.bkgd(curses.color_pair(1))
             self.is_color_supported = True
         except:
             self.is_color_supported = False
