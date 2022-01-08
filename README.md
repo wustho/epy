@@ -21,15 +21,6 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 - [Double Spread](#double-spread)
 - Seamless (disabled by default, read [below](#reading-tips-using-epy))
 
-## Note on `v2021.10.23` and beyond
-
-There happened major refactoring for `epy` in version `v2021.10.23` which harness
-a lot of new stuffs in python standard libraries starting from `python>=3.7`, so
-`epy` won't be compatible with older python version and won't be backward compatible
-with older `epy` configuration and reading states.
-So if you decide to install this version, you will lose
-your reading progress with older `epy`.
-
 ## Installation
 
 - Via PyPI
@@ -94,7 +85,16 @@ List of supported engines:
 
 ## Double Spread
 
-Double spread is intended to mimic the behaviour of real book, so line scrolling navigation will act as scrolling page and textwidth is not adjustable.
+Double spread is intended to mimic the behaviour of real book,
+so line scrolling navigation will act as scrolling page and textwidth is not adjustable.
+
+## Changelog
+
+- `v2021.10.23`: Major refactoring which harness a lot of new stuff in `python>=3.7`
+  and `epy` won't be backward compatible with older python version and older configuration.
+
+- `v2022.1.8`: Change in configuration and reading states schema that is not backward compatible.
+  So if error is encountered, deleting the configuration and states file might fix the issue.
 
 ## Tip Jar
 
