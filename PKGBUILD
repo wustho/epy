@@ -20,5 +20,5 @@ pkgver() {
 
 package() {
     cd "$srcdir/${pkgname/-git/}"
-    python setup.py install --root="$pkgdir"
+    python setup.py install --root="$pkgdir" --optimize=1 --skip-build
 }
