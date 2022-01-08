@@ -64,11 +64,11 @@ try:
     # $ DEBUG=1 ./epy.py
 
     DEBUG = int(str(os.getenv("DEBUG"))) == 1
-    STDSCR: Optional[curses.window] = None
+    STDSCR = None
 
     def debug(context: int = 5) -> None:
-        if not isinstance(STDSCR, curses.window):
-            raise RuntimeError("STDSCR not set")
+        # if not isinstance(STDSCR, curses.window):
+        #     raise RuntimeError("STDSCR not set")
         curses.nocbreak()
         STDSCR.keypad(False)
         curses.echo()
@@ -3554,7 +3554,7 @@ class Reader:
             sys.exit()
 
 
-def preread(stdscr: curses.window, filepath: str):
+def preread(stdscr, filepath: str):
     global STDSCR
     if DEBUG:
         STDSCR = stdscr
