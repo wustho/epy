@@ -23,6 +23,7 @@ __url__ = "https://github.com/wustho/epy"
 
 
 import base64
+import contextlib
 import curses
 import dataclasses
 import hashlib
@@ -51,7 +52,7 @@ from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin
 
 try:
-    import mobi  # type: ignore
+    from epy_extras.KindleUnpack.kindleunpack import unpackBook  # type: ignore
 
     MOBI_SUPPORT = True
 except ModuleNotFoundError:
@@ -724,7 +725,7 @@ class Epub(Ebook):
 class Mobi(Epub):
     def __init__(self, filemobi: str):
         self.path = os.path.abspath(filemobi)
-        self.file, _ = mobi.extract(filemobi)
+        self.file = tempfile.mkdtemp(prefix="epy-")
 
         # populate these attribute
         # by calling self.initialize()
@@ -739,6 +740,10 @@ class Mobi(Epub):
 
     def initialize(self) -> None:
         assert isinstance(self.file, str)
+
+        with contextlib.redirect_stdout(None):
+            unpackBook(self.path, self.file, epubver="A", use_hd=True)
+            # TODO: add cleanup here
 
         self.root_dirpath = os.path.join(self.file, "mobi7")
         self.toc_path = os.path.join(self.root_dirpath, "toc.ncx")
@@ -776,11 +781,18 @@ class Mobi(Epub):
         return
 
 
-class Azw3(Epub):
+class Azw(Epub):
     def __init__(self, fileepub):
         self.path = os.path.abspath(fileepub)
-        self.tmpdir, self.tmpepub = mobi.extract(fileepub)
+        self.tmpdir = tempfile.mkdtemp(prefix="epy-")
+        basename, _ = os.path.splitext(os.path.basename(self.path))
+        self.tmpepub = os.path.join(self.tmpdir, "mobi8", basename + ".epub")
+
+    def initialize(self):
+        with contextlib.redirect_stdout(None):
+            unpackBook(self.path, self.tmpdir, epubver="A", use_hd=True)
         self.file = zipfile.ZipFile(self.tmpepub, "r")
+        Epub.initialize(self)
 
     def cleanup(self) -> None:
         shutil.rmtree(self.tmpdir)
@@ -1763,13 +1775,12 @@ def get_ebook_obj(filepath: str) -> Ebook:
         return FictionBook(filepath)
     elif MOBI_SUPPORT and file_ext == ".mobi":
         return Mobi(filepath)
-    elif MOBI_SUPPORT and file_ext == ".azw3":
-        return Azw3(filepath)
+    elif MOBI_SUPPORT and file_ext in {".azw", ".azw3"}:
+        return Azw(filepath)
     elif not MOBI_SUPPORT and file_ext in {".mobi", ".azw3"}:
         sys.exit(
             "ERROR: Format not supported. (Supported: epub, fb2). "
-            "To get mobi and azw3 support, install mobi module from pip. "
-            "$ pip install mobi"
+            "To get mobi and azw3 support, install epy via pip. "
         )
     else:
         sys.exit("ERROR: Format not supported. (Supported: epub, fb2)")
@@ -3284,8 +3295,8 @@ class Reader:
 
                         if image_path:
                             try:
-                                # if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw3"}:
-                                if isinstance(self.ebook, (Epub, Mobi, Azw3)):
+                                # if self.ebook.__class__.__name__ in {"Epub", "Mobi", "Azw"}:
+                                if isinstance(self.ebook, (Epub, Mobi, Azw)):
                                     # self.seamless adjustment
                                     if self.seamless:
                                         content_path = self.ebook.contents[
