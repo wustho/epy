@@ -3642,24 +3642,24 @@ def parse_cli_args() -> str:
         if (not candidate[0]) or candidate[1]:
             matching_value = 0
             for item in library:
-                file = item.filepath
-                this_file_match_value = sum(
+                tomatch = f"{item.title} - {item.author}"  # item.filepath
+                this_item_match_value = sum(
                     [
                         i.size
                         for i in SM(
-                            None, file.lower(), " ".join(args).lower()
+                            None, tomatch.lower(), " ".join(args).lower()
                         ).get_matching_blocks()
                     ]
                 )
-                if this_file_match_value >= matching_value:
-                    matching_value = this_file_match_value
-                    candidate = (file, None)
+                if this_item_match_value >= matching_value:
+                    matching_value = this_item_match_value
+                    candidate = (item.filepath, None)
 
             if matching_value == 0:
                 candidate = (None, "\nERROR: No matching file found in history.")
 
         if (not candidate[0]) or candidate[1] or "-r" in args:
-            print("Reading history:")
+            print("Reading History:")
             # dig = len(str(len(STATE["States"].keys()) + 1))
             dig = len(str(len(library) + 1))
             tcols = termc - dig - 2
