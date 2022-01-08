@@ -12,7 +12,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
   - Epub (.epub, .epub3)
   - FictionBook (.fb2)
   - Mobi (.mobi)
-  - AZW3 (.azw3), some but not all (see [KindleUnpack](https://github.com/kevinhendricks/KindleUnpack))
+  - AZW3 (.azw, .azw3)
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration (`sdcv` or `dict`)
@@ -33,6 +33,12 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
 
   ```shell
   $ pip3 install git+https://github.com/wustho/epy
+  ```
+
+- Via AUR
+
+  ```shell
+  $ yay -S epy-git
   ```
 
 ## Reading Tips Using Epy
