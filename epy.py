@@ -2180,7 +2180,8 @@ class Reader:
         self.ebook = ebook
         try:
             self.ebook.initialize()
-        except Exception as e:
+        except (KeyboardInterrupt, Exception) as e:
+            self.ebook.cleanup()
             if DEBUG:
                 raise e
             else:
