@@ -52,7 +52,7 @@ from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin
 
 try:
-    from epy_extras.KindleUnpack.kindleunpack import unpackBook  # type: ignore
+    from epy_extras import unpackBook  # type: ignore
 
     MOBI_SUPPORT = True
 except ModuleNotFoundError:
@@ -235,9 +235,9 @@ class LibraryItem:
         else:
             book_name = file_basename
 
-        last_read_str = self.last_read.strftime("%I:%M %p %b %d, %Y")
+        last_read_str = self.last_read.strftime("%I:%M%p %b %d")
 
-        return f"{reading_progress_str} {book_name}. {last_read_str}."
+        return f"{reading_progress_str} {last_read_str}: {book_name}"
 
 
 @dataclass(frozen=True)
@@ -3682,7 +3682,7 @@ def parse_cli_args() -> str:
                 print(
                     "{}. {}".format(
                         str(n + 1).rjust(dig),
-                        truncate(str(item), "...", tcols, 7),
+                        truncate(str(item), "...", tcols, tcols - 3),
                     )
                 )
             if "-r" in args:
