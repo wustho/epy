@@ -6,11 +6,11 @@ authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
 packages = [
     { include = "epy.py" },
+    { include = "epy_extras" },
 ]
 
 [tool.poetry.dependencies]
 python = "^3.7"
-mobi = "^0.3.2"
 
 [tool.poetry.dev-dependencies]
 pynvim = "^0.4.3"

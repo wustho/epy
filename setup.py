@@ -4,10 +4,6 @@ from setuptools import setup
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-requirements = ["mobi"]
-if sys.platform == "win32":
-    requirements.append("windows-curses")
-
 setup(
     name="epy-reader",
     version="2022.1.8",
@@ -19,9 +15,9 @@ setup(
     author_email="benawiadha@gmail.com",
     license="GPL-3.0",
     keywords=["epub", "epub3", "fb2", "mobi", "azw3", "CLI", "Terminal", "Reader"],
-    install_requires=requirements,
     python_requires="~=3.7",
     py_modules=["epy"],
+    packages=["epy_extras", "epy_extras.KindleUnpack"],
     entry_points={"console_scripts": ["epy = epy:main"]},
     classifiers=[
         "Programming Language :: Python :: 3",
