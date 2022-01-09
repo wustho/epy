@@ -77,7 +77,7 @@ try:
         # if not isinstance(STDSCR, curses.window):
         #     raise RuntimeError("STDSCR not set")
         curses.nocbreak()
-        STDSCR.keypad(False)
+        STDSCR.keypad(False)  # type: ignore
         curses.echo()
         curses.endwin()
         try:
@@ -2172,14 +2172,6 @@ def text_win(textfunc):
 
 
 class Reader:
-
-    # Only implement this when seamless=True
-    adjust_seamless_reading_state = staticmethod(
-        lambda reading_state: (_ for _ in ()).throw(
-            NotImplementedError("Reader.adjust_seamless_reading_state() not implemented")
-        )
-    )
-
     def __init__(self, screen, ebook: Ebook, config: Config, state: State):
 
         self.setting = config.setting
@@ -2786,7 +2778,7 @@ class Reader:
 
     def savestate(self, reading_state: ReadingState) -> None:
         if self.seamless:
-            reading_state = Reader.adjust_seamless_reading_state(reading_state)
+            reading_state = self.convert_absolute_reading_state_to_relative(reading_state)
         self.state.set_last_reading_state(self.ebook, reading_state)
         self.state.update_library(self.ebook, self.reading_progress)
 
@@ -2801,6 +2793,96 @@ class Reader:
                 # You should first call join() or terminate().
                 self._process_counting_letter.join()
                 self._process_counting_letter.close()
+
+    def convert_absolute_reading_state_to_relative(self, reading_state) -> ReadingState:
+        if not self.seamless:
+            raise RuntimeError(
+                "Reader.convert_absolute_reading_state_to_relative() only implemented when Seamless=True"
+            )
+        return construct_relative_reading_state(reading_state, self.totlines_per_content)
+
+    def convert_relative_reading_state_to_absolute(
+        self, reading_state: ReadingState
+    ) -> ReadingState:
+        if not self.seamless:
+            raise RuntimeError(
+                "Reader.convert_relative_reading_state_to_absolute() only implemented when Seamless=True"
+            )
+
+        absolute_row = reading_state.row + sum(
+            self.totlines_per_content[: reading_state.content_index]
+        )
+        absolute_pctg = (
+            absolute_row / sum(self.totlines_per_content) if reading_state.rel_pctg else None
+        )
+
+        return dataclasses.replace(
+            reading_state, content_index=0, row=absolute_row, rel_pctg=absolute_pctg
+        )
+
+    def get_all_book_contents(
+        self, reading_state: ReadingState
+    ) -> Tuple[TextStructure, Tuple[TocEntry, ...], Union[Tuple[str, ...], Tuple[ET.Element, ...]]]:
+        if not self.seamless:
+            raise RuntimeError("Reader.get_all_book_contents() only implemented when Seamless=True")
+
+        contents = self.ebook.contents
+        toc_entries = self.ebook.toc_entries
+
+        text_structure: TextStructure = TextStructure(
+            text_lines=tuple(), image_maps=dict(), section_rows=dict(), formatting=tuple()
+        )
+        toc_entries_tmp: List[TocEntry] = []
+        section_rows_tmp: Dict[str, int] = dict()
+
+        # self.totlines_per_content only defined when Seamless=True
+        self.totlines_per_content: Tuple[int, ...] = tuple()
+
+        for n, content in enumerate(contents):
+            starting_line = sum(self.totlines_per_content)
+            assert isinstance(content, str) or isinstance(content, ET.Element)
+            text_structure_tmp = parse_html(
+                self.ebook.get_raw_text(content),
+                textwidth=reading_state.textwidth,
+                section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
+                starting_line=starting_line,
+            )
+            assert isinstance(text_structure_tmp, TextStructure)
+            # self.totlines_per_content.append(len(text_structure_tmp.text_lines))
+            self.totlines_per_content += (len(text_structure_tmp.text_lines),)
+
+            for toc_entry in toc_entries:
+                if toc_entry.content_index == n:
+                    if toc_entry.section:
+                        toc_entries_tmp.append(dataclasses.replace(toc_entry, content_index=0))
+                    else:
+                        section_id_tmp = str(uuid.uuid4())
+                        toc_entries_tmp.append(
+                            TocEntry(label=toc_entry.label, content_index=0, section=section_id_tmp)
+                        )
+                        section_rows_tmp[section_id_tmp] = starting_line
+
+            text_structure = merge_text_structures(text_structure, text_structure_tmp)
+
+        text_structure = dataclasses.replace(
+            text_structure, section_rows={**text_structure.section_rows, **section_rows_tmp}
+        )
+
+        return text_structure, tuple(toc_entries_tmp), (self.ebook.contents[0],)
+
+    def get_current_book_content(
+        self, reading_state: ReadingState
+    ) -> Tuple[TextStructure, Tuple[TocEntry, ...], Union[Tuple[str, ...], Tuple[ET.Element, ...]]]:
+        contents = self.ebook.contents
+        toc_entries = self.ebook.toc_entries
+        content_path = contents[reading_state.content_index]
+        content = self.ebook.get_raw_text(content_path)
+        text_structure = parse_html(  # type: ignore
+            content,
+            textwidth=reading_state.textwidth,
+            section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
+        )
+        return text_structure, toc_entries, contents
 
     def read(self, reading_state: ReadingState) -> ReadingState:
         # reusable loop indices
@@ -2837,76 +2919,13 @@ class Reader:
         if self.spread == 2:
             x = DoubleSpreadPadding.LEFT.value
 
-        contents = self.ebook.contents
-        toc_entries = self.ebook.toc_entries
+        # get text structure, toc entries and contents of the book
         if self.seamless:
-            text_structure: TextStructure = TextStructure(
-                text_lines=tuple(), image_maps=dict(), section_rows=dict(), formatting=tuple()
-            )
-            toc_entries_tmp: List[TocEntry] = []
-            section_rows_tmp: Dict[str, int] = dict()
-            totlines_per_content: Tuple[int, ...] = tuple()  # only defined when Seamless==True
-            for n, content in enumerate(contents):
-                starting_line = sum(totlines_per_content)
-                assert isinstance(content, str) or isinstance(content, ET.Element)
-                text_structure_tmp = parse_html(
-                    self.ebook.get_raw_text(content),
-                    textwidth=reading_state.textwidth,
-                    section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
-                    starting_line=starting_line,
-                )
-                assert isinstance(text_structure_tmp, TextStructure)
-                # totlines_per_content.append(len(text_structure_tmp.text_lines))
-                totlines_per_content += (len(text_structure_tmp.text_lines),)
-
-                for toc_entry in toc_entries:
-                    if toc_entry.content_index == n:
-                        if toc_entry.section:
-                            toc_entries_tmp.append(dataclasses.replace(toc_entry, content_index=0))
-                        else:
-                            section_id_tmp = str(uuid.uuid4())
-                            toc_entries_tmp.append(
-                                TocEntry(
-                                    label=toc_entry.label, content_index=0, section=section_id_tmp
-                                )
-                            )
-                            section_rows_tmp[section_id_tmp] = starting_line
-
-                text_structure = merge_text_structures(text_structure, text_structure_tmp)
-
+            text_structure, toc_entries, contents = self.get_all_book_contents(reading_state)
             # adjustment
-            contents = (contents[0],)
-            toc_entries = tuple(toc_entries_tmp)
-            text_structure = dataclasses.replace(
-                text_structure, section_rows={**text_structure.section_rows, **section_rows_tmp}
-            )
-            reading_state = dataclasses.replace(
-                reading_state,
-                content_index=0,
-                row=reading_state.row + sum(totlines_per_content[: reading_state.content_index]),
-                rel_pctg=(
-                    reading_state.row + sum(totlines_per_content[: reading_state.content_index])
-                )
-                / len(text_structure.text_lines)
-                if reading_state.rel_pctg
-                else None,
-            )
-            # objects that only exist when Setting.Seamless==True
-            totlines_per_content = tuple(totlines_per_content)
-            Reader.adjust_seamless_reading_state = staticmethod(
-                lambda reading_state: construct_relative_reading_state(
-                    reading_state, totlines_per_content
-                )
-            )
-
+            reading_state = self.convert_relative_reading_state_to_absolute(reading_state)
         else:
-            content_path = contents[reading_state.content_index]
-            content = self.ebook.get_raw_text(content_path)
-            text_structure = parse_html(  # type: ignore
-                content,
-                textwidth=reading_state.textwidth,
-                section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
-            )
+            text_structure, toc_entries, contents = self.get_current_book_content(reading_state)
 
         totlines = len(text_structure.text_lines)
 
@@ -3348,7 +3367,7 @@ class Reader:
                                     # self.seamless adjustment
                                     if self.seamless:
                                         content_path = self.ebook.contents[
-                                            Reader.adjust_seamless_reading_state(
+                                            self.convert_absolute_reading_state_to_relative(
                                                 reading_state
                                             ).content_index
                                         ]
@@ -3628,7 +3647,7 @@ def preread(stdscr, filepath: str):
             reading_state = reader.read(reading_state)
             reader.show_loader()
             if reader.seamless:
-                reading_state = Reader.adjust_seamless_reading_state(reading_state)
+                reading_state = self.convert_absolute_reading_state_to_relative(reading_state)
     finally:
         reader.cleanup()
 
