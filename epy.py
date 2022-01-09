@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# vim:tabstop=4:shiftwidth=4:softtabstop=4:smarttab:expandtab:foldmethod=marker
 """\
 Usages:
     epy             read last ebook
@@ -21,6 +22,8 @@ __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
 __url__ = "https://github.com/wustho/epy"
 
+
+# Imports {{{
 
 import base64
 import contextlib
@@ -58,6 +61,10 @@ try:
 except ModuleNotFoundError:
     MOBI_SUPPORT = False
 
+# }}}
+
+
+# Debug Utils {{{
 
 try:
     # Debug swith
@@ -83,9 +90,10 @@ try:
 except ValueError:
     DEBUG = False
 
+# }}}
 
-# ----------------------- MODELS ---------------------------
 
+# Data Models {{{
 
 # add image viewers here
 # sorted by most widely used
@@ -110,92 +118,6 @@ class DoubleSpreadPadding(Enum):
     LEFT = 10
     MIDDLE = 7
     RIGHT = 10
-
-
-class SpeakerBaseModel:
-    cmd: str = "tts_engine_binary"
-    available: bool = False
-
-    def __init__(self, args: List[str] = []):
-        self.args = args
-
-    def speak(self, text: str) -> None:
-        raise NotImplementedError("Speaker.speak() not implemented")
-
-    def is_done(self) -> bool:
-        raise NotImplementedError("Speaker.is_done() not implemented")
-
-    def stop(self) -> None:
-        raise NotImplementedError("Speaker.stop() not implemented")
-
-    def cleanup(self) -> None:
-        raise NotImplementedError("Speaker.cleanup() not implemented")
-
-
-class SpeakerMimic(SpeakerBaseModel):
-    cmd = "mimic"
-    available = bool(shutil.which("mimic"))
-
-    def speak(self, text: str) -> None:
-        self.process = subprocess.Popen(
-            [self.cmd, *self.args],
-            text=True,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-        assert self.process.stdin
-        self.process.stdin.write(text)
-        self.process.stdin.close()
-
-    def is_done(self) -> bool:
-        return self.process.poll() is not None
-
-    def stop(self) -> None:
-        self.process.terminate()
-        # self.process.kill()
-
-    def cleanup(self) -> None:
-        pass
-
-
-class SpeakerPico(SpeakerBaseModel):
-    cmd = "pico2wave"
-    available = all([shutil.which(dep) for dep in ["pico2wave", "play"]])
-
-    def speak(self, text: str) -> None:
-        _, self.tmp_path = tempfile.mkstemp(suffix=".wav")
-
-        try:
-            subprocess.run(
-                [self.cmd, *self.args, "-w", self.tmp_path, text],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            if "invalid pointer" not in e.output:
-                sys.exit(e.output)
-
-        self.process = subprocess.Popen(
-            ["play", self.tmp_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-    def is_done(self) -> bool:
-        return self.process.poll() is not None
-
-    def stop(self) -> None:
-        self.process.terminate()
-        # self.process.kill()
-
-    def cleanup(self) -> None:
-        os.remove(self.tmp_path)
-
-
-SPEAKERS: List[Type[SpeakerBaseModel]] = [SpeakerMimic, SpeakerPico]
 
 
 @dataclass(frozen=True)
@@ -491,6 +413,104 @@ class Keymap:
     SwitchColor: Tuple[Key, ...]
     TTSToggle: Tuple[Key, ...]
     TableOfContents: Tuple[Key, ...]
+
+
+# }}}
+
+
+# Speaker / TTS Engine Wrappers {{{
+
+
+class SpeakerBaseModel:
+    cmd: str = "tts_engine_binary"
+    available: bool = False
+
+    def __init__(self, args: List[str] = []):
+        self.args = args
+
+    def speak(self, text: str) -> None:
+        raise NotImplementedError("Speaker.speak() not implemented")
+
+    def is_done(self) -> bool:
+        raise NotImplementedError("Speaker.is_done() not implemented")
+
+    def stop(self) -> None:
+        raise NotImplementedError("Speaker.stop() not implemented")
+
+    def cleanup(self) -> None:
+        raise NotImplementedError("Speaker.cleanup() not implemented")
+
+
+class SpeakerMimic(SpeakerBaseModel):
+    cmd = "mimic"
+    available = bool(shutil.which("mimic"))
+
+    def speak(self, text: str) -> None:
+        self.process = subprocess.Popen(
+            [self.cmd, *self.args],
+            text=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        assert self.process.stdin
+        self.process.stdin.write(text)
+        self.process.stdin.close()
+
+    def is_done(self) -> bool:
+        return self.process.poll() is not None
+
+    def stop(self) -> None:
+        self.process.terminate()
+        # self.process.kill()
+
+    def cleanup(self) -> None:
+        pass
+
+
+class SpeakerPico(SpeakerBaseModel):
+    cmd = "pico2wave"
+    available = all([shutil.which(dep) for dep in ["pico2wave", "play"]])
+
+    def speak(self, text: str) -> None:
+        _, self.tmp_path = tempfile.mkstemp(suffix=".wav")
+
+        try:
+            subprocess.run(
+                [self.cmd, *self.args, "-w", self.tmp_path, text],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            if "invalid pointer" not in e.output:
+                sys.exit(e.output)
+
+        self.process = subprocess.Popen(
+            ["play", self.tmp_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def is_done(self) -> bool:
+        return self.process.poll() is not None
+
+    def stop(self) -> None:
+        self.process.terminate()
+        # self.process.kill()
+
+    def cleanup(self) -> None:
+        os.remove(self.tmp_path)
+
+
+# register wrappers here
+SPEAKERS: List[Type[SpeakerBaseModel]] = [SpeakerMimic, SpeakerPico]
+
+# }}}
+
+
+# Ebooks {{{
 
 
 class Ebook:
@@ -868,6 +888,12 @@ class FictionBook(Ebook):
 
     def cleanup(self) -> None:
         return
+
+
+# }}}
+
+
+# HTML & Text Parser {{{
 
 
 class HTMLtoLines(HTMLParser):
@@ -1255,6 +1281,12 @@ class HTMLtoLines(HTMLParser):
         )
 
 
+# }}}
+
+
+# App Configuration {{{
+
+
 class AppData:
     @property
     def prefix(self) -> Optional[str]:
@@ -1538,6 +1570,12 @@ class State(AppData):
             conn.close()
 
 
+# }}}
+
+
+# Text Board {{{
+
+
 class InfiniBoard:
     """
     Wrapper for curses screen to render infinite texts.
@@ -1680,7 +1718,10 @@ class InfiniBoard:
                     )
 
 
-# ----------------------- HELPERS --------------------------
+# }}}
+
+
+# Helpers Function {{{
 
 
 def construct_speaker(
@@ -2124,7 +2165,10 @@ def text_win(textfunc):
     return wrapper
 
 
-# ----------------------- MAIN -----------------------------
+# }}}
+
+
+# Main Reading Interface {{{
 
 
 class Reader:
@@ -3554,6 +3598,12 @@ class Reader:
             sys.exit()
 
 
+# }}}
+
+
+# Reading Init {{{
+
+
 def preread(stdscr, filepath: str):
     global STDSCR
     if DEBUG:
@@ -3581,6 +3631,12 @@ def preread(stdscr, filepath: str):
                 reading_state = Reader.adjust_seamless_reading_state(reading_state)
     finally:
         reader.cleanup()
+
+
+# }}}
+
+
+# Commandline {{{
 
 
 def parse_cli_args() -> str:
@@ -3720,6 +3776,9 @@ def parse_cli_args() -> str:
 def main():
     filepath = parse_cli_args()
     curses.wrapper(preread, filepath)
+
+
+# }}}
 
 
 if __name__ == "__main__":
