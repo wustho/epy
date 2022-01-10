@@ -3647,7 +3647,7 @@ def preread(stdscr, filepath: str):
             reading_state = reader.read(reading_state)
             reader.show_loader()
             if reader.seamless:
-                reading_state = self.convert_absolute_reading_state_to_relative(reading_state)
+                reading_state = reader.convert_absolute_reading_state_to_relative(reading_state)
     finally:
         reader.cleanup()
 
