@@ -20,6 +20,7 @@ pytest = "^6.2.5"
 twine = "^3.7.1"
 wheel = "^0.37.1"
 ipdb = "^0.13.9"
+coverage = "^6.2"
 
 [tool.mypy]
 strict_optional = true

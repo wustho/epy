@@ -6,3 +6,4 @@ epy_reader.egg-info/*
 build
 dist
 tmp/
+.coverage

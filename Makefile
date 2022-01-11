@@ -1,11 +1,16 @@
 .PHONY: tests
 .DEFAULT_GOAL := tests
 
-requirements:
+dev:
 	poetry install --no-root
 
 tests:
 	python -m pytest -vv
+
+coverage:
+	coverage run --include=epy.py -m pytest -vv tests
+	coverage html
+	python -m http.server -d htmlcov
 
 release:
 	python setup.py sdist bdist_wheel
