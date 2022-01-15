@@ -3075,7 +3075,6 @@ class Reader:
             reading_state = self.convert_relative_reading_state_to_absolute(reading_state)
         else:
             text_structure, toc_entries, contents = self.get_current_book_content(reading_state)
-            content_path = contents[reading_state.content_index]
 
         totlines = len(text_structure.text_lines)
 
@@ -3516,16 +3515,19 @@ class Reader:
                                 if isinstance(self.ebook, (Epub, Mobi, Azw)):
                                     # self.seamless adjustment
                                     if self.seamless:
-                                        content_path = self.ebook.contents[
+                                        current_content_index = (
                                             self.convert_absolute_reading_state_to_relative(
                                                 reading_state
                                             ).content_index
-                                        ]
+                                        )
+                                    else:
+                                        current_content_index = reading_state.content_index
                                         # for n, content in enumerate(self.ebook.contents):
                                         #     content_path = content
                                         #     if reading_state.row < sum(totlines_per_content[:n]):
                                         #         break
 
+                                    content_path = self.ebook.contents[current_content_index]
                                     assert isinstance(content_path, str)
                                     image_path = resolve_path(content_path, image_path)
                                 imgnm, imgbstr = self.ebook.get_img_bytestr(image_path)
