@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # vim:tabstop=4:shiftwidth=4:softtabstop=4:smarttab:expandtab:foldmethod=marker
 """\
-usage: epy [-h] [-r] [-d] [-v] [ PATH | # | PATTERN | URL ]
+usage: epy [-h] [-r] [-d] [-v] [PATH | # | PATTERN | URL]
 
 Read ebook in terminal
 
@@ -60,9 +60,10 @@ from enum import Enum
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
+from pathlib import PurePosixPath
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError, URLError
 
 try:
     from epy_extras import unpackBook  # type: ignore
@@ -936,7 +937,7 @@ class URL(Ebook):
         # TODO: catch error on request
         with urlopen(Request(image_url, headers=URL._header)) as response:
             byte_str = response.read()
-        return urlparse(src).path.split("/")[-1], byte_str
+        return PurePosixPath(urlparse(src).path).name, byte_str
 
     def cleanup(self) -> None:
         return
@@ -1773,7 +1774,7 @@ class InfiniBoard:
 # }}}
 
 
-# Helpers Function {{{
+# Helpers & Utils {{{
 
 
 def coerce_to_int(string: str) -> Optional[int]:
@@ -3819,7 +3820,7 @@ def parse_cli_args() -> Tuple[str, bool]:
     And exiting the program depending on situation.
     """
     prog = "epy"
-    positional_arg_help_str = "[ PATH | # | PATTERN | URL ]"
+    positional_arg_help_str = "[PATH | # | PATTERN | URL]"
     args_parser = argparse.ArgumentParser(
         prog=prog,
         usage=f"%(prog)s [-h] [-r] [-d] [-v] {positional_arg_help_str}",
