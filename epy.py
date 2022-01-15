@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 # vim:tabstop=4:shiftwidth=4:softtabstop=4:smarttab:expandtab:foldmethod=marker
 """\
-Usages:
-    epy             read last ebook
-    epy EBOOKFILE   read EBOOKFILE
-    epy STRINGS     read matched STRINGS from history
-    epy NUMBER      read file from history
-                    with associated NUMBER
+usage: epy [-h] [-r] [-d] [-v] [EBOOK | #N | STRING ...]
 
-Options:
-    -r              print reading history
-    -d              dump epub
-    -h, --help      print help
-    -v, --version   print version
+Read ebook in terminal
+
+positional arguments:
+  EBOOK | #N | STRING  ebook path, history number or pattern
+
+optional arguments:
+  -h, --help           show this help message and exit
+  -r, --history        print reading history
+  -d, --dump           dump the content of ebook
+  -v, --version        print version and exit
+
+examples:
+  epy /path/to/ebook   read /path/to/ebook file
+  epy 3                read #3 file from reading history
+  epy count monte      read file matching 'count monte'
+                       from reading history
 """
 
 
@@ -3751,12 +3757,36 @@ def parse_cli_args() -> Tuple[str, bool]:
     Parse CLI args and return tuple of filepath and boolean (dump ebook indicator).
     And exiting the program depending on situation.
     """
-    args_parser = argparse.ArgumentParser(description="Read ebook in terminal")
+    prog = "epy"
+    args_parser = argparse.ArgumentParser(
+        prog=prog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Read ebook in terminal",
+        epilog=textwrap.dedent(
+            f"""\
+        examples:
+          {prog} /path/to/ebook   read /path/to/ebook file
+          {prog} 3                read #3 file from reading history
+          {prog} count monte      read file matching 'count monte'
+                               from reading history
+        """
+        ),
+    )
     args_parser.add_argument("-r", "--history", action="store_true", help="print reading history")
     args_parser.add_argument("-d", "--dump", action="store_true", help="dump the content of ebook")
-    args_parser.add_argument("-v", "--version", action="version", version=f"v{__version__}")
     args_parser.add_argument(
-        "ebook", action="store", nargs="*", metavar="EBOOK", help="ebook path or history number"
+        "-v",
+        "--version",
+        action="version",
+        version=f"v{__version__}",
+        help="print version and exit",
+    )
+    args_parser.add_argument(
+        "ebook",
+        action="store",
+        nargs="*",
+        metavar="EBOOK | #N | STRING",
+        help="ebook path, history number or pattern",
     )
     args = args_parser.parse_args()
 
