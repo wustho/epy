@@ -22,7 +22,7 @@ examples:
 """
 
 
-__version__ = "2022.1.8"
+__version__ = "2022.1.15"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -931,7 +931,7 @@ class URL(Ebook):
         return self.html
 
     def get_img_bytestr(self, src: str) -> Tuple[str, bytes]:
-        image_url = urljoin(self.path, src)
+        image_url = src if is_url(src) else urljoin(self.path, src)
         # TODO: catch error on request
         with urlopen(Request(image_url, headers=URL._header)) as response:
             byte_str = response.read()
@@ -2520,9 +2520,12 @@ class Reader:
 
     @text_win
     def show_win_metadata(self):
-        mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
-            self.ebook.path, round(os.path.getsize(self.ebook.path) / 1024 ** 2, 2)
-        )
+        if os.path.isfile(self.ebook.path):
+            mdata = "[File Info]\nPATH: {}\nSIZE: {} MB\n \n[Book Info]\n".format(
+                self.ebook.path, round(os.path.getsize(self.ebook.path) / 1024 ** 2, 2)
+            )
+        else:
+            mdata = "[File Info]\nPATH: {}\n \n[Book Info]\n".format(self.ebook.path)
 
         book_metadata = self.ebook.get_meta()
         for field in dataclasses.fields(book_metadata):

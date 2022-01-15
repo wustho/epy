@@ -13,7 +13,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
   - FictionBook (.fb2)
   - Mobi (.mobi)
   - AZW3 (.azw, .azw3)
-  - URL
+  - [URL](#url-support)
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration (`sdcv` or `dict`)
@@ -65,6 +65,19 @@ Config file is available in json format which is located at:
 
 Although, there are not many stuffs to configure.
 
+## URL Support
+
+You can read online books like: short stories, fan fiction, etc. using `epy`with url.
+Pretty useful when you want to read with less distraction.
+`epy` will also remember your reading progress online.
+
+eg. You can read [Moby Dick from gutenberg](https://www.gutenberg.org/files/2701/2701-h/2701-h.htm)
+directly with:
+
+```shell
+$ epy https://www.gutenberg.org/files/2701/2701-h/2701-h.htm
+```
+
 ## Using Mouse
 
 Although mouse support is useful when running `epy` on Termux Android, it’s disabled by default
@@ -102,6 +115,8 @@ so line scrolling navigation will act as scrolling page and textwidth is not adj
 
 - `v2022.1.8`: Change in configuration and reading states schema that is not backward compatible.
   So if error is encountered, deleting the configuration and states file might fix the issue.
+
+- `v2022.1.15`: Early implementation of URL support, table of contents isn't available for now.
 
 ## Tip Jar
 
