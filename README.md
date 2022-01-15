@@ -13,6 +13,7 @@ This is just a fork of my own [epr](https://github.com/wustho/epr) with these ex
   - FictionBook (.fb2)
   - Mobi (.mobi)
   - AZW3 (.azw, .azw3)
+  - URL
 - Reading progress percentage
 - Bookmarks
 - External dictionary integration (`sdcv` or `dict`)

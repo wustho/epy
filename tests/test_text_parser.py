@@ -1,6 +1,15 @@
 from epy import CharPos, TextMark, TextSpan, HTMLtoLines
 
 
+def test_text_mark_validation_check():
+    assert TextMark(start=CharPos(row=3, col=1), end=CharPos(row=3, col=5)).is_valid()
+    assert TextMark(start=CharPos(row=3, col=5), end=CharPos(row=3, col=5)).is_valid()
+    assert not TextMark(start=CharPos(row=3, col=5), end=CharPos(row=3, col=2)).is_valid()
+    assert TextMark(start=CharPos(row=3, col=5), end=CharPos(row=5, col=2)).is_valid()
+    assert not TextMark(start=CharPos(row=8, col=5), end=CharPos(row=5, col=2)).is_valid()
+    assert not TextMark(start=CharPos(row=0, col=3)).is_valid()
+
+
 def test_mark_to_span():
     text = [
         "Lorem ipsum dolor sit amet,",

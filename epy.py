@@ -59,7 +59,9 @@ from enum import Enum
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import unquote, urljoin
+from urllib.parse import unquote, urljoin, urlparse
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 try:
     from epy_extras import unpackBook  # type: ignore
@@ -158,13 +160,13 @@ class LibraryItem:
         reading_progress_str = reading_progress_str.rjust(4)
 
         book_name: str
-        file_basename = os.path.basename(self.filepath)
+        filename = self.filepath.replace(os.path.expanduser("~"), "~", 1)
         if self.title is not None and self.author is not None:
-            book_name = f"{self.title} - {self.author} ({file_basename})"
-        elif self.title is None:
-            book_name = f"{file_basename} - {self.author}"
+            book_name = f"{self.title} - {self.author} ({filename})"
+        elif self.title is None and self.author:
+            book_name = f"{filename} - {self.author}"
         else:
-            book_name = file_basename
+            book_name = filename
 
         last_read_str = self.last_read.strftime("%I:%M%p %b %d")
 
@@ -245,11 +247,12 @@ class TextMark:
         Missing </i> tag
         """
         if self.end is not None:
-            assert self.start.row <= self.end.row
-            if self.start.row <= self.end.row:
-                assert self.start.col <= self.end.col
+            if self.start.row == self.end.row:
+                return self.start.col <= self.end.col
+            else:
+                return self.start.row < self.end.row
 
-        return self.end is not None
+        return False
 
 
 @dataclass(frozen=True)
@@ -894,6 +897,45 @@ class FictionBook(Ebook):
         assert imgtype is not None
         assert img_elem_text is not None
         return imgid + "." + imgtype.split("/")[1], base64.b64decode(img_elem_text)
+
+    def cleanup(self) -> None:
+        return
+
+
+class URL(Ebook):
+    _header = {
+        "User-Agent": f"epy/v{__version__}",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.8",
+    }
+
+    def __init__(self, url: str):
+        self.path = url
+        self.file = url
+        self.contents = ("_",)
+        self.toc_entries = tuple()
+
+    def get_meta(self) -> BookMetadata:
+        return BookMetadata()
+
+    def initialize(self) -> None:
+        try:
+            with urlopen(Request(self.path, headers=URL._header)) as response:
+                self.html = response.read().decode()
+        except HTTPError as e:
+            raise e
+        except URLError as e:
+            raise e
+
+    def get_raw_text(self, _) -> str:
+        return self.html
+
+    def get_img_bytestr(self, src: str) -> Tuple[str, bytes]:
+        image_url = urljoin(self.path, src)
+        # TODO: catch error on request
+        with urlopen(Request(image_url, headers=URL._header)) as response:
+            byte_str = response.read()
+        return src.split("/")[-1], byte_str
 
     def cleanup(self) -> None:
         return
@@ -1744,7 +1786,7 @@ def cleanup_library(state: State) -> None:
     """Cleanup non-existent file from library"""
     library_items = state.get_from_history()
     for item in library_items:
-        if not os.path.isfile(item.filepath):
+        if not os.path.isfile(item.filepath) and not is_url(item.filepath):
             state.delete_from_library(item.filepath)
 
 
@@ -1798,6 +1840,14 @@ def print_reading_history(state: State) -> None:
                 truncate(str(item), "...", tcols, tcols - 3),
             )
         )
+
+
+def is_url(string: str) -> bool:
+    try:
+        tmp = urlparse(string)
+        return all([tmp.scheme, tmp.netloc])
+    except ValueError:
+        return False
 
 
 def construct_speaker(
@@ -1906,7 +1956,9 @@ def construct_relative_reading_state(
 
 def get_ebook_obj(filepath: str) -> Ebook:
     file_ext = os.path.splitext(filepath)[1].lower()
-    if file_ext == ".epub":
+    if is_url(filepath):
+        return URL(filepath)
+    elif file_ext in {".epub", ".epub3"}:
         return Epub(filepath)
     elif file_ext == ".fb2":
         return FictionBook(filepath)
@@ -3814,9 +3866,10 @@ def parse_cli_args() -> Tuple[str, bool]:
                 print(f"ERROR: #{nth} file not found.")
                 print_reading_history(state)
                 sys.exit(1)
-        else:
-            if os.path.isfile(args.ebook[0]):
-                return args.ebook[0], args.dump
+        elif is_url(args.ebook[0]):
+            return args.ebook[0], args.dump
+        elif os.path.isfile(args.ebook[0]):
+            return args.ebook[0], args.dump
 
     pattern = " ".join(args.ebook)
     match = get_matching_library_item(state, pattern)
