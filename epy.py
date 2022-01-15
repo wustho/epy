@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # vim:tabstop=4:shiftwidth=4:softtabstop=4:smarttab:expandtab:foldmethod=marker
 """\
-usage: epy [-h] [-r] [-d] [-v] [EBOOK | #N | STRING ...]
+usage: epy [-h] [-r] [-d] [-v] [ PATH | # | PATTERN | URL ]
 
 Read ebook in terminal
 
 positional arguments:
-  EBOOK | #N | STRING  ebook path, history number or pattern
+  [ PATH | # | PATTERN | URL ]
+                        ebook path, history number, pattern or URL
 
 optional arguments:
-  -h, --help           show this help message and exit
-  -r, --history        print reading history
-  -d, --dump           dump the content of ebook
-  -v, --version        print version and exit
+  -h, --help            show this help message and exit
+  -r, --history         print reading history
+  -d, --dump            dump the content of ebook
+  -v, --version         print version and exit
 
 examples:
   epy /path/to/ebook   read /path/to/ebook file
@@ -935,7 +936,7 @@ class URL(Ebook):
         # TODO: catch error on request
         with urlopen(Request(image_url, headers=URL._header)) as response:
             byte_str = response.read()
-        return src.split("/")[-1], byte_str
+        return urlparse(src).path.split("/")[-1], byte_str
 
     def cleanup(self) -> None:
         return
@@ -3818,8 +3819,10 @@ def parse_cli_args() -> Tuple[str, bool]:
     And exiting the program depending on situation.
     """
     prog = "epy"
+    positional_arg_help_str = "[ PATH | # | PATTERN | URL ]"
     args_parser = argparse.ArgumentParser(
         prog=prog,
+        usage=f"%(prog)s [-h] [-r] [-d] [-v] {positional_arg_help_str}",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Read ebook in terminal",
         epilog=textwrap.dedent(
@@ -3845,8 +3848,8 @@ def parse_cli_args() -> Tuple[str, bool]:
         "ebook",
         action="store",
         nargs="*",
-        metavar="EBOOK | #N | STRING",
-        help="ebook path, history number or pattern",
+        metavar=positional_arg_help_str,
+        help="ebook path, history number, pattern or URL",
     )
     args = args_parser.parse_args()
 
