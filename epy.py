@@ -1831,13 +1831,16 @@ def get_matching_library_item(
 def print_reading_history(state: State) -> None:
     termc, _ = shutil.get_terminal_size()
     library_items = state.get_from_history()
+    if not library_items:
+        print("No Reading History.")
+        return
 
     print("Reading History:")
     dig = len(str(len(library_items) + 1))
     tcols = termc - dig - 2
     for n, item in enumerate(library_items):
         print(
-            "{}. {}".format(
+            "{} {}".format(
                 str(n + 1).rjust(dig),
                 truncate(str(item), "...", tcols, tcols - 3),
             )
@@ -3829,10 +3832,10 @@ def parse_cli_args() -> Tuple[str, bool]:
         epilog=textwrap.dedent(
             f"""\
         examples:
-          {prog} /path/to/ebook   read /path/to/ebook file
-          {prog} 3                read #3 file from reading history
-          {prog} count monte      read file matching 'count monte'
-                               from reading history
+          {prog} /path/to/ebook    read /path/to/ebook file
+          {prog} 3                 read #3 file from reading history
+          {prog} count monte       read file matching 'count monte'
+                                from reading history
         """
         ),
     )
