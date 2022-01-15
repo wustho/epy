@@ -25,6 +25,7 @@ __url__ = "https://github.com/wustho/epy"
 
 # Imports {{{
 
+import argparse
 import base64
 import contextlib
 import curses
@@ -76,10 +77,12 @@ try:
     def debug(context: int = 5) -> None:
         # if not isinstance(STDSCR, curses.window):
         #     raise RuntimeError("STDSCR not set")
-        curses.nocbreak()
-        STDSCR.keypad(False)  # type: ignore
-        curses.echo()
-        curses.endwin()
+        if STDSCR:
+            curses.nocbreak()
+            STDSCR.keypad(False)  # type: ignore
+            curses.echo()
+            curses.endwin()
+
         try:
             import ipdb  # type: ignore
 
@@ -1724,6 +1727,73 @@ class InfiniBoard:
 # Helpers Function {{{
 
 
+def coerce_to_int(string: str) -> Optional[int]:
+    try:
+        return int(string)
+    except ValueError:
+        return None
+
+
+def cleanup_library(state: State) -> None:
+    """Cleanup non-existent file from library"""
+    library_items = state.get_from_history()
+    for item in library_items:
+        if not os.path.isfile(item.filepath):
+            state.delete_from_library(item.filepath)
+
+
+def get_nth_file_from_library(state: State, n) -> Optional[LibraryItem]:
+    library_items = state.get_from_history()
+    try:
+        return library_items[n - 1]
+    except IndexError:
+        return None
+
+
+def get_matching_library_item(
+    state: State, pattern: str, threshold: float = 0.5
+) -> Optional[LibraryItem]:
+    matches: List[Tuple[LibraryItem, float]] = []  # [(library_item, match_value), ...]
+    library_items = state.get_from_history()
+    if not library_items:
+        return None
+
+    for item in library_items:
+        tomatch = f"{item.title} - {item.author}"  # item.filepath
+        match_value = sum(
+            [i.size for i in SM(None, tomatch.lower(), pattern.lower()).get_matching_blocks()]
+        ) / float(len(pattern))
+        matches.append(
+            (
+                item,
+                match_value,
+            )
+        )
+
+    sorted_matches = sorted(matches, key=lambda x: -x[1])
+    first_match_item, first_match_value = sorted_matches[0]
+    if first_match_item and first_match_value >= threshold:
+        return first_match_item
+    else:
+        return None
+
+
+def print_reading_history(state: State) -> None:
+    termc, _ = shutil.get_terminal_size()
+    library_items = state.get_from_history()
+
+    print("Reading History:")
+    dig = len(str(len(library_items) + 1))
+    tcols = termc - dig - 2
+    for n, item in enumerate(library_items):
+        print(
+            "{}. {}".format(
+                str(n + 1).rjust(dig),
+                truncate(str(item), "...", tcols, tcols - 3),
+            )
+        )
+
+
 def construct_speaker(
     preferred: Optional[str] = None, args: List[str] = []
 ) -> Optional[SpeakerBaseModel]:
@@ -1763,6 +1833,24 @@ def parse_html(
     #     pass
 
     return parser.get_structured_text(textwidth, starting_line)
+
+
+def dump_ebook_content(filepath: str) -> None:
+    ebook = get_ebook_obj(filepath)
+    try:
+        try:
+            ebook.initialize()
+        except Exception as e:
+            sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
+        for i in ebook.contents:
+            content = ebook.get_raw_text(i)
+            src_lines = parse_html(content)
+            assert isinstance(src_lines, tuple)
+            # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
+            for j in src_lines:
+                sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
+    finally:
+        ebook.cleanup()
 
 
 def merge_text_structures(
@@ -3658,143 +3746,62 @@ def preread(stdscr, filepath: str):
 # Commandline {{{
 
 
-def parse_cli_args() -> str:
+def parse_cli_args() -> Tuple[str, bool]:
     """
-    Try parsing cli args and return filepath of ebook to read
-    or quitting based on args and app state
+    Parse CLI args and return tuple of filepath and boolean (dump ebook indicator).
+    And exiting the program depending on situation.
     """
-    # reusable loop indices
-    i: Any
-    j: Any
+    args_parser = argparse.ArgumentParser(description="Read ebook in terminal")
+    args_parser.add_argument("-r", "--history", action="store_true", help="print reading history")
+    args_parser.add_argument("-d", "--dump", action="store_true", help="dump the content of ebook")
+    args_parser.add_argument("-v", "--version", action="version", version=f"v{__version__}")
+    args_parser.add_argument(
+        "ebook", action="store", nargs="*", metavar="EBOOK", help="ebook path or history number"
+    )
+    args = args_parser.parse_args()
 
-    termc, termr = shutil.get_terminal_size()
+    state = State()
+    cleanup_library(state)
 
-    args = []
-    if sys.argv[1:] != []:
-        args += sys.argv[1:]
-
-    if len({"-h", "--help"} & set(args)) != 0:
-        print(__doc__.rstrip())
+    if args.history:
+        print_reading_history(state)
         sys.exit()
 
-    if len({"-v", "--version", "-V"} & set(args)) != 0:
-        print("v" + __version__)
-        sys.exit()
+    if len(args.ebook) == 0:
+        last_read = state.get_last_read()
+        if last_read:
+            return last_read, args.dump
+        else:
+            sys.exit("ERROR: Found no last read ebook file.")
 
-    app_state = State()
+    elif len(args.ebook) == 1:
+        nth = coerce_to_int(args.ebook[0])
+        if nth is not None:
+            file = get_nth_file_from_library(state, nth)
+            if file:
+                return file.filepath, args.dump
+            else:
+                print(f"ERROR: #{nth} file not found.")
+                print_reading_history(state)
+                sys.exit(1)
+        else:
+            if os.path.isfile(args.ebook[0]):
+                return args.ebook[0], args.dump
 
-    # trying finding file and keep it in candidate
-    # which has the form of candidate = (filepath, error_msg)
-    # if filepath is None or error_msg is None then
-    # the app failed and exit with error_msg
-    candidate: Tuple[Optional[str], Optional[str]]
-
-    last_read_in_history = app_state.get_last_read()
-
-    # clean up history from missing file
-    library = app_state.get_from_history()
-    is_library_modified = False
-    for item in library:
-        if not os.path.isfile(item.filepath):
-            app_state.delete_from_library(item.filepath)
-            is_library_modified = True
-    if is_library_modified:
-        library = app_state.get_from_history()
-
-    if len({"-d"} & set(args)) != 0:
-        args.remove("-d")
-        dump = True
+    pattern = " ".join(args.ebook)
+    match = get_matching_library_item(state, pattern)
+    if match:
+        return match.filepath, args.dump
     else:
-        dump = False
-
-    if not args:
-        candidate = (last_read_in_history, None)
-        if not candidate[0] or not os.path.isfile(candidate[0]):
-            # instant fail
-            sys.exit("ERROR: Found no last read file.")
-
-    elif os.path.isfile(args[0]):
-        candidate = (args[0], None)
-
-    else:
-        candidate = (None, "ERROR: No matching file found in history.")
-
-        # find file from history with index number
-        if len(args) == 1 and re.match(r"[0-9]+", args[0]) is not None:
-            try:
-                # file = list(STATE["States"].keys())[int(args[0]) - 1]
-                chosen_by_index = library[int(args[0]) - 1]
-                candidate = (chosen_by_index.filepath, None)
-            except IndexError:
-                pass
-
-        # find file from history by string matching
-        if (not candidate[0]) or candidate[1]:
-            matching_value = 0
-            for item in library:
-                tomatch = f"{item.title} - {item.author}"  # item.filepath
-                this_item_match_value = sum(
-                    [
-                        i.size
-                        for i in SM(
-                            None, tomatch.lower(), " ".join(args).lower()
-                        ).get_matching_blocks()
-                    ]
-                )
-                if this_item_match_value >= matching_value:
-                    matching_value = this_item_match_value
-                    candidate = (item.filepath, None)
-
-            if matching_value == 0:
-                candidate = (None, "\nERROR: No matching file found in history.")
-
-        if (not candidate[0]) or candidate[1] or "-r" in args:
-            print("Reading History:")
-            # dig = len(str(len(STATE["States"].keys()) + 1))
-            dig = len(str(len(library) + 1))
-            tcols = termc - dig - 2
-            for n, item in enumerate(library):
-                print(
-                    "{}. {}".format(
-                        str(n + 1).rjust(dig),
-                        truncate(str(item), "...", tcols, tcols - 3),
-                    )
-                )
-            if "-r" in args:
-                sys.exit()
-
-    filepath, error_msg = candidate
-    if (not filepath) or error_msg:
-        sys.exit(error_msg)
-
-    if dump:
-        ebook = get_ebook_obj(filepath)
-        try:
-            try:
-                ebook.initialize()
-            except Exception as e:
-                sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
-            for i in ebook.contents:
-                content = ebook.get_raw_text(i)
-                src_lines = parse_html(content)
-                assert isinstance(src_lines, tuple)
-                # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
-                for j in src_lines:
-                    sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
-        finally:
-            ebook.cleanup()
-        sys.exit()
-
-    else:
-        if termc < 22 or termr < 12:
-            sys.exit("ERROR: Screen was too small (min 22cols x 12rows).")
-
-        return filepath
+        sys.exit("ERROR: Found no matching ebook from history.")
 
 
 def main():
-    filepath = parse_cli_args()
-    curses.wrapper(preread, filepath)
+    filepath, dump_only = parse_cli_args()
+    if dump_only:
+        dump_ebook_content(filepath)
+    else:
+        curses.wrapper(preread, filepath)
 
 
 # }}}
