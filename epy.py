@@ -22,7 +22,7 @@ examples:
 """
 
 
-__version__ = "2022.1.15"
+__version__ = "2022.1.16"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -3075,6 +3075,7 @@ class Reader:
             reading_state = self.convert_relative_reading_state_to_absolute(reading_state)
         else:
             text_structure, toc_entries, contents = self.get_current_book_content(reading_state)
+            content_path = contents[reading_state.content_index]
 
         totlines = len(text_structure.text_lines)
 
@@ -3532,6 +3533,8 @@ class Reader:
                                 continue
                             except Exception as e:
                                 self.show_win_error("Error Opening Image", str(e), tuple())
+                                if DEBUG:
+                                    raise e
 
                     elif (
                         k in self.keymap.SwitchColor
