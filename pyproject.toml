@@ -11,6 +11,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
+windows-curses = { version = "*", markers = "platform_system == 'Windows'" }
 
 [tool.poetry.dev-dependencies]
 pynvim = "^0.4.3"
