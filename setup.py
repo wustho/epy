@@ -19,6 +19,7 @@ setup(
     py_modules=["epy"],
     packages=["epy_extras", "epy_extras.KindleUnpack"],
     entry_points={"console_scripts": ["epy = epy:main"]},
+    install_requires=["windows-curses;platform_system=='Windows'"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
