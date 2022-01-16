@@ -2364,7 +2364,7 @@ class Reader:
             self.is_color_supported = False
 
         # show loader and start heavy resources processes
-        self.show_loader()
+        self.show_loader(subtext="initalizing ebook")
 
         # main ebook object
         self.ebook = ebook
@@ -2499,10 +2499,13 @@ class Reader:
             os.remove(path)
         return k
 
-    def show_loader(self):
+    def show_loader(self, *, loader_str: str = "\u231B", subtext: Optional[str] = None):
         self.screen.clear()
         rows, cols = self.screen.getmaxyx()
-        self.screen.addstr((rows - 1) // 2, (cols - 1) // 2, "\u231B")
+        middle_row = (rows - 1) // 2
+        self.screen.addstr(middle_row, 0, loader_str.center(cols))
+        if subtext:
+            self.screen.addstr(middle_row + 1, 0, subtext.center(cols))
         # self.screen.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
         self.screen.refresh()
 
@@ -3073,6 +3076,7 @@ class Reader:
         if self.spread == 2:
             x = DoubleSpreadPadding.LEFT.value
 
+        self.show_loader(subtext="displaying contents")
         # get text structure, toc entries and contents of the book
         if self.seamless:
             text_structure, toc_entries, contents = self.get_all_book_contents(reading_state)
