@@ -797,7 +797,7 @@ class Mobi(Epub):
 
     def get_raw_text(self, content_path: Union[str, ET.Element]) -> str:
         assert isinstance(content_path, str)
-        with open(content_path) as f:
+        with open(content_path, encoding="utf8") as f:
             content = f.read()
         # return content.decode("utf-8")
         return content
