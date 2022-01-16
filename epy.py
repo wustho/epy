@@ -60,6 +60,7 @@ from enum import Enum
 from functools import wraps
 from html import unescape
 from html.parser import HTMLParser
+from itertools import cycle
 from pathlib import PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urljoin, urlparse
@@ -2087,6 +2088,18 @@ def count_letters_parallel(ebook: Ebook, child_conn) -> None:
     child_conn.close()
 
 
+def show_loader_parallel(screen, event) -> None:
+    try:
+        spinner = cycle("⣾⣽⣻⢿⡿⣟⣯⣷")
+        rows, cols = screen.getmaxyx()
+        while not event.is_set():
+            screen.addstr((rows - 1) // 2, 0, next(spinner).center(cols))
+            screen.refresh()
+            curses.napms(100)
+    except (KeyboardInterrupt, Exception):
+        return
+
+
 def choice_win(allowdel=False):
     """
     Conjure options window by wrapping a window function
@@ -2364,6 +2377,7 @@ class Reader:
             self.is_color_supported = False
 
         # show loader and start heavy resources processes
+        self._process_loader: Optional[multiprocessing.Process] = None
         self.show_loader()
 
         # main ebook object
@@ -2501,10 +2515,19 @@ class Reader:
 
     def show_loader(self):
         self.screen.clear()
-        rows, cols = self.screen.getmaxyx()
-        self.screen.addstr((rows - 1) // 2, (cols - 1) // 2, "\u231B")
-        # self.screen.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
-        self.screen.refresh()
+        if multiprocessing.cpu_count() >= 2:
+            self._event = multiprocessing.Event()
+            self._process_loader = multiprocessing.Process(
+                name="epy-subprocess-loader",
+                target=show_loader_parallel,
+                args=(self.screen, self._event),
+            )
+            self._process_loader.start()
+        else:
+            rows, cols = self.screen.getmaxyx()
+            self.screen.addstr((rows - 1) // 2, (cols - 1) // 2, "\u231B")
+            # self.screen.addstr(((rows-2)//2)+1, (cols-len(msg))//2, msg)
+            self.screen.refresh()
 
     @choice_win(True)
     def show_win_options(self, title, options, active_index, key_set):
@@ -2939,6 +2962,7 @@ class Reader:
     def cleanup(self) -> None:
         self.ebook.cleanup()
 
+        # TODO: for loop all parallel processes, eg. _process_loader
         if isinstance(self._process_counting_letter, multiprocessing.Process):
             if self._process_counting_letter.is_alive():
                 self._process_counting_letter.terminate()
@@ -3103,6 +3127,11 @@ class Reader:
         LOCALPCTG = []
         for i in text_structure.text_lines:
             LOCALPCTG.append(len(re.sub(r"\s", "", i)))
+
+        if isinstance(self._process_loader, multiprocessing.Process) and self._process_loader.is_alive():
+            self._event.set()
+            self._process_loader.join()
+            self._process_loader.close()
 
         self.screen.clear()
         self.screen.refresh()
