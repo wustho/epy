@@ -3808,7 +3808,6 @@ def preread(stdscr, filepath: str):
 
         while True:
             reading_state = reader.read(reading_state)
-            reader.show_loader()
             if reader.seamless:
                 reading_state = reader.convert_absolute_reading_state_to_relative(reading_state)
     finally:
