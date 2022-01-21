@@ -2996,6 +2996,7 @@ class Reader:
         self.totlines_per_content: Tuple[int, ...] = tuple()
 
         for n, content in enumerate(contents):
+            self.show_loader(subtext=f"loading contents ({n+1}/{len(contents)})")
             starting_line = sum(self.totlines_per_content)
             assert isinstance(content, str) or isinstance(content, ET.Element)
             text_structure_tmp = parse_html(
@@ -3076,7 +3077,7 @@ class Reader:
         if self.spread == 2:
             x = DoubleSpreadPadding.LEFT.value
 
-        self.show_loader(subtext="displaying contents")
+        self.show_loader(subtext="loading contents")
         # get text structure, toc entries and contents of the book
         if self.seamless:
             text_structure, toc_entries, contents = self.get_all_book_contents(reading_state)
