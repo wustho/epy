@@ -67,7 +67,7 @@ Although, there are not many stuffs to configure.
 
 ## URL Support
 
-You can read online books like: short stories, fan fiction, etc. using `epy`with url.
+You can read online books like: short stories, fan fiction, etc. using `epy` with an url as cli argument.
 Pretty useful when you want to read with less distraction.
 `epy` will also remember your reading progress online.
 
@@ -77,6 +77,10 @@ directly with:
 ```shell
 $ epy https://www.gutenberg.org/files/2701/2701-h/2701-h.htm
 ```
+
+But be noted that `epy` will never be web broser, it's simply cli program to read
+your favorite fiction stories in the comfort of terminal.
+So please do not expect for web browser features to be implemented to `epy`.
 
 ## Using Mouse
 
@@ -117,6 +121,9 @@ so line scrolling navigation will act as scrolling page and textwidth is not adj
   So if error is encountered, deleting the configuration and states file might fix the issue.
 
 - `v2022.1.15`: Early implementation of URL support, table of contents isn't available for now.
+
+- `v2022.1.23`: Library implementation: ability to switch ebook from reading history
+  from inside epy (default key: `R`).
 
 ## Tip Jar
 
