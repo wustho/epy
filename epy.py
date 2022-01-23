@@ -381,6 +381,7 @@ class CfgDefaultKeymaps:
     SwitchColor: str = "c"
     TTSToggle: str = "!"
     DoubleSpreadToggle: str = "D"
+    Library: str = "R"
 
 
 @dataclass(frozen=True)
@@ -409,6 +410,7 @@ class Keymap:
     Follow: Tuple[Key, ...]
     Help: Tuple[Key, ...]
     JumpToPosition: Tuple[Key, ...]
+    Library: Tuple[Key, ...]
     MarkPosition: Tuple[Key, ...]
     Metadata: Tuple[Key, ...]
     NextChapter: Tuple[Key, ...]
@@ -2588,6 +2590,7 @@ class Reader:
             bookmarks = [i[0] for i in self.state.get_bookmarks(self.ebook)]
             if not bookmarks:
                 return self.keymap.ShowBookmarks[0], None
+
             retk, idx, todel = self.show_win_options(
                 "Bookmarks", bookmarks, idx, self.keymap.ShowBookmarks
             )
@@ -2595,6 +2598,20 @@ class Reader:
                 self.state.delete_bookmark(self.ebook, bookmarks[todel])
             else:
                 return retk, idx
+
+    def show_win_library(self):
+        while True:
+            library_items = self.state.get_from_history()
+            if not library_items:
+                return self.keymap.Library[0], None
+
+            retk, choice_index, todel_index = self.show_win_options(
+                "Library", [str(item) for item in library_items], 0, self.keymap.Library
+            )
+            if todel_index is not None:
+                self.state.delete_from_library(library_items[todel_index].filepath)
+            else:
+                return retk, choice_index
 
     def input_prompt(self, prompt: str) -> Union[NoUpdate, Key, str]:
         """
@@ -3042,7 +3059,7 @@ class Reader:
         )
         return text_structure, toc_entries, contents
 
-    def read(self, reading_state: ReadingState) -> ReadingState:
+    def read(self, reading_state: ReadingState) -> Union[ReadingState, Ebook]:
         # reusable loop indices
         i: Any
 
@@ -3665,6 +3682,28 @@ class Reader:
                     elif k in self.keymap.ShowHideProgress:
                         self.show_reading_progress = not self.show_reading_progress
 
+                    elif k in self.keymap.Library:
+                        self.savestate(
+                            dataclasses.replace(
+                                reading_state, rel_pctg=reading_state.row / totlines
+                            )
+                        )
+                        library_items = self.state.get_from_history()
+                        if not library_items:
+                            k = self.show_win_error(
+                                "Library",
+                                "N/A: No reading history.",
+                                self.keymap.Library,
+                            )
+                            continue
+                        else:
+                            retk, choice_index = self.show_win_library()
+                            if retk is not None:
+                                k = retk
+                                continue
+                            elif choice_index is not None:
+                                return get_ebook_obj(library_items[choice_index].filepath)
+
                     elif k == Key(curses.KEY_RESIZE):
                         self.savestate(
                             dataclasses.replace(
@@ -3808,9 +3847,15 @@ def preread(stdscr, filepath: str):
             reading_state = dataclasses.replace(reading_state, rel_pctg=None)
 
         while True:
-            reading_state = reader.read(reading_state)
-            if reader.seamless:
-                reading_state = reader.convert_absolute_reading_state_to_relative(reading_state)
+            reading_state_or_ebook = reader.read(reading_state)
+
+            if isinstance(reading_state_or_ebook, Ebook):
+                return reading_state_or_ebook.path
+            else:
+                reading_state = reading_state_or_ebook
+                if reader.seamless:
+                    reading_state = reader.convert_absolute_reading_state_to_relative(reading_state)
+
     finally:
         reader.cleanup()
 
@@ -3901,9 +3946,10 @@ def parse_cli_args() -> Tuple[str, bool]:
 def main():
     filepath, dump_only = parse_cli_args()
     if dump_only:
-        dump_ebook_content(filepath)
-    else:
-        curses.wrapper(preread, filepath)
+        sys.exit(dump_ebook_content(filepath))
+
+    while True:
+        filepath = curses.wrapper(preread, filepath)
 
 
 # }}}
