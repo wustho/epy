@@ -2427,14 +2427,28 @@ class Reader:
         if not self._multiprocess_support:
             self.letters_count = count_letters(self.ebook)
 
-    def try_assign_letters_count(self) -> None:
+    def try_assign_letters_count(self, *, force_wait=False) -> None:
         if isinstance(self._process_counting_letter, multiprocessing.Process):
+            if force_wait:
+                self._process_counting_letter.join()
+
             if self._process_counting_letter.exitcode == 0:
                 self.letters_count = self._proc_parent.recv()
                 self._proc_parent.close()
                 self._process_counting_letter.terminate()
                 self._process_counting_letter.close()
                 self._process_counting_letter = None
+
+    def calculate_reading_progress(
+        self, letters_per_content: List[int], reading_state: ReadingState
+    ) -> None:
+        if self.letters_count:
+            self.reading_progress = (
+                self.letters_count.cumulative[reading_state.content_index]
+                + sum(
+                    letters_per_content[: reading_state.row + (self.screen_rows * self.spread) - 1]
+                )
+            ) / self.letters_count.all
 
     @property
     def screen_rows(self) -> int:
@@ -3122,9 +3136,9 @@ class Reader:
             spread=self.spread,
         )
 
-        LOCALPCTG = []
+        letters_per_content: List[int] = []
         for i in text_structure.text_lines:
-            LOCALPCTG.append(len(re.sub(r"\s", "", i)))
+            letters_per_content.append(len(re.sub(r"\s", "", i)))
 
         self.screen.clear()
         self.screen.refresh()
@@ -3155,6 +3169,9 @@ class Reader:
                         if k == Key(27) and countstring != "":
                             countstring = ""
                         else:
+                            self.try_assign_letters_count(force_wait=True)
+                            self.calculate_reading_progress(letters_per_content, reading_state)
+
                             self.savestate(
                                 dataclasses.replace(
                                     reading_state, rel_pctg=reading_state.row / totlines
@@ -3683,6 +3700,9 @@ class Reader:
                         self.show_reading_progress = not self.show_reading_progress
 
                     elif k in self.keymap.Library:
+                        self.try_assign_letters_count(force_wait=True)
+                        self.calculate_reading_progress(letters_per_content, reading_state)
+
                         self.savestate(
                             dataclasses.replace(
                                 reading_state, rel_pctg=reading_state.row / totlines
@@ -3766,19 +3786,18 @@ class Reader:
                     self.try_assign_letters_count()
 
                     # reading progress
-                    if self.letters_count:
-                        self.reading_progress = (
-                            self.letters_count.cumulative[reading_state.content_index]
-                            + sum(LOCALPCTG[: reading_state.row + (rows * self.spread) - 1])
-                        ) / self.letters_count.all
-                        if (
-                            self.show_reading_progress
-                            and (cols - reading_state.textwidth - 2) // 2 > 3
-                        ):
-                            reading_progress_str = "{}%".format(int(self.reading_progress * 100))
-                            self.screen.addstr(
-                                0, cols - len(reading_progress_str), reading_progress_str
-                            )
+                    self.calculate_reading_progress(letters_per_content, reading_state)
+
+                    # display reading progress
+                    if (
+                        self.reading_progress
+                        and self.show_reading_progress
+                        and (cols - reading_state.textwidth - 2) // 2 > 3
+                    ):
+                        reading_progress_str = "{}%".format(int(self.reading_progress * 100))
+                        self.screen.addstr(
+                            0, cols - len(reading_progress_str), reading_progress_str
+                        )
 
                     self.screen.refresh()
                 except curses.error:
