@@ -14,14 +14,14 @@ python = "^3.7"
 windows-curses = { version = "*", markers = "platform_system == 'Windows'" }
 
 [tool.poetry.dev-dependencies]
-pynvim = "^0.4.3"
-mypy = "^0.930"
-black = "^21.12b0"
-pytest = "^6.2.5"
-twine = "^3.7.1"
-wheel = "^0.37.1"
-ipdb = "^0.13.9"
-coverage = "^6.2"
+pynvim = "*"
+mypy = "*"
+black = "*"
+pytest = "*"
+twine = "*"
+wheel = "*"
+ipdb = "*"
+coverage = "*"
 
 [tool.mypy]
 strict_optional = true
