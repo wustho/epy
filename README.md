@@ -78,9 +78,9 @@ directly with:
 $ epy https://www.gutenberg.org/files/2701/2701-h/2701-h.htm
 ```
 
-But be noted that `epy` will never be web broser, it's simply cli program to read
-your favorite fiction stories in the comfort of terminal.
-So please do not expect for web browser features to be implemented to `epy`.
+But note that `epy` will never be a web browser, it's simply a TUI program to read
+your favorite fiction stories in the comfort of a terminal.
+So please do not expect for web browser features to be implemented in `epy`.
 
 ## Using Mouse
 
@@ -123,8 +123,8 @@ so line scrolling navigation will act as scrolling page and textwidth is not adj
 - `v2022.1.15`: Early implementation of URL support, table of contents isn't available for now.
 
 - `v2022.1.23`: Library implementation: ability to switch ebook from reading history
-  from inside epy (default key: `R`).
+  inside epy (default key: `R`).
 
-## Tip Jar
+## Sponsor
 
 [https://paypal.me/wustho](https://paypal.me/wustho)
