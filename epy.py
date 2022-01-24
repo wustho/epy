@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.1.23"
+__version__ = "2022.1.25"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -3280,8 +3280,6 @@ class Reader:
                                 textwidth=reading_state.textwidth,
                                 row=0,
                             )
-                        else:
-                            reading_state = dataclasses.replace(reading_state, row=totlines - rows)
 
                     elif k in self.keymap.PageDown:
                         if totlines - reading_state.row > rows * self.spread:
