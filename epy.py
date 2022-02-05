@@ -2422,7 +2422,9 @@ class Reader:
                 # forking will raise
                 # zlib.error: Error -3 while decompressing data: invalid distance too far back
                 self._process_counting_letter.start()
-            except:
+            except Exception as e:
+                if DEBUG:
+                    raise e
                 self._multiprocess_support = False
         if not self._multiprocess_support:
             self.letters_count = count_letters(self.ebook)
