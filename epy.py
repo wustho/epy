@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.1.25"
+__version__ = "2022.2.5"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -2429,7 +2429,7 @@ class Reader:
 
     def try_assign_letters_count(self, *, force_wait=False) -> None:
         if isinstance(self._process_counting_letter, multiprocessing.Process):
-            if force_wait:
+            if force_wait and self._process_counting_letter.is_alive():
                 self._process_counting_letter.join()
 
             if self._process_counting_letter.exitcode == 0:
