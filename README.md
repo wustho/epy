@@ -123,6 +123,8 @@ so line scrolling navigation will act as scrolling page and textwidth is not adj
 - `v2022.1.23`: Library implementation: ability to switch ebook from reading history
   inside epy (default key: `R`).
 
+- `v2022.2.5`: Fix process.join() issue for unstarted process.
+
 ## Sponsor
 
 [https://paypal.me/wustho](https://paypal.me/wustho)
