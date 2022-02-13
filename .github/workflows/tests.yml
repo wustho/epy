@@ -2,11 +2,14 @@ name: Run Tests
 
 on:
   workflow_dispatch:
+  pull_request:
+    types: [opened, reopened]
   push:
     branches:
       - master
     paths:
       - epy.py
+      - tests/**
 
 jobs:
   tests:
