@@ -1,6 +1,7 @@
 name: Upload Tags to PyPI
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - v**
@@ -11,16 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-python@v2
-        with:
-          python-version: "3.x"
-      - uses: abatilo/actions-poetry@v2.0.0
       - name: Install dependencies
-        run: poetry install --no-root
+        run: |
+          python -m pip install --upgrade pip
+          pip install setuptools wheel twine
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          poetry run python setup.py sdist bdist_wheel
-          poetry run twine upload --skip-existing dist/*
+          python setup.py sdist bdist_wheel
+          twine upload --skip-existing dist/*
 

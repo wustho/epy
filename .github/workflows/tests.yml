@@ -3,10 +3,9 @@ name: Run Tests
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, reopened]
+    branches: [master]
   push:
-    branches:
-      - master
+    branches: [master]
     paths:
       - epy.py
       - tests/**
@@ -23,5 +22,7 @@ jobs:
       - name: Install dev dependencies
         run: poetry install --no-root
       - name: Run tests
-        run: poetry run python -m pytest -vv
+        run: |
+          poetry run coverage run --include=epy.py -m pytest -vv tests
+          poetry run coverage report
 

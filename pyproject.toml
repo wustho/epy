@@ -18,8 +18,6 @@ pynvim = "*"
 mypy = "*"
 black = "*"
 pytest = "*"
-twine = "*"
-wheel = "*"
 ipdb = "*"
 coverage = "*"
 
