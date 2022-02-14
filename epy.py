@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.2.5"
+__version__ = "2022.2.14"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -3975,4 +3975,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # On Windows, calling this method is necessary
+    # On Linux/OSX, this method does nothing
+    multiprocessing.freeze_support()
     main()
