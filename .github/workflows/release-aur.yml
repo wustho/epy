@@ -4,6 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
+    paths:
+      - epy.py
+      - tests/**
+      - epy_extras/**
 
 jobs:
   tests:
