@@ -23,4 +23,5 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./dist/epy-win.exe
-          token: ${{ secrets.GH_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
