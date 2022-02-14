@@ -1,0 +1,17 @@
+name: Release to AUR
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Generate PKGBUILD
+        run: |
+          mkdir -p ./tmp
+          bash build/gen_pkgbuild.sh > ./tmp/PKGBUILD
+          cat ./tmp/PKGBUILD
