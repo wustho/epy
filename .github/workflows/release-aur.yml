@@ -15,3 +15,12 @@ jobs:
           mkdir -p ./tmp
           bash build/gen_pkgbuild.sh > ./tmp/PKGBUILD
           cat ./tmp/PKGBUILD
+      - name: Publish AUR package
+        uses: KSXGitHub/github-actions-deploy-aur@v2.2.5
+        with:
+          pkgname: epy-git
+          pkgbuild: ./tmp/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Update AUR package
