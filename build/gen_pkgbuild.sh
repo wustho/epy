@@ -1,7 +1,14 @@
+#!/bin/bash -
+
+(
+cat << 'EOF'
+# Maintainer: Benawi Adha <benawiadha@gmail.com>
+# Contributor: Spencer Muise <smuise@spencermuise.ca>
+
 pkgname=epy-git
 _name=epy
 provides=('epy')
-pkgver=2022.1.8.r204.c1f9b4e
+pkgver=EPY_PKGVER
 pkgrel=1
 pkgdesc="CLI Ebook Reader"
 arch=('any')
@@ -33,3 +40,5 @@ package() {
     cd $_name
     python setup.py install --root="$pkgdir" --optimize=1 --skip-build
 }
+EOF
+) | sed 's/pkgver=EPY_PKGVER/pkgver='`printf "%s.r%s.%s" "$(grep -F '__version__ =' epy.py | awk -F\" '{print $2}')" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"`'/'
