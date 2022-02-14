@@ -14,4 +14,4 @@ jobs:
         run: echo "::set-output name=PKGVER::"`printf "%s.r%s.%s" "$(grep -F '__version__ =' epy.py | awk -F\" '{print $2}')" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"`
         id: pkgver
       - name: test
-        run: echo "pkgver: ${{ steps.pkgver.PKGVER }}"
+        run: echo "pkgver: ${{ steps.pkgver.outputs.PKGVER }}"
