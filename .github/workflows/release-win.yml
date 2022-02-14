@@ -1,0 +1,27 @@
+name: Build and Release Windows Binary
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v**
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install windows-curses pyinstaller
+      - name: Build binary
+        run: |
+          pyinstaller --onefile --name epy-win epy.py
+      - name: Release Windows Binary
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./dist/epy-win.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
