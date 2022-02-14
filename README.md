@@ -124,7 +124,3 @@ so line scrolling navigation will act as scrolling page and textwidth is not adj
   inside epy (default key: `R`).
 
 - `v2022.2.5`: Fix process.join() issue for unstarted process.
-
-## Sponsor
-
-[https://paypal.me/wustho](https://paypal.me/wustho)
