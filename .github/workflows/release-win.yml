@@ -22,5 +22,6 @@ jobs:
       - name: Release Windows Binary
         uses: softprops/action-gh-release@v1
         with:
+          body: Standalone Windows Binary
           files: ./dist/epy-win.exe
           token: ${{ secrets.GITHUB_TOKEN }}

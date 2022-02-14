@@ -42,6 +42,9 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
   $ yay -S epy-git
   ```
 
+- Windows Binary
+  Standalone binary for Windows is available at [release page](https://github.com/wustho/epy/releases).
+
 ## Reading Tips Using Epy
 
 When reading using `epy` you might occasionally find triple asteriks `***`.
