@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.2.14"
+__version__ = "2022.2.20"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -3885,11 +3885,7 @@ def preread(stdscr, filepath: str):
 # Commandline {{{
 
 
-def parse_cli_args() -> Tuple[str, bool]:
-    """
-    Parse CLI args and return tuple of filepath and boolean (dump ebook indicator).
-    And exiting the program depending on situation.
-    """
+def parse_cli_args() -> argparse.Namespace:
     prog = "epy"
     positional_arg_help_str = "[PATH | # | PATTERN | URL]"
     args_parser = argparse.ArgumentParser(
@@ -3923,8 +3919,11 @@ def parse_cli_args() -> Tuple[str, bool]:
         metavar=positional_arg_help_str,
         help="ebook path, history number, pattern or URL",
     )
-    args = args_parser.parse_args()
+    return args_parser.parse_args()
 
+
+def find_file() -> Tuple[str, bool]:
+    args = parse_cli_args()
     state = State()
     cleanup_library(state)
 
@@ -3963,7 +3962,7 @@ def parse_cli_args() -> Tuple[str, bool]:
 
 
 def main():
-    filepath, dump_only = parse_cli_args()
+    filepath, dump_only = find_file()
     if dump_only:
         sys.exit(dump_ebook_content(filepath))
 
