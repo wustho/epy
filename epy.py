@@ -43,6 +43,7 @@ import multiprocessing
 import os
 import re
 import shutil
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -3855,6 +3856,17 @@ def preread(stdscr, filepath: str):
     config = Config()
 
     reader = Reader(screen=stdscr, ebook=ebook, config=config, state=state)
+
+    def handle_signal(signum, _):
+        """
+        Method to raise SystemExit based on signal received
+        to trigger `try-finally` clause
+        """
+        msg = f"[{os.getpid()}] killed"
+        if signal.Signals(signum) == signal.SIGTERM:
+            msg = f"[{os.getpid()}] terminated"
+        sys.exit(msg)
+    signal.signal(signal.SIGTERM, handle_signal)
 
     try:
         reader.run_counting_letters()
