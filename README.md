@@ -111,7 +111,8 @@ List of supported engines:
 
 ## Dictionary
 
-To use "Define Word", you will have to install an external dictionary cli program (`sdcv`, `dict` or `wkdict`). After you've done that, it is recommended to manually modify the configuration, and set your desired dictionary there, so everything works properly. [Configuration File](#Configuration File)
+To use "Define Word" you will have to install an external dictionary cli program (`sdcv`, `dict` or `wkdict`). After you've done that, it is recommended to manually modify the configuration.json file, and set your desired dictionary there, so everything works properly.
+
 After that you will be able to find definition of word by pressing `d`, and aprompt will appear to let you type in word to define.
 
 ## Double Spread
