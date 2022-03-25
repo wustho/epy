@@ -16,7 +16,7 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
   - [URL](#url-support)
 - Reading progress percentage
 - Bookmarks
-- External dictionary integration (`sdcv` or `dict`)
+- External dictionary integration (`sdcv`, `dict` or `wkdict`)
 - Inline formats: **bold** and _italic_ (depend on terminal and font capability. Italic only supported in python>=3.7)
 - Text-to-Speech (with additional setup, read [below](#text-to-speech))
 - [Double Spread](#double-spread)
@@ -24,22 +24,22 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 
 ## Installation
 
-- Via PyPI
+- Via PyPI (Linux and Mac OS)
 
   ```shell
-  $ pip3 install epy-reader
+  pip3 install epy-reader
   ```
 
 - Via Pip+Git
 
   ```shell
-  $ pip3 install git+https://github.com/wustho/epy
+  pip3 install git+https://github.com/wustho/epy
   ```
 
 - Via AUR
 
   ```shell
-  $ yay -S epy-git
+  yay -S epy-git
   ```
 
 - Windows Binary
@@ -108,6 +108,11 @@ List of supported engines:
 
 - `mimic`
 - `pico2wave`
+
+## Dictionary
+
+To use "Define Word", you will have to install an external dictionary cli program (`sdcv`, `dict` or `wkdict`). After you've done that, it is recommended to manually modify the configuration, and set your desired dictionary there, so everything works properly. [Configuration File](#Configuration File)
+After that you will be able to find definition of word by pressing `d`, and aprompt will appear to let you type in word to define.
 
 ## Double Spread
 
