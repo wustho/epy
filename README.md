@@ -64,7 +64,7 @@ it's disabled by default.
 
 Config file is available in json format which is located at:
 
-- Linux: `~/.config/epy/configuration.json` or `~/.epy/configuration.json`
+- Linux and Mac OS: `~/.config/epy/configuration.json` or `~/.epy/configuration.json`
 - Windows: `%USERPROFILE%\.epy\configuration.json`
 
 ## URL Support
