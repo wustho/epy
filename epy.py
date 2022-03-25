@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.2.20"
+__version__ = "2022.3.25"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -120,6 +120,12 @@ VIEWER_PRESET_LIST = (
     "xdg-open",
     "kde-open",
     "firefox",
+)
+
+DICT_PRESET_LIST = (
+    "wkdict",
+    "sdcv",
+    "dict",
 )
 
 
@@ -2464,12 +2470,11 @@ class Reader:
     @property
     def ext_dict_app(self) -> Optional[str]:
         self._ext_dict_app: Optional[str] = None
-        dict_app_preset_list = ["sdcv", "dict"]
 
         if shutil.which(self.setting.DictionaryClient.split()[0]):
             self._ext_dict_app = self.setting.DictionaryClient
         else:
-            for i in dict_app_preset_list:
+            for i in DICT_PRESET_LIST:
                 if shutil.which(i) is not None:
                     self._ext_dict_app = i
                     break

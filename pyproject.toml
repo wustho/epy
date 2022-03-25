@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "epy-reader"
-version = "2022.2.20"
+version = "2022.3.25"
 description = "CLI Ebook Reader"
 authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
