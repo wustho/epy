@@ -9,6 +9,9 @@ packages = [
     { include = "epy_extras" },
 ]
 
+[tool.poetry.scripts]
+epy = "epy:main"
+
 [tool.poetry.dependencies]
 python = "^3.7"
 windows-curses = { version = "*", markers = "platform_system == 'Windows'" }
@@ -27,3 +30,7 @@ strict_optional = true
 [tool.black]
 line-length = 100
 target-version = ['py38']
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

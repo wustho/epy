@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := tests
 
 dev:
-	poetry install --no-root
+	poetry install
 
 tests:
 	python -m pytest -vv
