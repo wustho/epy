@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.3.25"
+__version__ = "2022.4.18"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -52,6 +52,7 @@ import textwrap
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 
 from typing import Optional, Union, Sequence, Tuple, List, Dict, Mapping, Set, Type, Any
 from dataclasses import dataclass, field
@@ -720,7 +721,7 @@ class Epub(Ebook):
         version = content_opf.getroot().get("version")
 
         contents = Epub._get_contents(content_opf)
-        self.contents = tuple(self.root_dirpath + content for content in contents)
+        self.contents = tuple(urljoin(self.root_dirpath, content) for content in contents)
 
         if version in {"1.0", "2.0"}:
             # "OPF:manifest/*[@id='ncx']"
@@ -752,7 +753,7 @@ class Epub(Ebook):
             try:
                 content = self.file.open(content_path).read()
                 break
-            except Exception as e:
+            except zlib.error as e:
                 tries += 1
                 if max_tries is not None and tries >= max_tries:
                     raise e
