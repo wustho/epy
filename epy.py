@@ -337,6 +337,7 @@ class Settings:
     SeamlessBetweenChapters: bool = False
     PreferredTTSEngine: Optional[str] = None
     TTSEngineArgs: List[str] = field(default_factory=list)
+    ParaIndent: int = 0
 
 
 @dataclass(frozen=True)
@@ -1075,7 +1076,7 @@ class HTMLtoLines(HTMLParser):
                 groups[row] = [block]
         return groups
 
-    def __init__(self, sects={""}):
+    def __init__(self, sects={""}, paraindent=0):
         HTMLParser.__init__(self)
         self.text = [""]
         self.ishead = False
@@ -1093,6 +1094,7 @@ class HTMLtoLines(HTMLParser):
         self.italic_marks: List[TextMark] = []
         self.bold_marks: List[TextMark] = []
         self.imgs: Dict[int, str] = dict()
+        self.paraindent: int = paraindent
 
     def handle_starttag(self, tag, attrs):
         if re.match("h[1-6]", tag) is not None:
@@ -1122,11 +1124,11 @@ class HTMLtoLines(HTMLParser):
         # formatting
         elif tag in self.ital:
             if len(self.italic_marks) == 0 or self.italic_marks[-1].is_valid():
-                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1])+self.paraindent)
                 self.italic_marks.append(TextMark(start=char_pos))
         elif tag in self.bold:
             if len(self.bold_marks) == 0 or self.bold_marks[-1].is_valid():
-                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+                char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1])+self.paraindent)
                 self.bold_marks.append(TextMark(start=char_pos))
         if self.sects != {""}:
             for i in attrs:
@@ -1183,11 +1185,11 @@ class HTMLtoLines(HTMLParser):
             self.text.append("")
         # formatting
         elif tag in self.ital:
-            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1])+self.paraindent)
             last_mark = self.italic_marks[-1]
             self.italic_marks[-1] = dataclasses.replace(last_mark, end=char_pos)
         elif tag in self.bold:
-            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1]))
+            char_pos = CharPos(row=len(self.text) - 1, col=len(self.text[-1])+self.paraindent)
             last_mark = self.bold_marks[-1]
             self.bold_marks[-1] = dataclasses.replace(last_mark, end=char_pos)
 
@@ -1274,7 +1276,8 @@ class HTMLtoLines(HTMLParser):
                 ]
                 text += [""]
             else:
-                text += textwrap.wrap(line, textwidth) + [""]
+                text += textwrap.wrap(line, textwidth, initial_indent=' '*self.paraindent)
+                text += [""] * (self.paraindent == 0)
 
             endline = len(text)  # -1
 
@@ -1864,6 +1867,7 @@ def parse_html(
     textwidth: Optional[int] = None,
     section_ids: Optional[Set[str]] = None,
     starting_line: int = 0,
+    paraindent: int = 0
 ) -> Union[Tuple[str, ...], TextStructure]:
     """
     Parse html string into TextStructure
@@ -1877,7 +1881,7 @@ def parse_html(
     if not section_ids:
         section_ids = set()
 
-    parser = HTMLtoLines(section_ids)
+    parser = HTMLtoLines(section_ids, paraindent)
     # try:
     parser.feed(html_src)
     parser.close()
@@ -3060,6 +3064,7 @@ class Reader:
             content,
             textwidth=reading_state.textwidth,
             section_ids=set(toc_entry.section for toc_entry in toc_entries),  # type: ignore
+            paraindent=self.setting.ParaIndent
         )
         return text_structure, toc_entries, contents
 
