@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.4.18"
+__version__ = "2022.9.24"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
