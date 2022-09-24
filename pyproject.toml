@@ -17,12 +17,13 @@ python = "^3.7"
 windows-curses = { version = "*", markers = "platform_system == 'Windows'" }
 
 [tool.poetry.dev-dependencies]
-pynvim = "*"
-mypy = "*"
 black = "*"
-pytest = "*"
-ipdb = "*"
 coverage = "*"
+debugpy = "*"
+ipython = "*"
+mypy = "*"
+pynvim = "*"
+pytest = "*"
 
 [tool.mypy]
 strict_optional = true
