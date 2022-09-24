@@ -23,7 +23,7 @@ examples:
 """
 
 
-__version__ = "2022.4.18"
+__version__ = "2022.9.24"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
@@ -82,26 +82,7 @@ except ModuleNotFoundError:
 try:
     # Debug swith
     # $ DEBUG=1 ./epy.py
-
     DEBUG = int(str(os.getenv("DEBUG"))) == 1
-    STDSCR = None
-
-    def debug(context: int = 5) -> None:
-        # if not isinstance(STDSCR, curses.window):
-        #     raise RuntimeError("STDSCR not set")
-        if STDSCR:
-            curses.nocbreak()
-            STDSCR.keypad(False)  # type: ignore
-            curses.echo()
-            curses.endwin()
-
-        try:
-            import ipdb  # type: ignore
-
-            ipdb.set_trace(context=context)
-        except ModuleNotFoundError:
-            breakpoint()
-
 except ValueError:
     DEBUG = False
 
@@ -3853,9 +3834,6 @@ class Reader:
 
 
 def preread(stdscr, filepath: str):
-    global STDSCR
-    if DEBUG:
-        STDSCR = stdscr
 
     ebook = get_ebook_obj(filepath)
     state = State()

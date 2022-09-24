@@ -1,6 +1,9 @@
 .PHONY: tests
 .DEFAULT_GOAL := tests
 
+debug:
+	python -m debugpy --listen 5678 --wait-for-client -m epy
+
 dev:
 	poetry install
 
