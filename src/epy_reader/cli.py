@@ -1,17 +1,17 @@
-import textwrap
 import argparse
 import os
-import sys
 import shutil
+import sys
+import textwrap
 from difflib import SequenceMatcher as SM
-from typing import Tuple, List, Optional
+from typing import List, Optional, Tuple
 
 from epy_reader import __version__
-from epy_reader.lib import is_url, coerce_to_int, truncate
-from epy_reader.utils import get_ebook_obj
+from epy_reader.lib import coerce_to_int, is_url, truncate
 from epy_reader.models import LibraryItem
-from epy_reader.state import State
 from epy_reader.parser import parse_html
+from epy_reader.state import State
+from epy_reader.utils import get_ebook_obj
 
 
 def cleanup_library(state: State) -> None:

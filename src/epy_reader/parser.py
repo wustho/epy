@@ -1,13 +1,13 @@
 import curses
-from html.parser import HTMLParser
-import textwrap
-import re
 import dataclasses
+import re
+import textwrap
 from html import unescape
+from html.parser import HTMLParser
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
 from urllib.parse import unquote
-from typing import Optional, Tuple, Set, Union, Sequence, List, Mapping, Dict
 
-from epy_reader.models import TextStructure, TextMark, TextSpan, CharPos, InlineStyle
+from epy_reader.models import CharPos, InlineStyle, TextMark, TextSpan, TextStructure
 
 
 class HTMLtoLines(HTMLParser):

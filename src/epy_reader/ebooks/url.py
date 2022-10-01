@@ -1,13 +1,13 @@
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
-from urllib.parse import urljoin, urlparse
 from pathlib import PurePosixPath
 from typing import Tuple
+from urllib.error import HTTPError, URLError
+from urllib.parse import urljoin, urlparse
+from urllib.request import Request, urlopen
 
-from epy_reader.ebooks import Ebook
-from epy_reader.models import BookMetadata
-from epy_reader.lib import is_url
 from epy_reader import __version__
+from epy_reader.ebooks import Ebook
+from epy_reader.lib import is_url
+from epy_reader.models import BookMetadata
 
 
 class URL(Ebook):

@@ -1,7 +1,7 @@
 import dataclasses
-import sys
-import os
 import json
+import os
+import sys
 from typing import Mapping, Tuple, Union
 
 import epy_reader.settings as settings

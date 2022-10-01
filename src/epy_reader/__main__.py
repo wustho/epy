@@ -1,6 +1,6 @@
+import curses
 import multiprocessing
 import sys
-import curses
 
 import epy_reader.cli as cli
 import epy_reader.reader as reader

@@ -1,12 +1,12 @@
+import dataclasses
+import hashlib
 import os
 import sqlite3
-import hashlib
-import dataclasses
 from datetime import datetime
 from typing import List, Tuple
 
-from epy_reader.models import AppData, LibraryItem, Optional, ReadingState
 from epy_reader.ebooks import Ebook
+from epy_reader.models import AppData, LibraryItem, Optional, ReadingState
 
 
 class State(AppData):

@@ -1,8 +1,8 @@
-import tempfile
 import contextlib
-import shutil
-import zipfile
 import os
+import shutil
+import tempfile
+import zipfile
 
 from epy_reader.ebooks.epub import Epub
 from epy_reader.tools import unpack_kindle_book

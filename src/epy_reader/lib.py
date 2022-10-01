@@ -1,5 +1,5 @@
+from typing import Any, Optional, Tuple
 from urllib.parse import urljoin, urlparse
-from typing import Optional, Tuple, Any
 
 
 def is_url(string: str) -> bool:

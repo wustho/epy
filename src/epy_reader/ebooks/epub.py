@@ -1,13 +1,14 @@
-import zipfile
-import xml.etree.ElementTree as ET
-import os
 import dataclasses
+import os
+import xml.etree.ElementTree as ET
+import zipfile
 import zlib
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import unquote, urljoin
-from typing import Union, Dict, Optional, Tuple, List, Sequence
 
 from epy_reader.ebooks import Ebook
 from epy_reader.models import BookMetadata, TocEntry
+
 
 class Epub(Ebook):
     NAMESPACE = {
@@ -195,4 +196,3 @@ class Epub(Ebook):
 
     def cleanup(self) -> None:
         pass
-

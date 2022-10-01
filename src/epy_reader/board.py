@@ -1,8 +1,8 @@
-import re
 import curses
-from typing import Tuple, Optional, Union
+import re
+from typing import Optional, Tuple, Union
 
-from epy_reader.models import InlineStyle, NoUpdate, Key, Direction
+from epy_reader.models import Direction, InlineStyle, Key, NoUpdate
 from epy_reader.settings import DoubleSpreadPadding
 
 

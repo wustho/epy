@@ -1,9 +1,9 @@
-import os
-import tempfile
 import contextlib
+import os
 import shutil
+import tempfile
 import xml.etree.ElementTree as ET
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 from epy_reader.ebooks.epub import Epub
 from epy_reader.models import BookMetadata

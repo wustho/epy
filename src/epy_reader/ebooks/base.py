@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 from typing import Tuple, Union
 
-from epy_reader.models import TocEntry, BookMetadata
+from epy_reader.models import BookMetadata, TocEntry
 
 
 class Ebook:

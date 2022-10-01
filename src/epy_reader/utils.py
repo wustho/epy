@@ -1,15 +1,15 @@
+import curses
 import os
 import re
-from functools import wraps
-import curses
-import textwrap
 import sys
-from typing import Tuple, Mapping, Sequence, Union, List
+import textwrap
+from functools import wraps
+from typing import List, Mapping, Sequence, Tuple, Union
 
-from epy_reader.ebooks import Ebook, Epub, FictionBook, Mobi, Azw, URL
+from epy_reader.ebooks import URL, Azw, Ebook, Epub, FictionBook, Mobi
 from epy_reader.lib import is_url, tuple_subtract
+from epy_reader.models import Key, LettersCount, NoUpdate, ReadingState, TextStructure, TocEntry
 from epy_reader.parser import parse_html
-from epy_reader.models import NoUpdate, Key, TocEntry, TextStructure, ReadingState, LettersCount
 
 
 def get_ebook_obj(filepath: str) -> Ebook:

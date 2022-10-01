@@ -1,6 +1,6 @@
-from enum import Enum
 import curses
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import List, Optional, Tuple
 
 from epy_reader.models import Key

@@ -1,7 +1,7 @@
 import base64
 import os
 import xml.etree.ElementTree as ET
-from typing import List, Union, Tuple
+from typing import List, Tuple, Union
 
 from epy_reader.ebooks import Ebook
 from epy_reader.models import BookMetadata, TocEntry

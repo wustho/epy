@@ -1,49 +1,49 @@
 import curses
-import signal
-import re
-import subprocess
 import dataclasses
-import sqlite3
-import sys
-import os
 import multiprocessing
+import os
+import re
 import shutil
-import uuid
+import signal
+import sqlite3
+import subprocess
+import sys
 import tempfile
-from html import unescape
+import uuid
 import xml.etree.ElementTree as ET
-from typing import Optional, Dict, List, Tuple, Union, Any, Sequence
+from html import unescape
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import epy_reader.settings as settings
-from epy_reader.state import State
-from epy_reader.config import Config
-from epy_reader.parser import parse_html
-from epy_reader.ebooks import Ebook, Epub, Mobi, Azw
-from epy_reader.settings import DoubleSpreadPadding
 from epy_reader.board import InfiniBoard
+from epy_reader.config import Config
+from epy_reader.ebooks import Azw, Ebook, Epub, Mobi
 from epy_reader.lib import resolve_path
+from epy_reader.models import (
+    Direction,
+    InlineStyle,
+    Key,
+    LettersCount,
+    NoUpdate,
+    ReadingState,
+    SearchData,
+    TextStructure,
+    TocEntry,
+)
+from epy_reader.parser import parse_html
+from epy_reader.settings import DoubleSpreadPadding
+from epy_reader.state import State
 from epy_reader.utils import (
-    safe_curs_set,
     choice_win,
-    text_win,
-    get_ebook_obj,
-    find_current_content_index,
-    pgend,
     construct_relative_reading_state,
-    merge_text_structures,
     count_letters,
     count_letters_parallel,
-)
-from epy_reader.models import (
-    Key,
-    Direction,
-    SearchData,
-    ReadingState,
-    LettersCount,
-    TocEntry,
-    NoUpdate,
-    InlineStyle,
-    TextStructure,
+    find_current_content_index,
+    get_ebook_obj,
+    merge_text_structures,
+    pgend,
+    safe_curs_set,
+    text_win,
 )
 
 
