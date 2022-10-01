@@ -3,6 +3,8 @@ import sys
 import curses
 
 import epy_reader.cli as cli
+import epy_reader.reader as reader
+
 
 def main():
     # On Windows, calling this method is necessary
@@ -13,4 +15,4 @@ def main():
         sys.exit(cli.dump_ebook_content(filepath))
 
     while True:
-        filepath = curses.wrapper(preread, filepath)
+        filepath = curses.wrapper(reader.start_reading, filepath)

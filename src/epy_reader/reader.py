@@ -1,4 +1,5 @@
 import curses
+import signal
 import re
 import subprocess
 import dataclasses
@@ -1557,3 +1558,46 @@ class Reader:
                 dataclasses.replace(reading_state, rel_pctg=reading_state.row / totlines)
             )
             sys.exit()
+
+
+def start_reading(stdscr, filepath: str):
+
+    ebook = get_ebook_obj(filepath)
+    state = State()
+    config = Config()
+
+    reader = Reader(screen=stdscr, ebook=ebook, config=config, state=state)
+
+    def handle_signal(signum, _):
+        """
+        Method to raise SystemExit based on signal received
+        to trigger `try-finally` clause
+        """
+        msg = f"[{os.getpid()}] killed"
+        if signal.Signals(signum) == signal.SIGTERM:
+            msg = f"[{os.getpid()}] terminated"
+        sys.exit(msg)
+
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    try:
+        reader.run_counting_letters()
+
+        reading_state = state.get_last_reading_state(reader.ebook)
+        if reader.screen_cols <= reading_state.textwidth + 4:
+            reading_state = dataclasses.replace(reading_state, textwidth=reader.screen_cols - 4)
+        else:
+            reading_state = dataclasses.replace(reading_state, rel_pctg=None)
+
+        while True:
+            reading_state_or_ebook = reader.read(reading_state)
+
+            if isinstance(reading_state_or_ebook, Ebook):
+                return reading_state_or_ebook.path
+            else:
+                reading_state = reading_state_or_ebook
+                if reader.seamless:
+                    reading_state = reader.convert_absolute_reading_state_to_relative(reading_state)
+
+    finally:
+        reader.cleanup()
