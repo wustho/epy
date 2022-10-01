@@ -7,9 +7,10 @@ from difflib import SequenceMatcher as SM
 from typing import Tuple, List, Optional
 
 from epy_reader import __version__
-from epy_reader.lib import is_url, coerce_to_int, truncate
+from epy_reader.lib import is_url, coerce_to_int, truncate, get_ebook_obj
 from epy_reader.models import LibraryItem
 from epy_reader.state import State
+from epy_reader.parser import parse_html
 
 
 def cleanup_library(state: State) -> None:
@@ -149,3 +150,21 @@ def find_file() -> Tuple[str, bool]:
         return match.filepath, args.dump
     else:
         sys.exit("ERROR: Found no matching ebook from history.")
+
+
+def dump_ebook_content(filepath: str) -> None:
+    ebook = get_ebook_obj(filepath)
+    try:
+        try:
+            ebook.initialize()
+        except Exception as e:
+            sys.exit("ERROR: Badly-structured ebook.\n" + str(e))
+        for i in ebook.contents:
+            content = ebook.get_raw_text(i)
+            src_lines = parse_html(content)
+            assert isinstance(src_lines, tuple)
+            # sys.stdout.reconfigure(encoding="utf-8")  # Python>=3.7
+            for j in src_lines:
+                sys.stdout.buffer.write((j + "\n\n").encode("utf-8"))
+    finally:
+        ebook.cleanup()
