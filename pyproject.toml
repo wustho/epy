@@ -25,13 +25,17 @@ mypy = "^0.981"
 pytest = "^7.1.3"
 isort = "^5.10.1"
 
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.mypy]
 strict_optional = true
 
 [tool.black]
 line-length = 100
 target-version = ['py38']
+exclude = "src/epy_reader/tools/"
 
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.isort]
+skip = "src/epy_reader/tools/"
