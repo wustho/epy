@@ -6,7 +6,7 @@ import zlib
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import unquote, urljoin
 
-from epy_reader.ebooks import Ebook
+from epy_reader.ebooks.base import Ebook
 from epy_reader.models import BookMetadata, TocEntry
 
 
