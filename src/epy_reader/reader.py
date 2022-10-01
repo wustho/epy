@@ -16,6 +16,7 @@ from typing import Optional, Dict, List, Tuple, Union, Any, Sequence
 
 import epy_reader.settings as settings
 from epy_reader.state import State
+from epy_reader.config import Config
 from epy_reader.parser import parse_html
 from epy_reader.ebooks import Ebook, Epub, Mobi, Azw
 from epy_reader.settings import DoubleSpreadPadding
