@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import List, Tuple
 
 from epy_reader.models import AppData, LibraryItem, Optional, ReadingState
+from epy_reader.ebooks import Ebook
 
 
 class State(AppData):

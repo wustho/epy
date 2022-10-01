@@ -7,7 +7,8 @@ from difflib import SequenceMatcher as SM
 from typing import Tuple, List, Optional
 
 from epy_reader import __version__
-from epy_reader.lib import is_url, coerce_to_int, truncate, get_ebook_obj
+from epy_reader.lib import is_url, coerce_to_int, truncate
+from epy_reader.utils import get_ebook_obj
 from epy_reader.models import LibraryItem
 from epy_reader.state import State
 from epy_reader.parser import parse_html

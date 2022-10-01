@@ -10,12 +10,6 @@ class Direction(Enum):
     BACKWARD = "backward"
 
 
-class DoubleSpreadPadding(Enum):
-    LEFT = 10
-    MIDDLE = 7
-    RIGHT = 10
-
-
 @dataclass(frozen=True)
 class BookMetadata:
     title: Optional[str] = None

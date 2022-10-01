@@ -1,5 +1,5 @@
-from urllib.parse import urlparse
-from typing import Optional
+from urllib.parse import urljoin, urlparse
+from typing import Optional, Tuple, Any
 
 
 def is_url(string: str) -> bool:
@@ -42,3 +42,22 @@ def truncate(teks: str, subtitution_text: str, maxlen: int, startsub: int = 0) -
         )
         end = teks[startsub + lensu - maxlen :] if lensu < maxlen - startsub else ""
         return beg + mid + end
+
+
+def tuple_subtract(tuple_one: Tuple[Any, ...], tuple_two: Tuple[Any, ...]) -> Tuple[Any, ...]:
+    """
+    Returns tuple with members in tuple_one
+    but not in tuple_two
+    """
+    return tuple(i for i in tuple_one if i not in tuple_two)
+
+
+def resolve_path(current_dir: str, relative_path: str) -> str:
+    """
+    Resolve path containing dots
+    eg. '/foo/bar/book.html' + '../img.png' = '/foo/img.png'
+    NOTE: '/' suffix is important to tell that current dir in 'bar'
+    """
+    # can also using os.path.normpath()
+    # but if the image in zipfile then posix path is mandatory
+    return urljoin(current_dir, relative_path)
