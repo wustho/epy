@@ -9,7 +9,7 @@ format:
 	black src
 
 debug:
-	python -m debugpy --listen 5678 --wait-for-client -m epy
+	python -m debugpy --listen 5678 --wait-for-client -m epy_reader
 
 dev:
 	poetry install
