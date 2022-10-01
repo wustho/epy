@@ -1,5 +1,12 @@
 .PHONY: tests
-.DEFAULT_GOAL := tests
+.DEFAULT_GOAL := check
+
+check:
+	mypy --follow-imports=silent src
+
+format:
+	isort src
+	black src
 
 debug:
 	python -m debugpy --listen 5678 --wait-for-client -m epy
