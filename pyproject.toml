@@ -9,7 +9,7 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-epy = "epy.__main__:main"
+epy = "epy_reader.__main__:main"
 
 [tool.poetry.dependencies]
 python = "^3.8"
