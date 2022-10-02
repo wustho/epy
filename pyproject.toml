@@ -1,37 +1,48 @@
 [tool.poetry]
 name = "epy-reader"
-version = "2022.9.24"
-description = "CLI Ebook Reader"
+version = "2022.10.2"
+description = "TUI Ebook Reader"
 authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/wustho/epy"
+keywords = ["ebook", "epub", "epub3", "fb2", "mobi", "azw3", "TUI", "ebook reader"]
 packages = [
-    { include = "epy.py" },
-    { include = "epy_extras" },
+    { include = "epy_reader", from = "src" }
 ]
 
 [tool.poetry.scripts]
-epy = "epy:main"
+epy = "epy_reader.__main__:main"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 windows-curses = { version = "*", markers = "platform_system == 'Windows'" }
 
 [tool.poetry.dev-dependencies]
-black = "*"
-coverage = "*"
-debugpy = "*"
-ipython = "*"
-mypy = "*"
-pynvim = "*"
-pytest = "*"
-
-[tool.mypy]
-strict_optional = true
-
-[tool.black]
-line-length = 100
-target-version = ['py38']
+pynvim = "^0.4.3"
+black = "^22.8.0"
+coverage = "^6.5.0"
+debugpy = "^1.6.3"
+ipython = "^8.5.0"
+mypy = "^0.981"
+pytest = "^7.1.3"
+isort = "^5.10.1"
+build = "^0.8.0"
+twine = "^4.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+strict_optional = true
+follow_imports = "silent"
+exclude = ["src/epy_reader/tools/"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38']
+exclude = "src/epy_reader/tools/"
+
+[tool.isort]
+skip = "src/epy_reader/tools/"

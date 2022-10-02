@@ -1,8 +1,15 @@
 .PHONY: tests
-.DEFAULT_GOAL := tests
+.DEFAULT_GOAL := check
+
+check:
+	mypy --follow-imports=silent src
+
+format:
+	isort src
+	black src
 
 debug:
-	python -m debugpy --listen 5678 --wait-for-client -m epy
+	python -m debugpy --listen 5678 --wait-for-client -m epy_reader
 
 dev:
 	poetry install
@@ -16,5 +23,5 @@ coverage:
 	python -m http.server -d htmlcov
 
 release:
-	python setup.py sdist bdist_wheel
+	python -m build
 	twine upload --skip-existing dist/*
