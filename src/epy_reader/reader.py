@@ -19,7 +19,6 @@ from epy_reader.board import InfiniBoard
 from epy_reader.config import Config
 from epy_reader.ebooks import Azw, Ebook, Epub, Mobi
 from epy_reader.lib import resolve_path
-from epy_reader.speakers import SpeakerBaseModel
 from epy_reader.models import (
     Direction,
     InlineStyle,
@@ -33,10 +32,12 @@ from epy_reader.models import (
 )
 from epy_reader.parser import parse_html
 from epy_reader.settings import DoubleSpreadPadding
+from epy_reader.speakers import SpeakerBaseModel
 from epy_reader.state import State
 from epy_reader.utils import (
     choice_win,
     construct_relative_reading_state,
+    construct_speaker,
     count_letters,
     count_letters_parallel,
     find_current_content_index,
@@ -45,7 +46,6 @@ from epy_reader.utils import (
     pgend,
     safe_curs_set,
     text_win,
-    construct_speaker,
 )
 
 

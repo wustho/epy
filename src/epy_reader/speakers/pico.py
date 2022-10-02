@@ -1,6 +1,6 @@
 import shutil
-import sys
 import subprocess
+import sys
 import tempfile
 
 from epy_reader.speakers.base import SpeakerBaseModel

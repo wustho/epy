@@ -29,4 +29,3 @@ class SpeakerMimic(SpeakerBaseModel):
 
     def cleanup(self) -> None:
         pass
-

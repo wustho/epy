@@ -4,13 +4,13 @@ import re
 import sys
 import textwrap
 from functools import wraps
-from typing import List, Mapping, Sequence, Tuple, Union, Optional
+from typing import List, Mapping, Optional, Sequence, Tuple, Union
 
 from epy_reader.ebooks import URL, Azw, Ebook, Epub, FictionBook, Mobi
-from epy_reader.speakers import SpeakerBaseModel, SpeakerMimic, SpeakerPico
 from epy_reader.lib import is_url, tuple_subtract
 from epy_reader.models import Key, LettersCount, NoUpdate, ReadingState, TextStructure, TocEntry
 from epy_reader.parser import parse_html
+from epy_reader.speakers import SpeakerBaseModel, SpeakerMimic, SpeakerPico
 
 
 def get_ebook_obj(filepath: str) -> Ebook:
