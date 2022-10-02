@@ -4,9 +4,10 @@ import re
 import sys
 import textwrap
 from functools import wraps
-from typing import List, Mapping, Sequence, Tuple, Union
+from typing import List, Mapping, Sequence, Tuple, Union, Optional
 
 from epy_reader.ebooks import URL, Azw, Ebook, Epub, FictionBook, Mobi
+from epy_reader.speakers import SpeakerBaseModel, SpeakerMimic, SpeakerPico
 from epy_reader.lib import is_url, tuple_subtract
 from epy_reader.models import Key, LettersCount, NoUpdate, ReadingState, TextStructure, TocEntry
 from epy_reader.parser import parse_html
@@ -361,3 +362,16 @@ def count_letters(ebook: Ebook) -> LettersCount:
 def count_letters_parallel(ebook: Ebook, child_conn) -> None:
     child_conn.send(count_letters(ebook))
     child_conn.close()
+
+
+def construct_speaker(
+    preferred: Optional[str] = None, args: List[str] = []
+) -> Optional[SpeakerBaseModel]:
+    available_speakers = [SpeakerMimic, SpeakerPico]
+    sorted_speakers = (
+        sorted(available_speakers, key=lambda x: int(x.cmd == preferred), reverse=True)
+        if preferred
+        else available_speakers
+    )
+    speaker = next((speaker for speaker in sorted_speakers if speaker.available), None)
+    return speaker(args) if speaker else None

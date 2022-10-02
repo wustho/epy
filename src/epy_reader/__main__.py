@@ -16,3 +16,8 @@ def main():
 
     while True:
         filepath = curses.wrapper(reader.start_reading, filepath)
+
+
+# https://setuptools.pypa.io/en/latest/userguide/entry_point.html
+if __name__ == "__main__":
+    main()
