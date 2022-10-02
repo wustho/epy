@@ -6,6 +6,7 @@ authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
 readme = "README.md"
 repository = "https://github.com/wustho/epy"
+keywords = ["ebook", "epub", "epub3", "fb2", "mobi", "azw3", "TUI", "ebook reader"]
 packages = [
     { include = "epy_reader", from = "src" }
 ]
