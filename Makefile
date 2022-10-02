@@ -18,7 +18,7 @@ tests:
 	python -m pytest -vv
 
 coverage:
-	coverage run --include=epy.py -m pytest -vv tests
+	coverage run -m pytest -vv tests
 	coverage html
 	python -m http.server -d htmlcov
 

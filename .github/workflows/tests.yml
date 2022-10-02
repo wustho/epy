@@ -19,10 +19,10 @@ jobs:
         with:
           python-version: "3.x"
       - uses: abatilo/actions-poetry@v2.0.0
-      - name: Install dev dependencies
-        run: poetry install --no-root
+      - name: Install Project
+        run: poetry install
       - name: Run tests
         run: |
-          poetry run coverage run --include=epy.py -m pytest -vv tests
+          poetry run coverage run -m pytest -vv tests
           poetry run coverage report
 
