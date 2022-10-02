@@ -36,6 +36,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 strict_optional = true
+follow_imports = "silent"
+exclude = ["src/epy_reader/tools/"]
 
 [tool.black]
 line-length = 100

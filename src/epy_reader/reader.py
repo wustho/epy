@@ -49,6 +49,10 @@ from epy_reader.utils import (
 )
 
 
+# TODO: to be deprecated
+DEBUG = False
+
+
 class Reader:
     def __init__(self, screen, ebook: Ebook, config: Config, state: State):
 

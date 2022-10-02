@@ -10,6 +10,10 @@ from epy_reader.ebooks.base import Ebook
 from epy_reader.models import BookMetadata, TocEntry
 
 
+# TODO: to be deprecated
+DEBUG = False
+
+
 class Epub(Ebook):
     NAMESPACE = {
         "DAISY": "http://www.daisy.org/z3986/2005/ncx/",
