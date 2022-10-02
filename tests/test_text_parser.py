@@ -1,4 +1,5 @@
-from epy import CharPos, TextMark, TextSpan, HTMLtoLines
+from epy_reader.models import CharPos, TextMark, TextSpan
+from epy_reader.parser import HTMLtoLines
 
 
 def test_text_mark_validation_check():

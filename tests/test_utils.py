@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from epy import resolve_path
+from epy_reader.lib import resolve_path
 
 
 def test_resolve_path():
