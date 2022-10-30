@@ -64,7 +64,7 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 - **o** Open an image
 - **s** Show or hide progress
 
-### Color profiles
+## Color profiles
 In the config file you will see the following section.
    ```
     "DarkColorFG": 47,
