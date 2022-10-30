@@ -46,6 +46,34 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 
   Standalone binary for Windows is available at [release page](https://github.com/wustho/epy/releases).
 
+## Usage
+- `epy /path/to/your/book/book.epub` (Remember to make sure your book's title doesn't contain any spaces)
+- **c** - Switching the color profile
+- **Shift + h** - Previous chapter
+- **Shift + l** - Next chapter
+- **Shift + g** - Skip to the end of the chapter
+- **g** - Skip to the beginning of the chapter
+- **Shift + m** - Show metadata of the book
+- **t** - Table of contents
+- **/** - Search
+- **b** - Add bookmark
+- **Shift + b** - Show bookmarks
+- **q** - Quit
+- **-** - Shrink the text
+- **+** - Enlarge the text
+- **o** - Open an image
+- **s** - Show or hide progress
+
+### Color profiles
+In the config file you will see the following section.
+	 `"DarkColorFG": 47,
+    "DarkColorBG": 235,
+    "LightColorFG": 238,
+    "LightColorBG": 253,`
+    
+Change the values by using this image. (Make sure to ignore zeros at the beginning, it won't launch otherwise.)
+![image](https://user-images.githubusercontent.com/108401269/198876974-c8420de1-b256-42fd-9a09-3a69c5019608.png)
+
 ## Reading Tips Using Epy
 
 When reading using `epy` you might occasionally find triple asteriks `***`.
