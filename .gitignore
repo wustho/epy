@@ -9,3 +9,5 @@ tmp/
 
 build/**
 !build/gen_pkgbuild.sh
+
+.envrc
