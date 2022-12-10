@@ -402,7 +402,7 @@ class Reader:
                     stat.refresh()
                     curses.echo(False)
                     safe_curs_set(0)
-                    return init_text
+                    return init_text if init_text else NoUpdate()
                 elif ipt in (Key(8), Key(127), Key(curses.KEY_BACKSPACE)):
                     init_text = init_text[:-1]
                 elif ipt == Key(curses.KEY_RESIZE):
