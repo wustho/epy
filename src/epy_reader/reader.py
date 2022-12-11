@@ -452,8 +452,7 @@ class Reader:
 
         if not self.search_data:
             candidate_text = self.input_prompt(" Regex:")
-            # if isinstance(candidate_text, str) and candidate_text != "":
-            if isinstance(candidate_text, str) and candidate_text:
+            if isinstance(candidate_text, str):
                 self.search_data = SearchData(value=candidate_text)
             else:
                 assert isinstance(candidate_text, NoUpdate) or isinstance(candidate_text, Key)
