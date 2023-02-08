@@ -2,6 +2,8 @@
 
 [![Downloads](https://static.pepy.tech/personalized-badge/epy-reader?period=month&units=none&left_color=grey&right_color=brightgreen&left_text=downloads/month)](https://pepy.tech/project/epy-reader)
 
+<a href='https://ko-fi.com/P5P4IDCX2' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi2.png?v=3' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
 ![screenshot](https://raw.githubusercontent.com/wustho/epy/master/screenshot.png)
 
 CLI Ebook Reader.
@@ -72,7 +74,7 @@ In the config file you will see the following section.
     "LightColorFG": 238,
     "LightColorBG": 253,
    ```
-    
+
 Change the values by using this image. (Make sure to ignore zeros at the beginning, it won't launch otherwise.)
 ![image](https://user-images.githubusercontent.com/108401269/198876974-c8420de1-b256-42fd-9a09-3a69c5019608.png)
 

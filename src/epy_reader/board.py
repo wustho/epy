@@ -79,7 +79,19 @@ class InfiniBoard:
     def write(self, row: int, bottom_padding: int = 0) -> None:
         for n_row in range(min(self.screen_rows - bottom_padding, self.total_lines - row)):
             text_line = self.text[row + n_row]
-            self.screen.addstr(n_row, self.x, text_line)
+
+            # NOTE: A bug with python itself: https://bugs.python.org/issue8243
+            # It's stated in python docs:
+            # > Attempting to write to the lower right corner of a window, subwindow,
+            # > or pad will cause an exception to be raised after the character is printed.
+            # https://github.com/python/cpython/commit/ef5ce884a41c8553a7eff66ebace908c1dcc1f89#diff-cb5622768373b8c93cc8eee30dfb041108783bb419d9eaf205501989cea0049fR691-R692
+            #
+            # Since the exception is raised "after the character is printed"
+            # then it seems to be safe to catch it.
+            try:
+                self.screen.addstr(n_row, self.x, text_line)
+            except curses.error:
+                pass
 
             if (
                 self.spread == 2

@@ -1,4 +1,4 @@
-__version__ = "2022.12.11"
+__version__ = "2023.02.08"
 __license__ = "GPL-3.0"
 __author__ = "Benawi Adha"
 __email__ = "benawiadha@gmail.com"
