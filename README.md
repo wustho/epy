@@ -41,7 +41,7 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 - Via AUR
 
   ```shell
-  yay -S epy-git
+  yay -S epy-ereader-git
   ```
 
 - Windows Binary
