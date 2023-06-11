@@ -10,7 +10,7 @@ from epy_reader.ebooks import URL, Azw, Ebook, Epub, FictionBook, Mobi
 from epy_reader.lib import is_url, tuple_subtract
 from epy_reader.models import Key, LettersCount, NoUpdate, ReadingState, TextStructure, TocEntry
 from epy_reader.parser import parse_html
-from epy_reader.speakers import SpeakerBaseModel, SpeakerMimic, SpeakerPico
+from epy_reader.speakers import SpeakerBaseModel, SpeakerMimic, SpeakerPico, SpeakerGttsMPV
 
 
 def get_ebook_obj(filepath: str) -> Ebook:
@@ -367,7 +367,7 @@ def count_letters_parallel(ebook: Ebook, child_conn) -> None:
 def construct_speaker(
     preferred: Optional[str] = None, args: List[str] = []
 ) -> Optional[SpeakerBaseModel]:
-    available_speakers = [SpeakerMimic, SpeakerPico]
+    available_speakers = [SpeakerMimic, SpeakerPico, SpeakerGttsMPV]
     sorted_speakers = (
         sorted(available_speakers, key=lambda x: int(x.cmd == preferred), reverse=True)
         if preferred

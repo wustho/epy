@@ -140,6 +140,7 @@ List of supported engines:
 
 - `mimic`
 - `pico2wave`
+- `gtts-mpv` (requires both [gTTS](https://pypi.org/project/gTTS) and [MPV](https://www.mpv.io))
 
 ## Dictionary
 
