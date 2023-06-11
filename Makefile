@@ -22,6 +22,6 @@ coverage:
 	coverage html
 	python -m http.server -d htmlcov
 
-release:
-	python -m build
-	twine upload --skip-existing dist/*
+publish:
+	# poetry build
+	poetry publish --build
