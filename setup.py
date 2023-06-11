@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="epy-reader",
-    version="2023.2.8",
+    version="2023.6.11",
     description="Terminal/CLI Ebook (epub, fb2, mobi, azw3) Reader",
     long_description=long_description,
     long_description_content_type="text/markdown",

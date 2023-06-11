@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "epy-reader"
-version = "2023.2.8"
+version = "2023.6.11"
 description = "TUI Ebook Reader"
 authors = ["Benawi Adha <benawiadha@gmail.com>"]
 license = "GPL-3.0"
