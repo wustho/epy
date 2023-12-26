@@ -30,12 +30,26 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 
   ```shell
   pip3 install epy-reader
+
+  # or with pipx (better)
+  pipx install epy-reader
   ```
 
 - Via Pip+Git
 
   ```shell
   pip3 install git+https://github.com/wustho/epy
+
+  # or with pipx (better)
+  pipx install git+https://github.com/wustho/epy
+  ```
+
+- Via local+Pipx
+
+  ```shell
+  git clone --depth=1 https://github.com/wustho/epy
+  cd epy/
+  pipx install -e .
   ```
 
 - Via AUR
@@ -138,6 +152,9 @@ To get Text-to-Speech (TTS) support, external TTS engine is necessary.
 
 List of supported engines:
 
+- `speechd` (using spd-say)
+  - [Speech Dispatcher](https://github.com/brailcom/speechd) allow you to easily use other engines system-wide or per application, with default values and custom parameters.
+  - [Piper](https://github.com/rhasspy/piper) is a good neural engine easy to setup with speechd, fast enough even on low-end hardware.
 - `mimic`
 - `pico2wave`
 - `gtts-mpv` (requires both [gTTS](https://pypi.org/project/gTTS) and [MPV](https://www.mpv.io))
