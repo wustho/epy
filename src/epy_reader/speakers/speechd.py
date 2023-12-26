@@ -10,7 +10,7 @@ class SpeakerSpeechd(SpeakerBaseModel):
 
     def speak(self, text: str) -> None:
         self.process = subprocess.Popen(
-            [self.cmd, *self.args, "--application-name=epy", "--pipe-mode", "-w" ],
+            [self.cmd, *self.args, "--application-name=epy", "--pipe-mode", "--wait" ],
             text=True,
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
@@ -24,6 +24,7 @@ class SpeakerSpeechd(SpeakerBaseModel):
         return self.process.poll() is not None
 
     def stop(self) -> None:
+        subprocess.run([self.cmd, "--cancel", "--application-name=epy"])
         self.process.terminate()
         # self.process.kill()
 
