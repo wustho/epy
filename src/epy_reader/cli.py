@@ -69,12 +69,16 @@ def print_reading_history(state: State) -> None:
     dig = len(str(len(library_items) + 1))
     tcols = termc - dig - 2
     for n, item in enumerate(library_items):
-        print(
-            "{} {}".format(
-                str(n + 1).rjust(dig),
-                truncate(str(item), "...", tcols, tcols - 3),
+        try:
+            print(
+                "{} {}".format(
+                    str(n + 1).rjust(dig),
+                    truncate(str(item), "...", tcols, tcols - 3),
+                )
             )
-        )
+        except BrokenPipeError:
+            # Happens when output of epy is filtered through some pipe, e.g. head
+            break
 
 
 def parse_cli_args() -> argparse.Namespace:
