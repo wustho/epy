@@ -65,6 +65,7 @@ This is just a fork of [epr](https://github.com/wustho/epr) with these extra fea
 - **+** Enlarge the text
 - **o** Open an image
 - **s** Show or hide progress
+- **!** Start TTS (with additional setup, read [below](#text-to-speech))
 
 ## Color profiles
 In the config file you will see the following section.
